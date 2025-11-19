@@ -6,6 +6,7 @@
 // Session already started by including file
 require_once '../../../../config/database.php';
 require_once '../../../../config/leave_types.php';
+require_once '../../../../config/holidays.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
@@ -47,6 +48,9 @@ $params = [];
 if ($role === 'manager' && $user_department) {
     $sql .= " AND e.department = ?";
     $params[] = $user_department;
+} elseif ($role === 'employee') {
+    $sql .= " AND lr.employee_id = ?";
+    $params[] = $_SESSION['user_id'];
 }
 
 $sql .= " ORDER BY lr.start_date ASC";
@@ -224,6 +228,19 @@ $leaveTypes = getLeaveTypes();
 .leave-adoption { background: #10b981 !important; color: white !important; }
 .leave-study { background: #6366f1 !important; color: white !important; }
 .leave-without_pay { background: #6b7280 !important; color: white !important; }
+
+/* Holiday Events - Option B: transparent background with cool tones (strong specificity) */
+.holiday-regular, .holiday-special,
+.holiday-regular.fc-h-event, .holiday-special.fc-h-event {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+.holiday-regular .fc-event-main, .holiday-special .fc-event-main { background: transparent !important; }
+.holiday-regular .fc-event-title, .holiday-special .fc-event-title { font-weight: 800 !important; }
+/* Use white text for both types */
+.holiday-regular, .holiday-regular .fc-event-title { color: #ffffff !important; }
+.holiday-special, .holiday-special .fc-event-title { color: #ffffff !important; }
 
 /* FullCalendar Dark Theme */
 .fc {
@@ -441,19 +458,54 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             <?php endforeach; ?>
             <?php endforeach; ?>
+            <?php 
+                // Inject holiday events for current, previous, and next year so adjacent months also render
+                $years = [date('Y') - 1, date('Y'), date('Y') + 1];
+                foreach ($years as $y):
+                    $hols = getHolidays((int)$y);
+                    foreach ($hols as $hDate => $hInfo):
+                        $hTitle = is_array($hInfo) ? ($hInfo['title'] ?? 'Holiday') : $hInfo;
+                        $hType = is_array($hInfo) ? ($hInfo['type'] ?? 'regular') : 'regular';
+                        $hEnd = (new DateTime($hDate))->modify('+1 day')->format('Y-m-d');
+                        $hClass = $hType === 'special' ? 'holiday-special' : 'holiday-regular';
+                        $hLabel = ($hType === 'special' ? '⭐ ' : '') . $hTitle;
+            ?>
+            // Background highlight (Option D)
+            {
+                id: 'holidaybg_<?php echo $hDate; ?>',
+                start: '<?php echo $hDate; ?>',
+                end: '<?php echo $hEnd; ?>',
+                allDay: true,
+                display: 'background',
+                className: 'holiday-bg-<?php echo $hType === 'special' ? 'special' : 'regular'; ?>',
+                backgroundColor: '<?php echo $hType === 'special' ? 'rgba(253,164,175,0.12)' : 'rgba(134,239,172,0.12)'; ?>',
+                borderColor: 'transparent',
+                extendedProps: { isHoliday: true, isBackground: true, holidayType: '<?php echo $hType; ?>' }
+            },
+            // Foreground label
+            {
+                id: 'holiday_<?php echo $hDate; ?>',
+                title: '<?php echo addslashes($hLabel); ?>',
+                start: '<?php echo $hDate; ?>',
+                end: '<?php echo $hEnd; ?>',
+                allDay: true,
+                className: '<?php echo $hClass; ?>',
+                display: 'block',
+                extendedProps: { isHoliday: true, holidayType: '<?php echo $hType; ?>' }
+            },
+            <?php 
+                    endforeach; 
+                endforeach; 
+            ?>
         ],
         eventClick: function(info) {
             const props = info.event.extendedProps;
-            const message = `
-Leave Details:
-Employee: ${props.employee_name}
-Department: ${props.department}
-Position: ${props.position}
-Leave Type: ${props.display_name}
-Days Approved: ${props.days_approved}
-Pay Status: ${props.pay_status}
-Date: ${info.event.start.toLocaleDateString()}
-            `;
+            if (props && props.isHoliday) {
+                const typeLabel = props.holidayType === 'special' ? 'Special (Non-Working) Holiday' : 'Regular Holiday';
+                alert(`Holiday: ${info.event.title}\nType: ${typeLabel}\nDate: ${info.event.start.toLocaleDateString()}`);
+                return;
+            }
+            const message = `\nLeave Details:\nEmployee: ${props.employee_name}\nDepartment: ${props.department}\nPosition: ${props.position}\nLeave Type: ${props.display_name}\nDays Approved: ${props.days_approved}\nPay Status: ${props.pay_status}\nDate: ${info.event.start.toLocaleDateString()}\n            `;
             alert(message);
         }
     });

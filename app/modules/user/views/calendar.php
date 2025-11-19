@@ -2,6 +2,7 @@
 session_start();
 require_once '../../../../config/database.php';
 require_once '../../../../config/leave_types.php';
+require_once '../../../../config/holidays.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: ../../../../auth/views/login.php');
@@ -219,6 +220,17 @@ include '../../../../includes/user_header.php';
     .leave-study { background: #6366f1 !important; color: white !important; }
     .leave-without_pay { background: #6b7280 !important; color: white !important; }
 
+    /* Holiday Events - Option C: transparent, high contrast (strong specificity) */
+    .holiday-regular, .holiday-special,
+    .holiday-regular.fc-h-event, .holiday-special.fc-h-event {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    .holiday-regular .fc-event-main, .holiday-special .fc-event-main { background: transparent !important; }
+    .holiday-regular { color: #ffffff !important; font-weight: 800 !important; text-decoration: underline !important; text-decoration-color: rgba(255,255,255,0.6) !important; text-underline-offset: 2px !important; }
+    .holiday-special { color: #ffffff !important; font-weight: 800 !important; }
+
     /* FullCalendar Dark Theme */
     .fc {
         background: #1e293b !important;
@@ -433,9 +445,52 @@ include '../../../../includes/user_header.php';
                 },
                 <?php endforeach; ?>
                 <?php endforeach; ?>
+                <?php 
+                    // Holidays for previous, current, next year
+                    $years = [date('Y') - 1, date('Y'), date('Y') + 1];
+                    foreach ($years as $y):
+                        $hols = getHolidays((int)$y);
+                        foreach ($hols as $hDate => $hInfo):
+                            $hTitle = is_array($hInfo) ? ($hInfo['title'] ?? 'Holiday') : $hInfo;
+                            $hType = is_array($hInfo) ? ($hInfo['type'] ?? 'regular') : 'regular';
+                            $hEnd = (new DateTime($hDate))->modify('+1 day')->format('Y-m-d');
+                            $hClass = $hType === 'special' ? 'holiday-special' : 'holiday-regular';
+                ?>
+                // Background highlight (Option D)
+                {
+                    id: 'holidaybg_<?php echo $hDate; ?>',
+                    start: '<?php echo $hDate; ?>',
+                    end: '<?php echo $hEnd; ?>',
+                    allDay: true,
+                    display: 'background',
+                    className: 'holiday-bg-<?php echo $hType === 'special' ? 'special' : 'regular'; ?>',
+                    backgroundColor: '<?php echo $hType === 'special' ? 'rgba(253,164,175,0.12)' : 'rgba(134,239,172,0.12)'; ?>',
+                    borderColor: 'transparent',
+                    extendedProps: { isHoliday: true, isBackground: true, holidayType: '<?php echo $hType; ?>' }
+                },
+                // Foreground label
+                {
+                    id: 'holiday_<?php echo $hDate; ?>',
+                    title: '<?php echo addslashes(($hType === 'special' ? '⭐ ' : '') . $hTitle); ?>',
+                    start: '<?php echo $hDate; ?>',
+                    end: '<?php echo $hEnd; ?>',
+                    allDay: true,
+                    className: '<?php echo $hClass; ?>',
+                    display: 'block',
+                    extendedProps: { isHoliday: true, holidayType: '<?php echo $hType; ?>' }
+                },
+                <?php 
+                        endforeach;
+                    endforeach; 
+                ?>
             ],
             eventClick: function(info) {
                 const props = info.event.extendedProps;
+                if (props && props.isHoliday) {
+                    const typeLabel = props.holidayType === 'special' ? 'Special (Non-Working) Holiday' : 'Regular Holiday';
+                    alert(`Holiday: ${info.event.title}\nType: ${typeLabel}\nDate: ${info.event.start.toLocaleDateString()}`);
+                    return;
+                }
                 const message = `
 Leave Details:
 Type: ${props.display_name}

@@ -250,9 +250,9 @@ include '../../../../includes/admin_header.php';
 
 
 <!-- Alert Statistics -->
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 mb-10">
     <!-- Total Alerts -->
-    <div class="bg-slate-800 rounded-lg border border-slate-700 p-5">
+    <div class="bg-slate-800 rounded-2xl border border-slate-700/70 p-6">
         <div class="flex items-center justify-between">
             <div>
                 <p class="text-slate-400 text-xs uppercase tracking-wide mb-1">Total Employees</p>
@@ -266,7 +266,7 @@ include '../../../../includes/admin_header.php';
     </div>
     
     <!-- Urgent Alerts -->
-    <div class="bg-slate-800 rounded-lg border border-slate-700 p-5">
+    <div class="bg-slate-800 rounded-2xl border border-slate-700/70 p-6">
         <div class="flex items-center justify-between">
             <div>
                 <p class="text-slate-400 text-xs uppercase tracking-wide mb-1">Urgent</p>
@@ -280,7 +280,7 @@ include '../../../../includes/admin_header.php';
     </div>
     
     <!-- Year-End Risks -->
-    <div class="bg-slate-800 rounded-lg border border-slate-700 p-5">
+    <div class="bg-slate-800 rounded-2xl border border-slate-700/70 p-6">
         <div class="flex items-center justify-between">
             <div>
                 <p class="text-slate-400 text-xs uppercase tracking-wide mb-1">Year-End Risk</p>
@@ -332,6 +332,38 @@ include '../../../../includes/admin_header.php';
         <button onclick="collapseAllDepartments()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-colors">
             <i class="fas fa-chevron-up mr-2"></i>Collapse All
         </button>
+    </div>
+    
+    <!-- Filters Toolbar -->
+    <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Search employee</label>
+                <input type="text" id="filterSearch" class="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-400" placeholder="Type a name..." oninput="filterEmployees()">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Priority</label>
+                <select id="filterPriority" class="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white" onchange="filterEmployees()">
+                    <option value="">All priorities</option>
+                    <option value="urgent">Urgent</option>
+                    <option value="critical">Critical</option>
+                    <option value="moderate">Moderate</option>
+                    <option value="low">Low</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Department</label>
+                <select id="filterDepartment" class="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white" onchange="filterEmployees()">
+                    <option value="">All departments</option>
+                    <?php foreach (array_keys($departmentGroups) as $deptOpt): ?>
+                        <option value="<?php echo htmlspecialchars($deptOpt); ?>"><?php echo htmlspecialchars($deptOpt); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="flex md:justify-end gap-2">
+                <button onclick="clearFilters()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm">Clear</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -409,11 +441,11 @@ include '../../../../includes/admin_header.php';
                                 <div id="dept-<?php echo md5($department); ?>" class="dept-content">
                                     <div class="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 bg-slate-900/30">
                         <?php foreach ($deptEmployees as $index => $employee): ?>
-                            <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden hover:border-slate-600/50 transition-all duration-300 <?php 
+                            <div class="employee-item bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden hover:border-slate-600/50 transition-all duration-300 <?php 
                                 echo $employee['priority'] === 'urgent' ? 'ring-2 ring-red-500/50' : 
                                     ($employee['priority'] === 'critical' ? 'ring-2 ring-orange-500/50' : 
                                     ($employee['priority'] === 'moderate' ? 'ring-2 ring-yellow-500/50' : 'ring-2 ring-blue-500/50')); 
-                            ?>" data-employee-id="<?php echo $employee['id']; ?>">
+                            ?>" data-employee-id="<?php echo $employee['id']; ?>" data-priority="<?php echo htmlspecialchars($employee['priority']); ?>" data-department="<?php echo htmlspecialchars($employee['department']); ?>" data-name="<?php echo htmlspecialchars(strtolower($employee['name'])); ?>">
                             <div class="p-4">
                                     <!-- Header -->
                                 <div class="flex justify-between items-start mb-4">
@@ -1224,10 +1256,34 @@ include '../../../../includes/admin_header.php';
             });
         }
         
-        // Initialize - expand all departments by default
+        // Initialize - collapse all departments by default
         document.addEventListener('DOMContentLoaded', function() {
-            expandAllDepartments();
+            collapseAllDepartments();
         });
+
+        // Simple client-side filtering for employees
+        function filterEmployees() {
+            const q = (document.getElementById('filterSearch')?.value || '').trim().toLowerCase();
+            const p = (document.getElementById('filterPriority')?.value || '').toLowerCase();
+            const d = (document.getElementById('filterDepartment')?.value || '').toLowerCase();
+            
+            document.querySelectorAll('.employee-item').forEach(card => {
+                const name = (card.getAttribute('data-name') || '').toLowerCase();
+                const pri = (card.getAttribute('data-priority') || '').toLowerCase();
+                const dept = (card.getAttribute('data-department') || '').toLowerCase();
+                const match = (!q || name.includes(q)) && (!p || pri === p) && (!d || dept === d);
+                card.style.display = match ? '' : 'none';
+            });
+        }
+        function clearFilters() {
+            const s = document.getElementById('filterSearch');
+            const p = document.getElementById('filterPriority');
+            const d = document.getElementById('filterDepartment');
+            if (s) s.value = '';
+            if (p) p.value = '';
+            if (d) d.value = '';
+            filterEmployees();
+        }
 
         // Function to fetch pending leave count
         function fetchPendingLeaveCount() {
