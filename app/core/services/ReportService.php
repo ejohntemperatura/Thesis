@@ -127,6 +127,35 @@ class ReportService {
         $stmt->execute($params);
         return $stmt->fetchAll();
     }
+
+    /**
+     * Get department-wise counts of approved leave requests with pay vs without pay
+     */
+    public function getDepartmentPayStatusSummary($startDate, $endDate, $filters = []) {
+        // Only constrain by date; ignore employee/department filters for global summary
+        $whereConditions = ["lr.start_date BETWEEN ? AND ?"];
+        $params = [$startDate, $endDate];
+        $whereClause = implode(' AND ', $whereConditions);
+
+        $sql = "
+            SELECT 
+                e.department,
+                SUM(CASE WHEN lr.status = 'approved' AND lr.pay_status = 'with_pay' THEN 1 ELSE 0 END) AS with_pay_count,
+                SUM(CASE WHEN lr.status = 'approved' AND (lr.pay_status = 'without_pay' OR lr.leave_type = 'without_pay') THEN 1 ELSE 0 END) AS without_pay_count
+            FROM employees e
+            LEFT JOIN leave_requests lr ON e.id = lr.employee_id AND $whereClause
+            WHERE e.role = 'employee' 
+            AND e.department NOT IN ('Executive', 'Operations')
+            AND e.position NOT LIKE '%Department Head%'
+            AND e.position NOT LIKE '%Director Head%'
+            GROUP BY e.department
+            ORDER BY e.department ASC
+        ";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
     
     /**
      * Get leave type statistics

@@ -73,6 +73,11 @@ switch ($report_type) {
             'system_stats' => $reportService->getSystemStats($start_date, $end_date, $filters)
         ];
         break;
+    case 'pay_summary':
+        $reportData = [
+            'pay_summary' => $reportService->getDepartmentPayStatusSummary($start_date, $end_date, $filters)
+        ];
+        break;
 }
 
 // Get filter options
@@ -111,6 +116,11 @@ if (isset($_POST['export'])) {
             require_once '../../../../app/core/services/PDFLeaveCreditsGenerator.php';
             $pdfGenerator = new PDFLeaveCreditsGenerator($pdo);
             $pdfGenerator->generateLeaveCreditsReport($export_filters['department'], $export_filters['employee_id']);
+            break;
+        case 'pay_summary':
+            require_once '../../../../app/core/services/PDFPaySummaryGenerator.php';
+            $pdfGenerator = new PDFPaySummaryGenerator($pdo);
+            $pdfGenerator->generatePaySummaryReport($start_date, $end_date, $export_filters);
             break;
     }
 }
@@ -265,6 +275,13 @@ include '../../../../includes/admin_header.php';
                                             <i class="fas fa-coins mr-2"></i>Leave Credits
                                         </span>
                                     </label>
+                                    <label class="flex items-center space-x-3 cursor-pointer p-3 rounded-lg border border-slate-600 hover:border-blue-500 <?php echo $report_type == 'pay_summary' ? 'bg-blue-500/10 border-blue-500' : ''; ?>">
+                                        <input type="radio" name="report_type" value="pay_summary" <?php echo $report_type == 'pay_summary' ? 'checked' : ''; ?> 
+                                               class="w-4 h-4 text-blue-500 bg-slate-700 border-slate-600 focus:ring-blue-500">
+                                        <span class="text-slate-300">
+                                            <i class="fas fa-balance-scale mr-2"></i>Pay Summary
+                                        </span>
+                                    </label>
                                 </div>
                             </div>
                             
@@ -288,6 +305,8 @@ include '../../../../includes/admin_header.php';
                     <?php include 'report_sections/leave_analysis.php'; ?>
                 <?php elseif ($report_type == 'leave_credits'): ?>
                     <?php include 'report_sections/leave_credits.php'; ?>
+                <?php elseif ($report_type == 'pay_summary'): ?>
+                    <?php include 'report_sections/pay_summary.php'; ?>
                 <?php endif; ?>
 
                 <!-- Export Section -->
@@ -338,6 +357,19 @@ include '../../../../includes/admin_header.php';
                                         <span class="font-semibold text-white">Leave Credits</span>
                                     </div>
                                     <p class="text-slate-400 text-sm">Export leave balances as PDF</p>
+                                </button>
+                            </form>
+                            <form method="POST" class="bg-slate-700/50 rounded-xl p-4 border border-slate-600 hover:border-red-500 transition-all duration-300">
+                                <input type="hidden" name="employee_id" value="<?php echo $selected_employee; ?>">
+                                <input type="hidden" name="department" value="<?php echo $selected_department; ?>">
+                                <input type="hidden" name="leave_type" value="<?php echo $selected_leave_type; ?>">
+                                <input type="hidden" name="export_type" value="pay_summary">
+                                <button type="submit" name="export" class="w-full text-left">
+                                    <div class="flex items-center mb-2">
+                                        <i class="fas fa-file-pdf text-red-400 text-xl mr-3"></i>
+                                        <span class="font-semibold text-white">Pay Summary</span>
+                                    </div>
+                                    <p class="text-slate-400 text-sm">Export with-pay vs without-pay summary</p>
                                 </button>
                             </form>
                         </div>

@@ -83,6 +83,15 @@ try {
             error_log("Email notification failed: " . $e->getMessage());
         }
         
+        // Notify HR that Department Head approved (HR is next to review)
+        try {
+            require_once '../../../../app/core/services/NotificationHelper.php';
+            $notificationHelper = new NotificationHelper($pdo);
+            $notificationHelper->notifyHRDeptApproved($request_id);
+        } catch (Exception $e) {
+            error_log("HR notification after dept approval failed: " . $e->getMessage());
+        }
+        
         // Send notification to director
         try {
             require_once '../../../../app/core/services/NotificationHelper.php';

@@ -308,6 +308,18 @@ try {
         // Don't fail the submission if notification fails
     }
     
+    // Notify HR of new leave submission (FYI)
+    try {
+        if (!isset($notificationHelper)) {
+            require_once '../../../../app/core/services/NotificationHelper.php';
+            $notificationHelper = new NotificationHelper($pdo);
+        }
+        $notificationHelper->notifyHRNewLeave($leaveRequestId);
+    } catch (Exception $e) {
+        error_log("HR notification (new late leave) failed: " . $e->getMessage());
+        // Non-blocking
+    }
+    
     // Track successful submission to prevent duplicates
     $_SESSION['last_submission'] = $submission_key;
     $_SESSION['last_submission_time'] = time();
