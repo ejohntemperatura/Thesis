@@ -11,6 +11,63 @@
     --color-muted: #64748b;        /* Slate-500 - Muted text */
 }
 
+/* ===== Reusable Modal Animations ===== */
+@keyframes modalOverlayFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes modalZoomIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.elms-modal-overlay {
+    animation: modalOverlayFadeIn 220ms ease-out both;
+}
+
+.elms-modal {
+    animation: modalZoomIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    will-change: transform, opacity;
+}
+
+/* ===== Loading Overlay (Approve/Reject, actions) ===== */
+.elms-loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.55);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: modalOverlayFadeIn 180ms ease-out both;
+}
+
+.elms-loading-box {
+    background: rgba(30, 41, 59, 0.95);
+    border: 1px solid rgba(51, 65, 85, 0.8);
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    animation: modalZoomIn 220ms ease-out both;
+}
+
+.elms-spinner {
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 2px solid rgba(148, 163, 184, 0.35);
+    border-top-color: #06b6d4;
+    border-radius: 9999px;
+    animation: elmsSpin 800ms linear infinite;
+}
+
+@keyframes elmsSpin { to { transform: rotate(360deg); } }
+
 /* Reset and Base */
 * {
     box-sizing: border-box;
@@ -145,6 +202,22 @@ body {
     padding: 1rem;
 }
 
+/* ===== Sidebar Animations (Admin/Dark Theme) ===== */
+@keyframes adminSidebarIn {
+    from { opacity: 0; transform: translateX(-18px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes adminNavIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.elms-sidebar {
+    will-change: transform, opacity;
+    animation: adminSidebarIn 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .elms-sidebar-section {
     margin-bottom: 0.5rem;
 }
@@ -166,18 +239,59 @@ body {
     color: #cbd5e1; /* slate-300 */
     text-decoration: none;
     border-radius: 0.5rem;
-    transition: all 0.2s;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 150ms ease, box-shadow 150ms ease;
+    will-change: transform, opacity;
+    animation: adminNavIn 420ms ease-out 120ms both;
+    position: relative;
+    overflow: hidden;
 }
 
-.elms-sidebar-link:hover {
+.elms-sidebar-link:hover,
+.elms-sidebar-link:focus-visible {
     color: white;
     background-color: #334155; /* slate-700 */
+    transform: translateX(6px);
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25), 0 1px 3px rgba(0,0,0,0.2);
 }
 
 .elms-sidebar-link.active {
     color: white;
     background-color: rgba(16, 185, 129, 0.2); /* green-600/20 */
     border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* Icon micro-interaction */
+.elms-sidebar-link .elms-sidebar-icon {
+    transition: transform 150ms ease, color 150ms ease;
+}
+
+.elms-sidebar-link:hover .elms-sidebar-icon,
+.elms-sidebar-link:focus-visible .elms-sidebar-icon {
+    transform: translateX(2px);
+    color: #06b6d4; /* accent */
+}
+
+/* Gentle sheen sweep on hover */
+.elms-sidebar-link::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -120%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+    transition: left 500ms ease;
+    pointer-events: none;
+}
+
+.elms-sidebar-link:hover::before,
+.elms-sidebar-link:focus-visible::before {
+    left: 120%;
+}
+
+/* Active press feedback */
+.elms-sidebar-link:active {
+    transform: translateX(5px) scale(0.99);
 }
 
 .elms-sidebar-icon {
@@ -202,6 +316,84 @@ body {
     padding-top: 5.5rem; /* navbar height + spacing */
     background-color: #0f172a; /* slate-900 */
     min-height: 100vh;
+}
+
+/* ===== Content Load Animations ===== */
+@keyframes contentFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes contentSlideUp {
+    from { transform: translateY(10px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+}
+
+/* Login specific animations */
+@keyframes loginSlideLeft {
+    from { transform: translateX(-16px); opacity: 0; }
+    to   { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes loginSlideUp {
+    from { transform: translateY(14px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+}
+
+/* Apply to common elements inside main */
+.elms-main > * {
+    animation: contentFadeIn 320ms ease-out both;
+}
+
+.elms-main .elms-card,
+.elms-main .elms-stat-card,
+.elms-main .elms-table,
+.elms-main h1,
+.elms-main h2,
+.elms-main h3 {
+    will-change: transform, opacity;
+    animation: contentSlideUp 420ms ease-out both;
+}
+
+/* Gentle stagger for first few direct children */
+.elms-main > *:nth-child(1) { animation-delay: 60ms; }
+.elms-main > *:nth-child(2) { animation-delay: 100ms; }
+.elms-main > *:nth-child(3) { animation-delay: 140ms; }
+.elms-main > *:nth-child(4) { animation-delay: 180ms; }
+.elms-main > *:nth-child(5) { animation-delay: 220ms; }
+
+/* Apply on login page */
+.auth-login .login-brand {
+    will-change: transform, opacity;
+    animation: loginSlideLeft 480ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+}
+
+.auth-login .login-card {
+    will-change: transform, opacity;
+    animation: loginSlideUp 480ms ease-out 180ms both;
+}
+
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce) {
+    .elms-main > *,
+    .elms-main .elms-card,
+    .elms-main .elms-stat-card,
+    .elms-main .elms-table,
+    .elms-main h1,
+    .elms-main h2,
+    .elms-main h3 {
+        animation: none !important;
+    }
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    .elms-sidebar,
+    .elms-sidebar-link {
+        animation: none !important;
+        transition: none !important;
+        transform: none !important;
+    }
 }
 
 /* Cards */

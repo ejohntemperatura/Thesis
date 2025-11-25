@@ -39,15 +39,41 @@ include '../../../../includes/department_header.php';
     
     <!-- Live Clock -->
     <div class="text-right">
-        <div id="liveClock" class="text-2xl font-bold text-white mb-1 font-mono tracking-wide">
-            --:--:-- --
+        <div style="display: inline-flex; align-items: baseline; gap: 0.5rem; justify-content: flex-end; margin-bottom: 0.25rem;">
+            <span id="clockHM" style="color: white; font-size: 1.75rem; font-weight: 700; font-family: 'Courier New', monospace;">--:--</span>
+            <span id="clockSec" style="color: #cbd5e1; font-size: 1rem; font-family: 'Courier New', monospace;">--</span>
+            <span id="clockAmPm" style="color: #cbd5e1; font-size: 0.875rem; font-family: 'Courier New', monospace;">--</span>
         </div>
-        <div class="text-sm text-slate-400">Today is</div>
-        <div id="liveDate" class="text-base font-semibold text-white">
-            Loading...
-        </div>
+        <div style="color: #94a3b8; font-size: 0.75rem;">Today is</div>
+        <div id="clockDateChip" style="margin-top: 0.25rem; display: inline-flex; align-items: center; padding: 0.25rem 0.75rem; border-radius: 9999px; border: 1px solid rgba(51,65,85,0.6); background: rgba(51,65,85,0.4); color: #e5e7eb; font-size: 0.875rem;">Loading...</div>
     </div>
 </div>
+
+<script>
+    // Update Department Head dashboard time (match Admin split-badge clock)
+    function updateAdminDashboardTime() {
+        const now = new Date();
+        let h = now.getHours();
+        const m = String(now.getMinutes()).padStart(2, '0');
+        const s = String(now.getSeconds()).padStart(2, '0');
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12; h = h ? h : 12;
+        const hm = `${String(h).padStart(2, '0')}:${m}`;
+        const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const dateString = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+        const elHM = document.getElementById('clockHM');
+        const elS = document.getElementById('clockSec');
+        const elAP = document.getElementById('clockAmPm');
+        const elDate = document.getElementById('clockDateChip');
+        if (elHM) elHM.textContent = hm;
+        if (elS) elS.textContent = s;
+        if (elAP) elAP.textContent = ampm;
+        if (elDate) elDate.textContent = dateString;
+    }
+    updateAdminDashboardTime();
+    setInterval(updateAdminDashboardTime, 1000);
+</script>
 
 <!-- Success Message -->
 <?php if (isset($_SESSION['success'])): ?>
@@ -90,7 +116,7 @@ include '../../../../includes/department_header.php';
 							// Initially show only 5 requests - filtered by department
 							$initial_limit = 5;
 							$stmt = $pdo->prepare("
-								SELECT lr.*, e.name as employee_name, e.position, e.department 
+								SELECT lr.*, e.name as employee_name, e.position, e.department, e.service_credit_balance AS sc_balance
 								FROM leave_requests lr 
 								JOIN employees e ON lr.employee_id = e.id 
 								WHERE (lr.dept_head_approval IS NULL OR lr.dept_head_approval = 'pending')
@@ -138,7 +164,31 @@ include '../../../../includes/department_header.php';
 												<td class="px-6 py-4">
 													<div class="flex flex-col gap-2">
 														<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-primary/20 text-primary border border-primary/30">
-															<?php echo getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes); ?>
+															<?php 
+																$disp = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes);
+																if (!isset($disp) || trim($disp) === '') {
+																	$base = $request['original_leave_type'] ?? ($request['leave_type'] ?? '');
+																	$disp = getLeaveTypeDisplayName($base, null, $leaveTypes);
+																	if (!isset($disp) || trim($disp) === '') {
+																		if (!empty($request['study_type'])) {
+																			$disp = 'Study Leave (Without Pay)';
+																		} elseif (!empty($request['medical_condition']) || !empty($request['illness_specify'])) {
+																			$disp = 'Sick Leave (SL)';
+																		} elseif (!empty($request['special_women_condition'])) {
+																			$disp = 'Special Leave Benefits for Women';
+																		} elseif (!empty($request['location_type'])) {
+																			$disp = 'Vacation Leave (VL)';
+																		} elseif (isset($request['sc_balance']) && (float)$request['sc_balance'] > 0) {
+																			$disp = 'Service Credits';
+																		} elseif (($request['pay_status'] ?? '') === 'without_pay' || ($request['leave_type'] ?? '') === 'without_pay') {
+																			$disp = 'Without Pay Leave';
+																		} else {
+																			$disp = 'Service Credits';
+																		}
+																	}
+																}
+																echo $disp;
+															?>
 														</span>
 														<?php if ($request['is_late'] == 1): ?>
 															<span class="bg-orange-500/20 text-orange-400 px-2 py-1 rounded-full text-xs font-semibold flex items-center">
@@ -295,8 +345,8 @@ include '../../../../includes/department_header.php';
 		function showStatusInfo(leaveId) {
 			// Create modal HTML
 			const modalHtml = `
-				<div id="statusInfoModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-					<div class="bg-slate-800 rounded-2xl border border-slate-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+				<div id="statusInfoModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 elms-modal-overlay">
+					<div class="bg-slate-800 rounded-2xl border border-slate-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto elms-modal">
 						<div class="px-6 py-4 border-b border-slate-700 bg-slate-700/30">
 							<div class="flex items-center justify-between">
 								<h3 class="text-xl font-semibold text-white flex items-center">
@@ -393,8 +443,8 @@ include '../../../../includes/department_header.php';
 					if (data.success) {
 						const request = data.leave;
 						const modalHtml = `
-							<div id="departmentApprovalModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-								<div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+							<div id="departmentApprovalModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 elms-modal-overlay">
+								<div class="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-4xl max-h-[90vh] overflow-y-auto elms-modal">
 									<div class="px-6 py-4 border-b border-slate-700/50 bg-slate-700/30">
 										<div class="flex items-center justify-between">
 											<h3 class="text-2xl font-bold text-white flex items-center">
@@ -459,12 +509,16 @@ include '../../../../includes/department_header.php';
 											<div class="bg-slate-700/30 rounded-xl p-6 border border-slate-600/50">
 												<h4 class="text-lg font-semibold text-white mb-4 flex items-center">
 													<i class="fas fa-calendar-alt text-green-500 mr-3"></i>
-													Leave Details
+													Leave
 												</h4>
 												<div class="space-y-3">
 													<div>
 														<label class="block text-sm font-semibold text-slate-300 mb-1">Leave Type</label>
-														<p class="text-white font-medium">${request.leave_type}</p>
+														<p class="text-white font-medium">${(() => {
+															const base = request.leave_type_raw || request.leave_type;
+															const lbl = getLeaveTypeDisplayNameJS(base, request.original_leave_type);
+															return (lbl && String(lbl).trim() !== '') ? lbl : (request.leave_type || 'Service Credits');
+														})()}</p>
 													</div>
 													<div>
 														<label class="block text-sm font-semibold text-slate-300 mb-1">Start Date</label>
@@ -677,8 +731,8 @@ include '../../../../includes/department_header.php';
 				
 				// Create and show processing modal
 				const processingModalHtml = `
-					<div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-						<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4">
+					<div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 elms-modal-overlay">
+						<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4 elms-modal">
 							<div class="p-6 text-center">
 								<div class="mb-4">
 									<div class="inline-flex items-center justify-center w-16 h-16 bg-slate-700 rounded-full mb-4">
@@ -971,31 +1025,26 @@ include '../../../../includes/department_header.php';
 		});
 
 		// Live Clock Function
-		function updateClock() {
-			const now = new Date();
-			
-			// Format time (12-hour format with AM/PM)
-			let hours = now.getHours();
-			const minutes = String(now.getMinutes()).padStart(2, '0');
-			const seconds = String(now.getSeconds()).padStart(2, '0');
-			const ampm = hours >= 12 ? 'PM' : 'AM';
-			hours = hours % 12;
-			hours = hours ? hours : 12; // the hour '0' should be '12'
-			const timeString = `${String(hours).padStart(2, '0')}:${minutes}:${seconds} ${ampm}`;
-			
-			// Format date
-			const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-			const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-			const dayName = days[now.getDay()];
-			const monthName = months[now.getMonth()];
-			const date = now.getDate();
-			const year = now.getFullYear();
-			const dateString = `${dayName}, ${monthName} ${date}, ${year}`;
-			
-			// Update DOM
-			document.getElementById('liveClock').textContent = timeString;
-			document.getElementById('liveDate').textContent = dateString;
-		}
+        function updateClock() {
+            const now = new Date();
+            let h = now.getHours();
+            const m = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12; h = h ? h : 12;
+            const hm = `${String(h).padStart(2, '0')}:${m}`;
+            const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            const dateString = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+            const elHM = document.getElementById('clockHM');
+            const elS = document.getElementById('clockSec');
+            const elAP = document.getElementById('clockAmPm');
+            const elDate = document.getElementById('clockDateChip');
+            if (elHM) elHM.textContent = hm;
+            if (elS) elS.textContent = s;
+            if (elAP) elAP.textContent = ampm;
+            if (elDate) elDate.textContent = dateString;
+        }
 		
 		// Update clock immediately and then every second
 		updateClock();

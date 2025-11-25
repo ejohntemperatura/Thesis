@@ -103,8 +103,9 @@ $recent_records = $stmt->fetchAll();
     <link rel="stylesheet" href="../../../../assets/css/tailwind.css">
     <link rel="stylesheet" href="../../../../assets/libs/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="../../../../assets/css/elms-dark-theme.css">
+    <link rel="stylesheet" href="../../../../assets/css/style.css">
 </head>
-<body style="background-color: #0f172a; margin: 0; min-height: 100vh;">
+<body class="no-sidebar" style="background-color: #0f172a; margin: 0; min-height: 100vh;">
     <!-- Simple Navbar (No Sidebar) -->
     <nav class="elms-navbar">
         <div class="elms-navbar-content">
@@ -200,7 +201,7 @@ $recent_records = $stmt->fetchAll();
     </nav>
 
     <!-- Main Content (No Sidebar) -->
-    <main style="padding: 6rem 2rem 2rem 2rem;">
+    <main class="elms-main" style="padding: 6rem 2rem 2rem 2rem;">
         <div style="max-width: 1000px; margin: 0 auto;">
             <!-- Welcome Section -->
             <div style="text-align: center; margin-bottom: 3rem;">
@@ -211,7 +212,7 @@ $recent_records = $stmt->fetchAll();
             </div>
 
             <!-- Current Time Display -->
-            <div class="bg-slate-800 rounded-2xl border border-slate-700 p-8 mb-8 text-center animate-slide-up">
+            <div class="bg-slate-800 rounded-2xl border border-slate-700 p-8 mb-8 text-center animate-slide-up" style="max-width: 760px; margin: 0 auto;">
                 <div class="mb-6">
                     <i class="fas fa-clock text-4xl text-primary mb-4 animate-pulse-slow"></i>
                     <h2 id="current-time" class="text-6xl font-bold text-white mb-2 tracking-wider">00:00:00</h2>
@@ -227,7 +228,7 @@ $recent_records = $stmt->fetchAll();
             </div>
 
             <!-- Alert Messages -->
-            <div id="alert-container" class="mb-8">
+            <div id="alert-container" class="mb-8" style="max-width: 760px; margin: 0 auto;">
                 <?php if (isset($_SESSION['message'])): ?>
                     <div class="bg-green-500/20 border border-green-500/30 text-green-400 p-4 rounded-xl mb-4 flex items-center animate-slide-up">
                         <i class="fas fa-check-circle mr-3"></i>
@@ -250,7 +251,7 @@ $recent_records = $stmt->fetchAll();
             </div>
 
             <!-- DTR Buttons -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8" style="max-width: 760px; margin: 0 auto;">
                 <!-- Dashboard Button -->
                 <a href="dashboard.php" class="bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl text-center flex items-center justify-center">
                     <i class="fas fa-tachometer-alt mr-2"></i>
@@ -308,7 +309,7 @@ $recent_records = $stmt->fetchAll();
             </div>
 
             <!-- Today's Status -->
-            <div class="bg-slate-800 rounded-2xl border border-slate-700 p-6 mb-8">
+            <div class="bg-slate-800 rounded-2xl border border-slate-700 p-6 mb-8" style="max-width: 760px; margin: 0 auto;">
                 <h3 class="text-xl font-semibold text-white mb-4 flex items-center">
                     <i class="fas fa-calendar-day text-primary mr-2"></i>
                     Today's Status
@@ -370,7 +371,7 @@ $recent_records = $stmt->fetchAll();
 
             <!-- Recent Records -->
             <?php if (!empty($recent_records)): ?>
-            <div class="bg-slate-800 rounded-2xl border border-slate-700 p-6">
+            <div class="bg-slate-800 rounded-2xl border border-slate-700 p-6" style="max-width: 760px; margin: 0 auto;">
                 <h3 class="text-xl font-semibold text-white mb-4 flex items-center">
                     <i class="fas fa-history text-primary mr-2"></i>
                     Recent Attendance Records

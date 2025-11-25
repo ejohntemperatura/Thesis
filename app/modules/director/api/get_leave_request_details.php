@@ -2,15 +2,13 @@
 /**
  * API endpoint to get leave request details for Director modal
  */
-
-header('Content-Type: application/json');
-
 session_start();
+header('Content-Type: application/json');
 require_once '../../../../config/database.php';
 require_once '../../../../config/leave_types.php';
 
-// Check if user is logged in and is a director
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'director') {
+// Check if user is logged in and is a director or admin (match page access)
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['director','admin'])) {
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit();
@@ -31,21 +29,18 @@ try {
         SELECT 
             lr.*,
             e.name as employee_name,
-            e.email as employee_email,
-            e.department,
             e.position,
-            e.contact,
-            dept_approver.name as dept_head_name,
-            dept_approver.position as dept_head_position
+            e.department,
+            e.email as employee_email,
+            e.service_credit_balance AS sc_balance
         FROM leave_requests lr 
         JOIN employees e ON lr.employee_id = e.id 
-        LEFT JOIN employees dept_approver ON lr.dept_head_approved_by = dept_approver.id
         WHERE lr.id = ?
     ");
     $stmt->execute([$request_id]);
-    $request = $stmt->fetch(PDO::FETCH_ASSOC);
+    $leaveRequest = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    if (!$request) {
+    if (!$leaveRequest) {
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'Leave request not found']);
         exit();
@@ -53,9 +48,9 @@ try {
     
     // Use days_requested from database (already excludes weekends)
     // If not set, calculate excluding weekends
-    if (!isset($request['days_requested']) || $request['days_requested'] == 0) {
-        $start_date = new DateTime($request['start_date']);
-        $end_date = new DateTime($request['end_date']);
+    if (!isset($leaveRequest['days_requested']) || $leaveRequest['days_requested'] == 0) {
+        $start_date = new DateTime($leaveRequest['start_date']);
+        $end_date = new DateTime($leaveRequest['end_date']);
         $days_requested = 0;
         $current = clone $start_date;
         while ($current <= $end_date) {
@@ -65,108 +60,133 @@ try {
             }
             $current->modify('+1 day');
         }
-        $request['days_requested'] = $days_requested;
+        $leaveRequest['days_requested'] = $days_requested;
     }
     
     // Format dates
-    $request['start_date'] = date('M d, Y', strtotime($request['start_date']));
-    $request['end_date'] = date('M d, Y', strtotime($request['end_date']));
+    $leaveRequest['start_date'] = date('M d, Y', strtotime($leaveRequest['start_date']));
+    $leaveRequest['end_date'] = date('M d, Y', strtotime($leaveRequest['end_date']));
     
     // Get leave types configuration
     $leaveTypes = getLeaveTypes();
     
     // Store raw leave type for conditional field matching (use original_leave_type if available, otherwise use leave_type)
-    $request['leave_type_raw'] = $request['original_leave_type'] ?? $request['leave_type'];
+    $leaveRequest['leave_type_raw'] = $leaveRequest['original_leave_type'] ?? $leaveRequest['leave_type'];
     
     // Format leave type display using helper function
-    $request['leave_type'] = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes);
+    $mapped = getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null, $leaveTypes);
+    $display = trim((string)$mapped);
+    if ($display === '') {
+        $base = $leaveRequest['leave_type_raw'] ?? '';
+        $display = trim((string)getLeaveTypeDisplayName($base, null, $leaveTypes));
+        if ($display === '') {
+            if (!empty($leaveRequest['study_type'])) {
+                $display = 'Study Leave (Without Pay)';
+            } elseif (!empty($leaveRequest['medical_condition']) || !empty($leaveRequest['illness_specify'])) {
+                $display = 'Sick Leave (SL)';
+            } elseif (!empty($leaveRequest['special_women_condition'])) {
+                $display = 'Special Leave Benefits for Women';
+            } elseif (!empty($leaveRequest['location_type'])) {
+                $display = 'Vacation Leave (VL)';
+            } elseif (isset($leaveRequest['sc_balance']) && (float)$leaveRequest['sc_balance'] > 0) {
+                $display = 'Service Credits';
+            } elseif (($leaveRequest['pay_status'] ?? '') === 'without_pay' || ($leaveRequest['leave_type_raw'] ?? '') === 'without_pay') {
+                $display = 'Without Pay Leave';
+            } else {
+                $display = 'Service Credits';
+            }
+        }
+    }
+    $leaveRequest['leave_type_display'] = $display;
+    // Override leave_type so consumers reading this field see the display label
+    $leaveRequest['leave_type'] = $display;
     
     // Format location type for display
-    if ($request['location_type']) {
-        switch ($request['location_type']) {
+    if (!empty($leaveRequest['location_type'])) {
+        switch ($leaveRequest['location_type']) {
             case 'within_philippines':
-                $request['location_type'] = 'Within Philippines';
+                $leaveRequest['location_type'] = 'Within Philippines';
                 break;
             case 'outside_philippines':
-                $request['location_type'] = 'Outside Philippines';
+                $leaveRequest['location_type'] = 'Outside Philippines';
                 break;
             default:
-                $request['location_type'] = ucfirst(str_replace('_', ' ', $request['location_type']));
+                $leaveRequest['location_type'] = ucfirst(str_replace('_', ' ', $leaveRequest['location_type']));
                 break;
         }
     }
     
     // Format medical condition for display
-    if ($request['medical_condition']) {
-        switch ($request['medical_condition']) {
+    if (!empty($leaveRequest['medical_condition'])) {
+        switch ($leaveRequest['medical_condition']) {
             case 'minor':
-                $request['medical_condition'] = 'Minor';
+                $leaveRequest['medical_condition'] = 'Minor';
                 break;
             case 'serious':
-                $request['medical_condition'] = 'Serious';
+                $leaveRequest['medical_condition'] = 'Serious';
                 break;
             case 'chronic':
-                $request['medical_condition'] = 'Chronic';
+                $leaveRequest['medical_condition'] = 'Chronic';
                 break;
             default:
-                $request['medical_condition'] = ucfirst(str_replace('_', ' ', $request['medical_condition']));
+                $leaveRequest['medical_condition'] = ucfirst(str_replace('_', ' ', $leaveRequest['medical_condition']));
                 break;
         }
     }
     
     // Format special women condition for display
-    if ($request['special_women_condition']) {
-        switch ($request['special_women_condition']) {
+    if (!empty($leaveRequest['special_women_condition'])) {
+        switch ($leaveRequest['special_women_condition']) {
             case 'pregnancy':
-                $request['special_women_condition'] = 'Pregnancy';
+                $leaveRequest['special_women_condition'] = 'Pregnancy';
                 break;
             case 'menstruation':
-                $request['special_women_condition'] = 'Menstruation';
+                $leaveRequest['special_women_condition'] = 'Menstruation';
                 break;
             case 'miscarriage':
-                $request['special_women_condition'] = 'Miscarriage';
+                $leaveRequest['special_women_condition'] = 'Miscarriage';
                 break;
             case 'other':
-                $request['special_women_condition'] = 'Other';
+                $leaveRequest['special_women_condition'] = 'Other';
                 break;
             default:
-                $request['special_women_condition'] = ucfirst(str_replace('_', ' ', $request['special_women_condition']));
+                $leaveRequest['special_women_condition'] = ucfirst(str_replace('_', ' ', $leaveRequest['special_women_condition']));
                 break;
         }
     }
     
     // Format study type for display
-    if ($request['study_type']) {
-        switch ($request['study_type']) {
+    if (!empty($leaveRequest['study_type'])) {
+        switch ($leaveRequest['study_type']) {
             case 'conference':
-                $request['study_type'] = 'Conference';
+                $leaveRequest['study_type'] = 'Conference';
                 break;
             case 'training':
-                $request['study_type'] = 'Training';
+                $leaveRequest['study_type'] = 'Training';
                 break;
             case 'seminar':
-                $request['study_type'] = 'Seminar';
+                $leaveRequest['study_type'] = 'Seminar';
                 break;
             case 'course':
-                $request['study_type'] = 'Course';
+                $leaveRequest['study_type'] = 'Course';
                 break;
             case 'exam':
-                $request['study_type'] = 'Exam';
+                $leaveRequest['study_type'] = 'Exam';
                 break;
             default:
-                $request['study_type'] = ucfirst(str_replace('_', ' ', $request['study_type']));
+                $leaveRequest['study_type'] = ucfirst(str_replace('_', ' ', $leaveRequest['study_type']));
                 break;
         }
     }
     
     // Format approval timestamps
-    if ($request['dept_head_approved_at']) {
-        $request['dept_head_approved_at'] = date('M d, Y \a\t g:i A', strtotime($request['dept_head_approved_at']));
+    if (!empty($leaveRequest['dept_head_approved_at'])) {
+        $leaveRequest['dept_head_approved_at'] = date('M d, Y \a\t g:i A', strtotime($leaveRequest['dept_head_approved_at']));
     }
     
     echo json_encode([
         'success' => true,
-        'leave' => $request
+        'leave' => $leaveRequest
     ]);
     
 } catch (Exception $e) {

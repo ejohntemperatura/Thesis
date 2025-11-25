@@ -331,13 +331,9 @@ function toggleNotificationDropdown() {
         
         // Add smooth animation when opening
         if (!dropdown.classList.contains('hidden')) {
-            dropdown.style.opacity = '0';
-            dropdown.style.transform = 'translateY(-10px) scale(0.95)';
-            dropdown.style.transition = 'opacity 0.2s ease-out, transform 0.2s ease-out';
-            
+            dropdown.classList.add('animate-in');
             requestAnimationFrame(() => {
-                dropdown.style.opacity = '1';
-                dropdown.style.transform = 'translateY(0) scale(1)';
+                dropdown.classList.add('show');
             });
         }
         
@@ -669,14 +665,14 @@ window.openNotificationModal = function(alertId, alertType, message, createdAt, 
         
         // Create modal overlay
         const modalOverlay = document.createElement('div');
-        modalOverlay.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4';
+        modalOverlay.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 elms-modal-overlay';
         modalOverlay.style.position = 'fixed';
         modalOverlay.style.zIndex = '9999';
         console.log('Created modal overlay:', modalOverlay);
     
     // Create modal content
     const modalContent = document.createElement('div');
-    modalContent.className = 'bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl transform scale-95 opacity-0 transition-all duration-300 ease-out';
+    modalContent.className = 'bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl elms-modal';
     modalContent.style.zIndex = '10000';
     
     const iconClass = getAlertIconClass(alertType);
@@ -1397,5 +1393,43 @@ document.addEventListener('visibilitychange', function() {
         // Refresh alerts when page becomes visible
         loadNavbarAlerts();
     }
+});
+
+// ===== Global Loading Overlay Helpers (shared across pages) =====
+window.showGlobalLoading = function(message = 'Processing...') {
+    if (document.getElementById('elmsLoadingOverlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'elmsLoadingOverlay';
+    overlay.className = 'elms-loading-overlay';
+    overlay.innerHTML = `
+      <div class="elms-loading-box">
+        <span class="elms-spinner" aria-hidden="true"></span>
+        <span>${message}</span>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+};
+
+window.hideGlobalLoading = function() {
+    const overlay = document.getElementById('elmsLoadingOverlay');
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+};
+
+// Auto-bind overlay to elements with data-loading and forms with .elms-action-form
+document.addEventListener('DOMContentLoaded', function() {
+    document.body.addEventListener('click', function(e) {
+        const el = e.target.closest('[data-loading]');
+        if (el) {
+            const msg = el.getAttribute('data-loading') || 'Processing...';
+            showGlobalLoading(msg);
+        }
+    });
+    document.body.addEventListener('submit', function(e) {
+        const form = e.target.closest('form.elms-action-form');
+        if (form) {
+            const msg = form.getAttribute('data-loading') || 'Processing...';
+            showGlobalLoading(msg);
+        }
+    });
 });
 </script>

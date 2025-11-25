@@ -38,6 +38,25 @@ class LeaveCreditsCalculator {
     public function __construct($pdo) {
         $this->pdo = $pdo;
     }
+
+    /**
+     * Get current Service Credit balance if column exists
+     */
+    private function getServiceCreditBalance($employeeId) {
+        try {
+            $stmt = $this->pdo->query("DESCRIBE employees");
+            $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            if (!in_array('service_credit_balance', $columns)) {
+                return 0.0;
+            }
+            $stmt = $this->pdo->prepare("SELECT service_credit_balance FROM employees WHERE id = ?");
+            $stmt->execute([$employeeId]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $result ? (float)$result['service_credit_balance'] : 0.0;
+        } catch (Exception $e) {
+            return 0.0;
+        }
+    }
     
     /**
      * Calculate leave credits for an employee based on CSC standards
@@ -66,7 +85,8 @@ class LeaveCreditsCalculator {
             'rehabilitation' => $this->getRehabilitationLeave($employee, $currentYear),
             'study' => $this->getStudyLeave($employee, $currentYear),
             'terminal' => $this->getTerminalLeave($employee, $currentYear),
-            'cto' => $this->getCTOBalance($employeeId)
+            'cto' => $this->getCTOBalance($employeeId),
+            'service_credit' => $this->getServiceCreditBalance($employeeId)
         ];
     }
     
@@ -301,7 +321,8 @@ class LeaveCreditsCalculator {
             'vawc_leave_balance' => $balances['vawc'],
             'rehabilitation_leave_balance' => $balances['rehabilitation'],
             'terminal_leave_balance' => $balances['terminal'],
-            'cto_balance' => $balances['cto']
+            'cto_balance' => $balances['cto'],
+            'service_credit_balance' => $balances['service_credit'] ?? 0
         ];
         
         foreach ($fieldMappings as $field => $value) {

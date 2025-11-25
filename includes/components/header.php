@@ -28,8 +28,8 @@ $logoColor = $role === 'director' ? 'from-purple-500 to-pink-500' :
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $page_title ?? 'ELMS'; ?></title>
     <link rel="stylesheet" href="../../assets/libs/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="assets/css/style.css">
-    <link rel="stylesheet" href="assets/css/dark-theme.css">
+    <link rel="stylesheet" href="<?php echo (strpos($_SERVER['PHP_SELF'], '/admin/') !== false || strpos($_SERVER['PHP_SELF'], '/user/') !== false || strpos($_SERVER['PHP_SELF'], '/department/') !== false || strpos($_SERVER['PHP_SELF'], '/director/') !== false || strpos($_SERVER['PHP_SELF'], '/auth/') !== false) ? '../../assets/css/' : 'assets/css/'; ?>style.css">
+    <link rel="stylesheet" href="<?php echo (strpos($_SERVER['PHP_SELF'], '/admin/') !== false || strpos($_SERVER['PHP_SELF'], '/user/') !== false || strpos($_SERVER['PHP_SELF'], '/department/') !== false || strpos($_SERVER['PHP_SELF'], '/director/') !== false || strpos($_SERVER['PHP_SELF'], '/auth/') !== false) ? '../../assets/css/' : 'assets/css/'; ?>dark-theme.css">
     <link rel="icon" type="image/png" href="/ELMS/elmsicon.png">
     <link rel="shortcut icon" href="/ELMS/elmsicon.png">
     <link rel="apple-touch-icon" href="/ELMS/elmsicon.png">
@@ -63,7 +63,7 @@ $logoColor = $role === 'director' ? 'from-purple-500 to-pink-500' :
 
     <div class="flex">
         <!-- Left Sidebar -->
-        <aside class="fixed left-0 top-16 h-screen w-64 bg-slate-900 border-r border-slate-800 overflow-y-auto z-40">
+        <aside class="fixed left-0 top-16 h-screen w-64 bg-slate-900 border-r border-slate-800 overflow-y-auto z-40 elms-sidebar">
             <nav class="p-4 space-y-2">
                 <?php 
                 // Include the sidebar based on role
@@ -80,7 +80,7 @@ $logoColor = $role === 'director' ? 'from-purple-500 to-pink-500' :
                 
                 <!-- Logout Section -->
                 <div class="pt-4 border-t border-slate-700">
-                    <a href="../auth/logout.php" class="flex items-center space-x-3 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors">
+                    <a href="../auth/logout.php" class="flex items-center space-x-3 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors elms-nav-item">
                         <i class="fas fa-sign-out-alt w-5"></i>
                         <span>Logout</span>
                     </a>

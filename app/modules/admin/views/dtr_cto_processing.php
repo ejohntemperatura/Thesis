@@ -60,17 +60,16 @@ $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ELMS - DTR to CTO Processing</title>
-    <link rel="stylesheet" href="../../../../assets/css/style.css">
-    <link rel="stylesheet" href="../../../../assets/css/dark-theme.css">
+    <link rel="stylesheet" href="../../../../assets/css/elms-dark-theme.css">
 </head>
 <body class="bg-slate-900 text-white min-h-screen">
     <?php include '../../../../includes/unified_navbar.php'; ?>
 
     <div class="flex">
         <!-- Left Sidebar -->
-        <aside class="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-slate-900 border-r border-slate-800 overflow-y-auto z-40">
+        <aside class="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-slate-900 border-r border-slate-800 overflow-y-auto z-40 elms-sidebar">
             <nav class="p-4 space-y-2">
-                <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors">
+                <a href="dashboard.php" class="flex items-center space-x-3 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors elms-sidebar-link">
                     <i class="fas fa-tachometer-alt w-5"></i>
                     <span>Dashboard</span>
                 </a>
@@ -78,17 +77,17 @@ $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <div class="space-y-1">
                     <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2">Management</h3>
                     
-                    <a href="leave_management.php" class="flex items-center space-x-3 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors">
+                    <a href="leave_management.php" class="flex items-center space-x-3 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors elms-sidebar-link">
                         <i class="fas fa-calendar-check w-5"></i>
                         <span>Leave Management</span>
                     </a>
                     
-                    <a href="cto_management.php" class="flex items-center space-x-3 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors">
+                    <a href="cto_management.php" class="flex items-center space-x-3 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors elms-sidebar-link">
                         <i class="fas fa-clock w-5"></i>
-                        <span>CTO Management</span>
+                        <span>CTO/SERVICE</span>
                     </a>
                     
-                    <a href="dtr_cto_processing.php" class="flex items-center space-x-3 px-4 py-3 text-white bg-blue-500/20 rounded-lg border border-blue-500/30">
+                    <a href="dtr_cto_processing.php" class="flex items-center space-x-3 px-4 py-3 text-white bg-blue-500/20 rounded-lg border border-blue-500/30 elms-sidebar-link">
                         <i class="fas fa-sync-alt w-5"></i>
                         <span>DTR Processing</span>
                     </a>
@@ -97,7 +96,7 @@ $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </aside>
         
         <!-- Main Content -->
-        <main class="pt-24 flex-1 ml-64 px-6 pb-6">
+        <main class="pt-24 flex-1 ml-64 px-6 pb-6 elms-main">
             <div class="max-w-7xl mx-auto">
                 <!-- Header -->
                 <div class="mb-8">

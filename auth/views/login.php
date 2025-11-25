@@ -114,15 +114,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="../../assets/libs/fontawesome/css/all.min.css">
         <!-- Font Awesome Local - No internet required! -->
         
-        <link rel="stylesheet" href="../../assets/css/style.css">
-        <link rel="stylesheet" href="../../assets/css/dark-theme.css">
+        <link rel="stylesheet" href="../../assets/css/elms-dark-theme.css">
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="/ELMS/elmsicon.png">
     <link rel="shortcut icon" href="/ELMS/elmsicon.png">
     <link rel="apple-touch-icon" href="/ELMS/elmsicon.png">
     
 </head>
-<body class="bg-slate-900 min-h-screen flex items-center justify-center relative overflow-x-hidden">
+<body class="bg-slate-900 min-h-screen flex items-center justify-center relative overflow-x-hidden auth-login">
     <!-- Animated Background -->
     <div class="fixed inset-0 -z-10 overflow-hidden">
         <div class="absolute w-72 h-72 bg-cyan-600/20 rounded-full -top-36 -left-36 animate-pulse"></div>
@@ -133,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="w-full max-w-6xl mx-auto px-8 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center min-h-screen py-8">
         <!-- Left Side - Branding -->
-        <div class="text-white z-10 order-2 lg:order-1">
+        <div class="text-white z-10 order-2 lg:order-1 login-brand">
             <div class="w-20 h-20 bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl flex items-center justify-center mb-8 shadow-2xl animate-pulse">
                 <i class="fas fa-calendar-check text-4xl bg-gradient-to-r from-cyan-600 to-cyan-500 bg-clip-text text-transparent"></i>
             </div>
@@ -147,7 +146,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <!-- Right Side - Login Form -->
         <div class="z-10 order-1 lg:order-2">
-            <div class="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-8 w-full max-w-md mx-auto shadow-2xl">
+            <div class="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-8 w-full max-w-md mx-auto shadow-2xl login-card">
                 <div class="text-center mb-8">
                     <h2 class="text-3xl font-bold text-white mb-2">Welcome Back</h2>
                     <p class="text-slate-400">Sign in to your account to continue</p>

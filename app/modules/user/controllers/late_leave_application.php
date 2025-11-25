@@ -26,6 +26,27 @@ $end_date = $_POST['end_date'];
 $reason = $_POST['reason'];
 $late_justification = $_POST['late_justification'];
 
+// Gender eligibility: VAWC and Special Leave Benefits for Women are female-only
+$gstmt = $pdo->prepare("SELECT gender FROM employees WHERE id = ?");
+$gstmt->execute([$employee_id]);
+$gender = $gstmt->fetchColumn();
+if (in_array($leave_type, ['vawc','special_women']) && $gender !== 'female') {
+    $_SESSION['error'] = "This leave type is available only to female employees.";
+    header('Location: dashboard.php');
+    exit();
+}
+// Solo Parent eligibility
+if ($leave_type === 'solo_parent') {
+    $spstmt = $pdo->prepare("SELECT is_solo_parent FROM employees WHERE id = ?");
+    $spstmt->execute([$employee_id]);
+    $isSolo = (int)$spstmt->fetchColumn();
+    if ($isSolo !== 1) {
+        $_SESSION['error'] = "Solo Parent Leave is only available to employees flagged as Solo Parent.";
+        header('Location: dashboard.php');
+        exit();
+    }
+}
+
 // Get conditional fields based on leave type
 $location_type = $_POST['location_type'] ?? null;
 $location_specify = $_POST['location_specify'] ?? null;
@@ -34,9 +55,26 @@ $illness_specify = $_POST['illness_specify'] ?? null;
 $special_women_condition = $_POST['special_women_condition'] ?? null;
 $study_type = $_POST['study_type'] ?? null;
 
-// Handle medical certificate upload for sick leave
+// Handle supporting document upload
 $medical_certificate_path = null;
-if ($leave_type === 'sick' && isset($_FILES['medical_certificate']) && $_FILES['medical_certificate']['error'] === UPLOAD_ERR_OK) {
+// Require for maternity/paternity
+if (in_array($leave_type, ['maternity','paternity'])) {
+    if (!isset($_FILES['medical_certificate']) || $_FILES['medical_certificate']['error'] !== UPLOAD_ERR_OK) {
+        $_SESSION['error'] = "Supporting document is required for " . ucfirst($leave_type) . " leave.";
+        header('Location: dashboard.php');
+        exit();
+    }
+}
+
+// Select correct file input
+$file = null;
+if ($leave_type === 'sick' && isset($_FILES['sick_medical_certificate']) && $_FILES['sick_medical_certificate']['error'] === UPLOAD_ERR_OK) {
+    $file = $_FILES['sick_medical_certificate'];
+} elseif (in_array($leave_type, ['maternity','paternity']) && isset($_FILES['medical_certificate']) && $_FILES['medical_certificate']['error'] === UPLOAD_ERR_OK) {
+    $file = $_FILES['medical_certificate'];
+}
+
+if ($file !== null) {
     $upload_dir = '../../../../uploads/medical_certificates/' . date('Y') . '/' . date('m') . '/';
     
     // Create directory if it doesn't exist
@@ -47,8 +85,8 @@ if ($leave_type === 'sick' && isset($_FILES['medical_certificate']) && $_FILES['
     $allowed_types = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
     $max_size = 10 * 1024 * 1024; // 10MB
     
-    $file_extension = strtolower(pathinfo($_FILES['medical_certificate']['name'], PATHINFO_EXTENSION));
-    $file_size = $_FILES['medical_certificate']['size'];
+    $file_extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    $file_size = $file['size'];
     
     if (!in_array($file_extension, $allowed_types)) {
         $_SESSION['error'] = "Invalid file type. Only PDF, JPG, JPEG, PNG, DOC, DOCX files are allowed.";
@@ -66,10 +104,10 @@ if ($leave_type === 'sick' && isset($_FILES['medical_certificate']) && $_FILES['
     $filename = uniqid() . '_' . time() . '.' . $file_extension;
     $file_path = $upload_dir . $filename;
     
-    if (move_uploaded_file($_FILES['medical_certificate']['tmp_name'], $file_path)) {
+    if (move_uploaded_file($file['tmp_name'], $file_path)) {
         $medical_certificate_path = $file_path;
     } else {
-        $_SESSION['error'] = "Failed to upload medical certificate.";
+        $_SESSION['error'] = "Failed to upload supporting document.";
         header('Location: dashboard.php');
         exit();
     }

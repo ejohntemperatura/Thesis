@@ -51,7 +51,7 @@ $leaveTypes = getLeaveTypes();
 
 // Fetch recent leave requests
 $stmt = $pdo->prepare("
-    SELECT lr.*, e.name as employee_name,
+    SELECT lr.*, e.name as employee_name, e.service_credit_balance AS sc_balance,
            CASE 
                WHEN lr.dept_head_approval = 'rejected' OR lr.director_approval = 'rejected' THEN 'rejected'
                WHEN lr.dept_head_approval = 'approved' AND lr.director_approval = 'approved' THEN 'approved'
@@ -161,6 +161,19 @@ $leave_requests = $stmt->fetchAll();
             const dropdown = document.getElementById('userDropdown');
             dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
         }
+
+        // Robust resolver for modal/details: prefers helper, then infers from fields and service credit balance if available
+        function resolveLeaveTypeLabel(req) {
+            const lbl = getLeaveTypeDisplayNameJS(req.leave_type, req.original_leave_type);
+            if (lbl && String(lbl).trim() !== '') return lbl;
+            if (req.study_type) return 'Study Leave (Without Pay)';
+            if (req.medical_condition || req.illness_specify) return 'Sick Leave (SL)';
+            if (req.special_women_condition) return 'Special Leave Benefits for Women';
+            if (req.location_type) return 'Vacation Leave (VL)';
+            if (typeof req.sc_balance !== 'undefined' && parseFloat(req.sc_balance) > 0) return 'Service Credits';
+            if (req.pay_status === 'without_pay' || req.leave_type === 'without_pay') return 'Without Pay Leave';
+            return 'Service Credits';
+        }
         
         // Close dropdown when clicking outside
         document.addEventListener('click', function(event) {
@@ -203,7 +216,7 @@ $leave_requests = $stmt->fetchAll();
                 </a>
                 <a href="cto_management.php" class="elms-sidebar-link">
                     <i class="fas fa-clock elms-sidebar-icon"></i>
-                    <span>CTO Management</span>
+                    <span>CTO/SERVICE</span>
                 </a>
             </div>
             
@@ -232,23 +245,37 @@ $leave_requests = $stmt->fetchAll();
                     <p class="elms-text-muted">Manage your system from this dashboard.</p>
                 </div>
                 <div style="text-align: right;">
-                    <div id="admin-dashboard-time" style="color: white; font-size: 1.5rem; font-weight: 700; font-family: 'Courier New', monospace; margin-bottom: 0.25rem;">00:00:00 AM</div>
-                    <div style="color: #94a3b8; font-size: 0.875rem;">Today is</div>
-                    <div style="color: white; font-size: 1.125rem; font-weight: 600;"><?php echo date('l, F j, Y'); ?></div>
+                    <div style="display: inline-flex; align-items: baseline; gap: 0.5rem; justify-content: flex-end; margin-bottom: 0.25rem;">
+                        <span id="clockHM" style="color: white; font-size: 1.75rem; font-weight: 700; font-family: 'Courier New', monospace;">--:--</span>
+                        <span id="clockSec" style="color: #cbd5e1; font-size: 1rem; font-family: 'Courier New', monospace;">--</span>
+                        <span id="clockAmPm" style="color: #cbd5e1; font-size: 0.875rem; font-family: 'Courier New', monospace;">--</span>
+                    </div>
+                    <div style="color: #94a3b8; font-size: 0.75rem;">Today is</div>
+                    <div id="clockDateChip" style="margin-top: 0.25rem; display: inline-flex; align-items: center; padding: 0.25rem 0.75rem; border-radius: 9999px; border: 1px solid rgba(51,65,85,0.6); background: rgba(51,65,85,0.4); color: #e5e7eb; font-size: 0.875rem;">Loading...</div>
                 </div>
             </div>
             
             <script>
-                // Update admin dashboard time
+                // Update admin dashboard time (Split Badge clock)
                 function updateAdminDashboardTime() {
                     const now = new Date();
-                    const timeString = now.toLocaleTimeString('en-US', { 
-                        hour12: true,
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit'
-                    });
-                    document.getElementById('admin-dashboard-time').textContent = timeString;
+                    let h = now.getHours();
+                    const m = String(now.getMinutes()).padStart(2, '0');
+                    const s = String(now.getSeconds()).padStart(2, '0');
+                    const ampm = h >= 12 ? 'PM' : 'AM';
+                    h = h % 12; h = h ? h : 12;
+                    const hm = `${String(h).padStart(2, '0')}:${m}`;
+                    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+                    const dateString = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+                    const elHM = document.getElementById('clockHM');
+                    const elS = document.getElementById('clockSec');
+                    const elAP = document.getElementById('clockAmPm');
+                    const elDate = document.getElementById('clockDateChip');
+                    if (elHM) elHM.textContent = hm;
+                    if (elS) elS.textContent = s;
+                    if (elAP) elAP.textContent = ampm;
+                    if (elDate) elDate.textContent = dateString;
                 }
                 
                 // Update time immediately and then every second
@@ -375,7 +402,33 @@ $leave_requests = $stmt->fetchAll();
                                                 <!-- Mobile: Show additional info -->
                                                 <div class="sm:hidden mt-1">
                                                     <span class="bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full text-xs font-semibold uppercase tracking-wide">
-                                                        <?php echo getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes); ?>
+                                                        <?php 
+                                                            $disp = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes);
+                                                            if (!isset($disp) || trim($disp) === '') {
+                                                                $base = $request['original_leave_type'] ?? ($request['leave_type'] ?? '');
+                                                                $disp = getLeaveTypeDisplayName($base, null, $leaveTypes);
+                                                                if (!isset($disp) || trim($disp) === '') { 
+                                                                    // Try to infer from other fields
+                                                                    if (!empty($request['study_type'])) {
+                                                                        $disp = 'Study Leave (Without Pay)';
+                                                                    } elseif (!empty($request['medical_condition']) || !empty($request['illness_specify'])) {
+                                                                        $disp = 'Sick Leave (SL)';
+                                                                    } elseif (!empty($request['special_women_condition'])) {
+                                                                        $disp = 'Special Leave Benefits for Women';
+                                                                    } elseif (!empty($request['location_type'])) {
+                                                                        $disp = 'Vacation Leave (VL)';
+                                                                    } elseif (isset($request['sc_balance']) && (float)$request['sc_balance'] > 0) {
+                                                                        $disp = 'Service Credits';
+                                                                    } elseif (($request['pay_status'] ?? '') === 'without_pay' || ($request['leave_type'] ?? '') === 'without_pay') {
+                                                                        $disp = 'Without Pay Leave';
+                                                                    } else {
+                                                                        // Final fallback: assume Service Credits
+                                                                        $disp = 'Service Credits';
+                                                                    }
+                                                                }
+                                                            }
+                                                            echo $disp;
+                                                        ?>
                                                     </span>
                                                     <div class="text-slate-400 text-xs mt-1">
                                                         <?php 
@@ -411,7 +464,31 @@ $leave_requests = $stmt->fetchAll();
                                     </td>
                                     <td class="px-3 md:px-6 py-4 hidden sm:table-cell">
                                         <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide">
-                                            <?php echo getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes); ?>
+                                            <?php 
+                                                $disp = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes);
+                                                if (!isset($disp) || trim($disp) === '') {
+                                                    $base = $request['original_leave_type'] ?? ($request['leave_type'] ?? '');
+                                                    $disp = getLeaveTypeDisplayName($base, null, $leaveTypes);
+                                                    if (!isset($disp) || trim($disp) === '') {
+                                                        if (!empty($request['study_type'])) {
+                                                            $disp = 'Study Leave (Without Pay)';
+                                                        } elseif (!empty($request['medical_condition']) || !empty($request['illness_specify'])) {
+                                                            $disp = 'Sick Leave (SL)';
+                                                        } elseif (!empty($request['special_women_condition'])) {
+                                                            $disp = 'Special Leave Benefits for Women';
+                                                        } elseif (!empty($request['location_type'])) {
+                                                            $disp = 'Vacation Leave (VL)';
+                                                        } elseif (isset($request['sc_balance']) && (float)$request['sc_balance'] > 0) {
+                                                            $disp = 'Service Credits';
+                                                        } elseif (($request['pay_status'] ?? '') === 'without_pay' || ($request['leave_type'] ?? '') === 'without_pay') {
+                                                            $disp = 'Without Pay Leave';
+                                                        } else {
+                                                            $disp = 'Service Credits';
+                                                        }
+                                                    }
+                                                }
+                                                echo $disp;
+                                            ?>
                                         </span>
                                     </td>
                                     <td class="px-3 md:px-6 py-4 text-slate-300 text-sm hidden md:table-cell"><?php echo date('M d, Y', strtotime($request['start_date'])); ?></td>
@@ -520,61 +597,61 @@ $leave_requests = $stmt->fetchAll();
         // Pass leave types data to JavaScript
         window.leaveTypes = <?php echo json_encode($leaveTypes); ?>;
         
-        // Helper function to get leave type display name in JavaScript
+        // Helper function to get leave type display name in JavaScript (with normalization like PHP helper)
         function getLeaveTypeDisplayNameJS(leaveType, originalLeaveType = null) {
             const leaveTypes = window.leaveTypes;
-            if (!leaveTypes) return leaveType;
-            
-            // Check if leave is without pay
+            if (!leaveTypes) return leaveType || '';
+
+            // Determine if this is without pay
             let isWithoutPay = false;
-            
-            // If leave_type is explicitly 'without_pay', it's without pay
             if (leaveType === 'without_pay') {
                 isWithoutPay = true;
-            }
-            // If original_leave_type exists and current type is 'without_pay' or empty, it was converted to without pay
-            else if (originalLeaveType && (leaveType === 'without_pay' || !leaveType)) {
+            } else if (originalLeaveType && (leaveType === 'without_pay' || !leaveType)) {
+                isWithoutPay = true;
+            } else if (leaveType && leaveTypes[leaveType] && leaveTypes[leaveType].without_pay) {
+                isWithoutPay = true;
+            } else if (originalLeaveType && leaveTypes[originalLeaveType] && leaveTypes[originalLeaveType].without_pay) {
                 isWithoutPay = true;
             }
-            // Check if the current leave type is inherently without pay
-            else if (leaveTypes[leaveType] && leaveTypes[leaveType].without_pay) {
-                isWithoutPay = true;
-            }
-            // Check if the original leave type was inherently without pay
-            else if (originalLeaveType && leaveTypes[originalLeaveType] && leaveTypes[originalLeaveType].without_pay) {
-                isWithoutPay = true;
-            }
-            
-            // Determine the base leave type to display
-            let baseType = null;
-            if (originalLeaveType && (leaveType === 'without_pay' || !leaveType)) {
-                // Use original type if it was converted to without pay
-                baseType = originalLeaveType;
-            } else {
-                // Use current type
-                baseType = leaveType;
-            }
-            
-            // Get the display name
-            if (leaveTypes[baseType]) {
-                const leaveTypeConfig = leaveTypes[baseType];
-                
-                if (isWithoutPay) {
-                    // Show name with without pay indicator
-                    if (leaveTypeConfig.name_with_note) {
-                        return leaveTypeConfig.name_with_note;
-                    } else {
-                        return leaveTypeConfig.name + ' (Without Pay)';
-                    }
-                } else {
-                    // Show regular name
-                    return leaveTypeConfig.name;
+
+            // Choose base type
+            let baseType = originalLeaveType && (leaveType === 'without_pay' || !leaveType) ? originalLeaveType : leaveType;
+
+            // Normalization similar to PHP
+            const normalize = (val) => {
+                if (!val) return '';
+                let v = String(val).trim().toLowerCase();
+                v = v.replace(/[-\s]+/g, '_');
+                v = v.replace(/[^a-z0-9_]/g, '');
+                // Map common service credit variants
+                if (v === 'service_credits' || v === 'service' || v === 'servicecredit' || v === 'svc_credit' || v === 'svc' || (v.includes('service') && v.includes('credit'))) {
+                    v = 'service_credit';
                 }
-            } else {
-                // Fallback for unknown types
-                const displayName = baseType.charAt(0).toUpperCase() + baseType.slice(1).replace(/_/g, ' ');
-                return isWithoutPay ? displayName + ' (Without Pay)' : displayName;
+                if (!leaveTypes[v] && v.endsWith('s')) {
+                    const sg = v.replace(/s$/, '');
+                    if (leaveTypes[sg]) v = sg;
+                }
+                return v;
+            };
+
+            let key = normalize(baseType);
+            if (!leaveTypes[key] && originalLeaveType) {
+                const alt = normalize(originalLeaveType);
+                if (leaveTypes[alt]) key = alt;
             }
+
+            if (leaveTypes[key]) {
+                const cfg = leaveTypes[key];
+                if (isWithoutPay) {
+                    return cfg.name_with_note ? cfg.name_with_note : cfg.name + ' (Without Pay)';
+                }
+                return cfg.name;
+            }
+
+            // Fallback
+            const fallback = (key || '').replace(/_/g, ' ');
+            const titled = fallback ? (fallback.charAt(0).toUpperCase() + fallback.slice(1)) : '';
+            return isWithoutPay && titled ? titled + ' (Without Pay)' : (titled || '');
         }
         
         // Toggle functions for navigation
@@ -623,10 +700,10 @@ $leave_requests = $stmt->fetchAll();
         function viewRequestDetails(leaveId) {
             // Create modal to show detailed information
             const modal = document.createElement('div');
-            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 elms-modal-overlay';
             modal.id = 'requestModal';
             modal.innerHTML = `
-                <div class="bg-slate-800 rounded-lg p-6 w-full max-w-2xl mx-4 max-h-screen overflow-y-auto">
+                <div class="bg-slate-800 rounded-lg p-6 w-full max-w-2xl mx-4 max-h-screen overflow-y-auto elms-modal">
                     <div class="flex items-center justify-between mb-4">
                         <h5 class="text-xl font-semibold text-white">Leave Request Details</h5>
                         <button type="button" class="text-slate-400 hover:text-white" onclick="closeModal()">
@@ -697,7 +774,7 @@ $leave_requests = $stmt->fetchAll();
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label class="text-sm font-medium text-slate-400">Leave Type</label>
-                                            <p class="text-white">${leave.leave_type}</p>
+                                            <p class="text-white">${resolveLeaveTypeLabel(leave)}</p>
                                         </div>
                                         <div>
                                             <label class="text-sm font-medium text-slate-400">Days Requested</label>
@@ -1078,16 +1155,18 @@ $leave_requests = $stmt->fetchAll();
 
         // Function to fetch pending leave count
         function fetchPendingLeaveCount() {
-            fetch('api/get_pending_leave_count.php')
+            fetch('../api/get_pending_leave_count.php')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
                         const badge = document.getElementById('pendingLeaveBadge');
-                        if (data.count > 0) {
-                            badge.textContent = data.count;
-                            badge.style.display = 'inline-block';
-                        } else {
-                            badge.style.display = 'none';
+                        if (badge) {
+                            if (data.count > 0) {
+                                badge.textContent = data.count;
+                                badge.style.display = 'inline-block';
+                            } else {
+                                badge.style.display = 'none';
+                            }
                         }
                     }
                 })

@@ -59,6 +59,9 @@ try {
         $join_conditions[] = "LEFT JOIN employees admin_approver ON lr.admin_approved_by = admin_approver.id";
     }
     
+    // Always include employee service credit balance for display inference
+    $select_fields[] = "e.service_credit_balance AS sc_balance";
+
     // Build the final query
     $query = "SELECT " . implode(", ", $select_fields) . " 
               FROM leave_requests lr 
@@ -99,7 +102,35 @@ try {
     // Get leave types configuration and format leave type display
     require_once __DIR__ . '/../../../../config/leave_types.php';
     $leaveTypes = getLeaveTypes();
+    // Preserve raw type for client-side inference and map display separately
+    $leave_request['leave_type_raw'] = $leave_request['original_leave_type'] ?? $leave_request['leave_type'];
     $leave_request['leave_type'] = getLeaveTypeDisplayName($leave_request['leave_type'], $leave_request['original_leave_type'] ?? null, $leaveTypes);
+    // Precompute a robust display label
+    $display = trim((string)$leave_request['leave_type']);
+    if ($display === '') {
+        $base = $leave_request['original_leave_type'] ?? ($leave_request['leave_type_raw'] ?? '');
+        $display = trim((string)getLeaveTypeDisplayName($base, null, $leaveTypes));
+        if ($display === '') {
+            if (!empty($leave_request['study_type'])) {
+                $display = 'Study Leave (Without Pay)';
+            } elseif (!empty($leave_request['medical_condition']) || !empty($leave_request['illness_specify'])) {
+                $display = 'Sick Leave (SL)';
+            } elseif (!empty($leave_request['special_women_condition'])) {
+                $display = 'Special Leave Benefits for Women';
+            } elseif (!empty($leave_request['location_type'])) {
+                $display = 'Vacation Leave (VL)';
+            } elseif (isset($leave_request['sc_balance']) && (float)$leave_request['sc_balance'] > 0) {
+                $display = 'Service Credits';
+            } elseif (($leave_request['pay_status'] ?? '') === 'without_pay' || ($leave_request['leave_type_raw'] ?? '') === 'without_pay') {
+                $display = 'Without Pay Leave';
+            } else {
+                $display = 'Service Credits';
+            }
+        }
+    }
+    $leave_request['leave_type_display'] = $display;
+    // Also override leave_type so legacy consumers see a non-empty label
+    $leave_request['leave_type'] = $display;
     
     // Format location type for display
     if ($leave_request['location_type']) {

@@ -89,7 +89,20 @@ function getLeaveTypes() {
         'description' => 'Violence Against Women and Their Children Leave - 10 days with full pay',
         'annual_credits' => 10,
         'cumulative' => false,
-        'commutable' => false
+        'commutable' => false,
+        'gender_restricted' => 'female'
+    ],
+    'special_women' => [
+        'name' => 'Special Leave Benefits for Women',
+        'icon' => 'fas fa-female',
+        'color' => 'bg-rose-500',
+        'requires_credits' => true,
+        'credit_field' => 'special_women_leave_balance',
+        'description' => 'Special Leave Benefits for Women (e.g., RA 9710) as per policy',
+        'annual_credits' => 0,
+        'cumulative' => false,
+        'commutable' => false,
+        'gender_restricted' => 'female'
     ],
     'rehabilitation' => [
         'name' => 'Rehabilitation Leave',
@@ -146,6 +159,17 @@ function getLeaveTypes() {
         'max_accumulation' => 40, // Maximum 40 hours CTO can be accumulated
         'requires_approval' => true,
         'requires_supervisor_approval' => true
+    ],
+    'service_credit' => [
+        'name' => 'Service Credits',
+        'icon' => 'fas fa-hand-holding-heart',
+        'color' => 'bg-emerald-500',
+        'requires_credits' => true,
+        'credit_field' => 'service_credit_balance',
+        'description' => 'Credits earned for service that can be used as leave days',
+        'annual_credits' => 0,
+        'cumulative' => true,
+        'commutable' => false
     ],
     'without_pay' => [
         'name' => 'Without Pay Leave',
@@ -225,8 +249,42 @@ function getLeaveTypeDisplayName($leave_type, $original_leave_type = null, $leav
     }
     
     // Get the display name
-    if (isset($leaveTypes[$baseType])) {
-        $leaveTypeConfig = $leaveTypes[$baseType];
+    // Normalize common variants (hyphens, spaces, non-alphanumerics, plurals, aliases)
+    $normalizedBase = strtolower(trim((string)$baseType));
+    $normalizedBase = str_replace(['-', ' '], '_', $normalizedBase);
+    $normalizedBase = preg_replace('/[^a-z0-9_]/', '', $normalizedBase);
+    // Normalize common Service Credit variants
+    if ($normalizedBase === 'service_credits') { $normalizedBase = 'service_credit'; }
+    if ($normalizedBase === 'service' || $normalizedBase === 'servicecredit' || $normalizedBase === 'svc_credit' || $normalizedBase === 'svc') {
+        $normalizedBase = 'service_credit';
+    }
+    if (strpos($normalizedBase, 'service') !== false && strpos($normalizedBase, 'credit') !== false) {
+        $normalizedBase = 'service_credit';
+    }
+    if (!isset($leaveTypes[$normalizedBase]) && substr($normalizedBase, -1) === 's') {
+        $singular = rtrim($normalizedBase, 's');
+        if (isset($leaveTypes[$singular])) { $normalizedBase = $singular; }
+    }
+
+    // If still unknown, try original_leave_type as a fallback mapping
+    if (!isset($leaveTypes[$normalizedBase]) && !empty($original_leave_type)) {
+        $tmp = strtolower(trim((string)$original_leave_type));
+        $tmp = str_replace(['-', ' '], '_', $tmp);
+        $tmp = preg_replace('/[^a-z0-9_]/', '', $tmp);
+        if ($tmp === 'service_credits' || $tmp === 'service' || $tmp === 'servicecredit' || $tmp === 'svc_credit' || $tmp === 'svc' || (strpos($tmp, 'service') !== false && strpos($tmp, 'credit') !== false)) {
+            $tmp = 'service_credit';
+        }
+        if (!isset($leaveTypes[$tmp]) && substr($tmp, -1) === 's') {
+            $sg = rtrim($tmp, 's');
+            if (isset($leaveTypes[$sg])) { $tmp = $sg; }
+        }
+        if (isset($leaveTypes[$tmp])) {
+            $normalizedBase = $tmp;
+        }
+    }
+
+    if (isset($leaveTypes[$normalizedBase])) {
+        $leaveTypeConfig = $leaveTypes[$normalizedBase];
         
         if ($isWithoutPay) {
             // Show name with without pay indicator
@@ -241,7 +299,7 @@ function getLeaveTypeDisplayName($leave_type, $original_leave_type = null, $leav
         }
     } else {
         // Fallback for unknown types
-        $displayName = ucfirst(str_replace('_', ' ', $baseType));
+        $displayName = ucfirst(str_replace('_', ' ', $normalizedBase));
         return $isWithoutPay ? $displayName . ' (Without Pay)' : $displayName;
     }
 }

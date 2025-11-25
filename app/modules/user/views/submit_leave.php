@@ -24,6 +24,64 @@ if (!$stmt->fetch()) {
 }
 
 $leave_type = $_POST['leave_type'];
+// Normalize leave type variants to canonical keys (e.g., service/service_credits -> service_credit)
+$normalizeLeaveType = function($type) {
+    $t = strtolower(trim((string)$type));
+    $t = str_replace(['-', ' '], '_', $t);
+    $t = preg_replace('/[^a-z0-9_]/', '', $t);
+    if ($t === 'service_credits' || $t === 'service' || $t === 'servicecredit' || $t === 'svc_credit' || $t === 'svc' || (strpos($t,'service') !== false && strpos($t,'credit') !== false)) {
+        $t = 'service_credit';
+    }
+    // Singularize simple trailing s if known type missing
+    $known = ['vacation','sick','special_privilege','maternity','paternity','solo_parent','vawc','special_women','rehabilitation','study','terminal','cto','service_credit','without_pay'];
+    if (!in_array($t,$known,true) && substr($t,-1) === 's') {
+        $s = rtrim($t,'s');
+        if (in_array($s,$known,true)) { $t = $s; }
+    }
+    return $t;
+};
+$leave_type = $normalizeLeaveType($leave_type);
+// Ensure DB enum supports new leave types like service_credit to avoid blank labels
+try {
+    $colStmt = $pdo->query("SHOW COLUMNS FROM leave_requests LIKE 'leave_type'");
+    $col = $colStmt->fetch(PDO::FETCH_ASSOC);
+    if ($col && isset($col['Type'])) {
+        $typeDef = $col['Type']; // e.g., enum('vacation','sick',...)
+        if (stripos($typeDef, "'service_credit'") === false) {
+            // Extract existing enum values and append service_credit safely
+            if (preg_match("/enum\((.*)\)/i", $typeDef, $m)) {
+                $vals = $m[1];
+                $newVals = $vals . ",'service_credit'";
+                $alterSql = "ALTER TABLE leave_requests MODIFY leave_type enum(" . $newVals . ") NOT NULL";
+                $pdo->exec($alterSql);
+            }
+        }
+    }
+} catch (Exception $e) {
+    // Non-fatal; continue
+}
+// Gender eligibility: VAWC and Special Leave Benefits for Women are female-only
+$gstmt = $pdo->prepare("SELECT gender FROM employees WHERE id = ?");
+$gstmt->execute([$employee_id]);
+$gender = $gstmt->fetchColumn();
+if (in_array($leave_type, ['vawc','special_women']) && $gender !== 'female') {
+    $_SESSION['error'] = "This leave type is available only to female employees.";
+    ob_end_clean();
+    header('Location: dashboard.php');
+    exit();
+}
+// Solo Parent eligibility
+if ($leave_type === 'solo_parent') {
+    $spstmt = $pdo->prepare("SELECT is_solo_parent FROM employees WHERE id = ?");
+    $spstmt->execute([$employee_id]);
+    $isSolo = (int)$spstmt->fetchColumn();
+    if ($isSolo !== 1) {
+        $_SESSION['error'] = "Solo Parent Leave is only available to employees flagged as Solo Parent.";
+        ob_end_clean();
+        header('Location: dashboard.php');
+        exit();
+    }
+}
 $start_date = $_POST['start_date'];
 $end_date = $_POST['end_date'];
 $reason = $_POST['reason'];
@@ -38,7 +96,24 @@ $study_type = $_POST['study_type'] ?? null;
 
 // Handle medical certificate upload for sick leave
 $medical_certificate_path = null;
-if ($leave_type === 'sick' && isset($_FILES['medical_certificate']) && $_FILES['medical_certificate']['error'] === UPLOAD_ERR_OK) {
+// Enforce required upload for maternity/paternity; optional for sick (but processed if provided)
+if (in_array($leave_type, ['maternity','paternity'])) {
+    if (!isset($_FILES['medical_certificate']) || $_FILES['medical_certificate']['error'] !== UPLOAD_ERR_OK) {
+        $_SESSION['error'] = "Supporting document is required for " . ucfirst($leave_type) . " leave.";
+        header('Location: dashboard.php');
+        exit();
+    }
+}
+
+// Select the correct file input to process
+$file = null;
+if ($leave_type === 'sick' && isset($_FILES['sick_medical_certificate']) && $_FILES['sick_medical_certificate']['error'] === UPLOAD_ERR_OK) {
+    $file = $_FILES['sick_medical_certificate'];
+} elseif (in_array($leave_type, ['maternity','paternity']) && isset($_FILES['medical_certificate']) && $_FILES['medical_certificate']['error'] === UPLOAD_ERR_OK) {
+    $file = $_FILES['medical_certificate'];
+}
+
+if ($file !== null) {
     $upload_dir = '../../../../uploads/medical_certificates/' . date('Y') . '/' . date('m') . '/';
     
     // Create directory if it doesn't exist
@@ -49,8 +124,8 @@ if ($leave_type === 'sick' && isset($_FILES['medical_certificate']) && $_FILES['
     $allowed_types = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
     $max_size = 10 * 1024 * 1024; // 10MB
     
-    $file_extension = strtolower(pathinfo($_FILES['medical_certificate']['name'], PATHINFO_EXTENSION));
-    $file_size = $_FILES['medical_certificate']['size'];
+    $file_extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    $file_size = $file['size'];
     
     if (!in_array($file_extension, $allowed_types)) {
         $_SESSION['error'] = "Invalid file type. Only PDF, JPG, JPEG, PNG, DOC, DOCX files are allowed.";
@@ -68,10 +143,10 @@ if ($leave_type === 'sick' && isset($_FILES['medical_certificate']) && $_FILES['
     $filename = uniqid() . '_' . time() . '.' . $file_extension;
     $file_path = $upload_dir . $filename;
     
-    if (move_uploaded_file($_FILES['medical_certificate']['tmp_name'], $file_path)) {
+    if (move_uploaded_file($file['tmp_name'], $file_path)) {
         $medical_certificate_path = $file_path;
     } else {
-        $_SESSION['error'] = "Failed to upload medical certificate.";
+        $_SESSION['error'] = "Failed to upload supporting document.";
         header('Location: dashboard.php');
         exit();
     }
@@ -224,8 +299,9 @@ if (!$creditCheck['sufficient'] && !$proceed_without_pay) {
 // If proceeding without pay, change leave type to without_pay and store original type
 $original_leave_type = null;
 if ($proceed_without_pay) {
-    // Use the original_leave_type from form if provided, otherwise use current leave_type
-    $original_leave_type = isset($_POST['original_leave_type']) ? $_POST['original_leave_type'] : $leave_type;
+    // Use the normalized original type for correct downstream labels
+    $orig = isset($_POST['original_leave_type']) ? $_POST['original_leave_type'] : $leave_type;
+    $original_leave_type = $normalizeLeaveType($orig);
     $leave_type = 'without_pay';
 }
 

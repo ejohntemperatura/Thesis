@@ -18,6 +18,7 @@ $employee['email'] = $employee['email'] ?? '';
 $employee['position'] = $employee['position'] ?? '';
 $employee['department'] = $employee['department'] ?? '';
 $employee['contact'] = $employee['contact'] ?? '';
+$employee['address'] = $employee['address'] ?? '';
 
 // Handle profile update
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -26,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $position = $_POST['position'];
     $department = $_POST['department'];
     $contact = $_POST['contact'];
+    $address = $_POST['address'] ?? '';
 
     try {
         // First, check if the fields exist in the table
@@ -85,6 +87,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (in_array('contact', $columns)) {
             $updates[] = "contact = ?";
             $params[] = $contact;
+        }
+        if (in_array('address', $columns)) {
+            $updates[] = "address = ?";
+            $params[] = $address;
         }
         if ($profile_picture) {
             $updates[] = "profile_picture = ?";
@@ -175,6 +181,10 @@ include '../../../../includes/user_header.php';
                                     <i class="fas fa-building w-5 mr-3 text-primary"></i>
                                     <span class="text-sm"><?php echo htmlspecialchars($employee['department']); ?></span>
                                 </div>
+                                <div class="flex items-center text-slate-300">
+                                    <i class="fas fa-map-marker-alt w-5 mr-3 text-primary"></i>
+                                    <span class="text-sm"><?php echo htmlspecialchars($employee['address']); ?></span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -228,6 +238,11 @@ include '../../../../includes/user_header.php';
                                     <div>
                                         <label class="block text-sm font-semibold text-slate-300 mb-2">Contact Number</label>
                                         <input type="tel" name="contact" value="<?php echo htmlspecialchars($employee['contact']); ?>" required
+                                               class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-300 mb-2">Address</label>
+                                        <input type="text" name="address" value="<?php echo htmlspecialchars($employee['address']); ?>" required
                                                class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                                     </div>
                                     

@@ -27,7 +27,8 @@ try {
             e.name as employee_name,
             e.position,
             e.department,
-            e.id as emp_id
+            e.id as emp_id,
+            e.service_credit_balance AS sc_balance
         FROM leave_requests lr
         JOIN employees e ON lr.employee_id = e.id
         WHERE lr.id = ?
@@ -270,36 +271,30 @@ try {
                         <td>Leave Type:</td>
                         <td>
                             <?php 
-                            // Get proper leave type display name
-                            $leaveType = $leaveRequest['leave_type'];
-                            $originalLeaveType = $leaveRequest['original_leave_type'] ?? null;
-                            
-                            // Check if it's without pay
-                            $isWithoutPay = false;
-                            if ($leaveType === 'without_pay') {
-                                $isWithoutPay = true;
-                            } elseif ($originalLeaveType && ($leaveType === 'without_pay' || !$leaveType)) {
-                                $isWithoutPay = true;
-                            } elseif (isset($leaveTypes[$leaveType]) && isset($leaveTypes[$leaveType]['without_pay']) && $leaveTypes[$leaveType]['without_pay']) {
-                                $isWithoutPay = true;
-                            } elseif ($originalLeaveType && isset($leaveTypes[$originalLeaveType]) && isset($leaveTypes[$originalLeaveType]['without_pay']) && $leaveTypes[$originalLeaveType]['without_pay']) {
-                                $isWithoutPay = true;
-                            }
-                            
-                            // Determine base type
-                            $baseType = ($originalLeaveType && ($leaveType === 'without_pay' || !$leaveType)) ? $originalLeaveType : $leaveType;
-                            
-                            // Get display name
-                            if (isset($leaveTypes[$baseType])) {
-                                if ($isWithoutPay) {
-                                    echo htmlspecialchars($leaveTypes[$baseType]['name_with_note'] ?? $leaveTypes[$baseType]['name'] . ' (WITHOUT PAY)');
-                                } else {
-                                    echo htmlspecialchars($leaveTypes[$baseType]['name']);
+                            // Use centralized helper for correct display
+                            $disp = getLeaveTypeDisplayName($leaveRequest['leave_type'] ?? '', $leaveRequest['original_leave_type'] ?? null, $leaveTypes);
+                            if (!isset($disp) || trim($disp) === '') {
+                                $base = $leaveRequest['original_leave_type'] ?? ($leaveRequest['leave_type'] ?? '');
+                                $disp = getLeaveTypeDisplayName($base, null, $leaveTypes);
+                                if (!isset($disp) || trim($disp) === '') {
+                                    if (!empty($leaveRequest['study_type'])) {
+                                        $disp = 'Study Leave (Without Pay)';
+                                    } elseif (!empty($leaveRequest['medical_condition']) || !empty($leaveRequest['illness_specify'])) {
+                                        $disp = 'Sick Leave (SL)';
+                                    } elseif (!empty($leaveRequest['special_women_condition'])) {
+                                        $disp = 'Special Leave Benefits for Women';
+                                    } elseif (!empty($leaveRequest['location_type'])) {
+                                        $disp = 'Vacation Leave (VL)';
+                                    } elseif (isset($leaveRequest['sc_balance']) && (float)$leaveRequest['sc_balance'] > 0) {
+                                        $disp = 'Service Credits';
+                                    } elseif (($leaveRequest['pay_status'] ?? '') === 'without_pay' || ($leaveRequest['leave_type'] ?? '') === 'without_pay') {
+                                        $disp = 'Without Pay Leave';
+                                    } else {
+                                        $disp = 'Service Credits';
+                                    }
                                 }
-                            } else {
-                                $displayName = ucfirst(str_replace('_', ' ', $baseType));
-                                echo htmlspecialchars($isWithoutPay ? $displayName . ' (WITHOUT PAY)' : $displayName);
                             }
+                            echo htmlspecialchars($disp);
                             ?>
                             <?php if ($leaveRequest['is_late'] == 1): ?>
                                 <span style="background: #f59e0b; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-left: 5px; font-weight: bold;">LATE</span>
@@ -516,10 +511,37 @@ try {
                             </td>
                         </tr>
                         <tr>
+                            <td><strong>HR / Admin</strong></td>
+                            <td><?php echo getStatusBadge($leaveRequest['admin_approval'] ?: 'pending'); ?></td>
+                            <td><?php echo !empty($leaveRequest['admin_approved_at']) ? formatDateTime($leaveRequest['admin_approved_at']) : 'Pending'; ?></td>
+                            <td>
+                                <?php if (!empty($leaveRequest['admin_rejection_reason'])): ?>
+                                    <?php echo htmlspecialchars($leaveRequest['admin_rejection_reason']); ?>
+                                <?php elseif (!empty($leaveRequest['approved_days_with_pay']) || !empty($leaveRequest['approved_days_without_pay'])): ?>
+                                    <?php if (!empty($leaveRequest['approved_days_with_pay'])): ?>
+                                        <?php echo $leaveRequest['approved_days_with_pay']; ?> day(s) with pay
+                                    <?php endif; ?>
+                                    <?php if (!empty($leaveRequest['approved_days_without_pay'])): ?>
+                                        <?php if (!empty($leaveRequest['approved_days_with_pay'])): ?><br><?php endif; ?>
+                                        <?php echo $leaveRequest['approved_days_without_pay']; ?> day(s) without pay
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    -
+                                <?php endif; ?>
+                            </td>
+                            <td style="height: 40px; vertical-align: bottom;">
+                                <div style="border-bottom: 1px solid #333; width: 150px; margin-bottom: 5px;"></div>
+                                <small>Signature</small>
+                            </td>
+                        </tr>
+                        <tr>
                             <td><strong>Director</strong></td>
                             <td><?php 
-                                $director_display_status = ($leaveRequest['dept_head_approval'] === 'rejected') ? 'rejected' : ($leaveRequest['director_approval'] ?: 'pending');
-                                echo getStatusBadge($director_display_status); 
+                                $director_display_status =
+                                    ($leaveRequest['dept_head_approval'] === 'rejected' || $leaveRequest['admin_approval'] === 'rejected')
+                                    ? 'rejected'
+                                    : ($leaveRequest['director_approval'] ?: 'pending');
+                                echo getStatusBadge($director_display_status);
                             ?></td>
                             <td><?php echo !empty($leaveRequest['director_approved_at']) ? formatDateTime($leaveRequest['director_approved_at']) : 'Pending'; ?></td>
                             <td>

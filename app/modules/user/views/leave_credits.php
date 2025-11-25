@@ -37,14 +37,19 @@ foreach ($requiredFields as $field) {
 
 // Only recalculate if ALL fields are missing or zero (indicating a completely new account)
 if ($allFieldsMissing) {
-    // Initialize with CSC standard credits for new employees
+    $gstmt = $pdo->prepare("SELECT gender FROM employees WHERE id = ?");
+    $gstmt->execute([$_SESSION['user_id']]);
+    $gender = $gstmt->fetchColumn();
+    $isFemale = ($gender === 'female');
+    $maternityInit = $isFemale ? 105 : 0;
+    $paternityInit = $isFemale ? 0 : 7;
     $stmt = $pdo->prepare("
         UPDATE employees SET 
             vacation_leave_balance = 15,
             sick_leave_balance = 15,
             special_leave_privilege_balance = 3,
-            maternity_leave_balance = 105,
-            paternity_leave_balance = 7,
+            maternity_leave_balance = ?,
+            paternity_leave_balance = ?,
             solo_parent_leave_balance = 7,
             vawc_leave_balance = 10,
             last_leave_credit_update = CURDATE()
@@ -54,7 +59,7 @@ if ($allFieldsMissing) {
             special_leave_privilege_balance = 0
         )
     ");
-    $stmt->execute([$_SESSION['user_id']]);
+    $stmt->execute([$maternityInit, $paternityInit, $_SESSION['user_id']]);
     
     // Refresh the summary after initialization
     $leaveSummary = $creditsManager->getLeaveCreditsSummary($_SESSION['user_id']);
@@ -182,11 +187,33 @@ include '../../../../includes/user_header.php';
                     $leaveTypes = getLeaveTypes();
                     
                     foreach ($leaveTypes as $type => $info):
+                        // Hide female-only leave types for male employees
+                        if (!empty($employee) && isset($employee['gender']) && $employee['gender'] !== 'female') {
+                            if (isset($info['gender_restricted']) && $info['gender_restricted'] === 'female') {
+                                continue;
+                            }
+                        }
+                        // Hide paternity for female employees
+                        if (!empty($employee) && isset($employee['gender']) && $employee['gender'] === 'female' && $type === 'paternity') {
+                            continue;
+                        }
+                        // Hide Solo Parent leave if employee is not a solo parent
+                        if ($type === 'solo_parent') {
+                            $isSoloParent = isset($employee['is_solo_parent']) ? (int)$employee['is_solo_parent'] : 0;
+                            if ($isSoloParent !== 1) {
+                                continue;
+                            }
+                        }
                         // Get current balance from the manager
                         // Use credit_field from config if available, otherwise construct field name
                         $fieldName = isset($info['credit_field']) ? $info['credit_field'] : ($type . '_leave_balance');
                         $currentBalance = isset($leaveSummary[$fieldName]) ? $leaveSummary[$fieldName] : 0;
                         
+                        // Hide VL/SL cards if not eligible (no credits)
+                        if (in_array($type, ['vacation','sick']) && (float)$currentBalance <= 0) {
+                            continue;
+                        }
+
                         // Get usage statistics for this leave type
                         $usage = $leaveUsageByType[$type] ?? [
                             'total_days' => 0,

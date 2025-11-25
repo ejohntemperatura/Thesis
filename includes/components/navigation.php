@@ -12,7 +12,7 @@ function getNavigation($user_role = 'user', $pending_count = 0) {
                 ['url' => 'manage_user.php', 'title' => 'Manage Users', 'icon' => 'fas fa-users-cog', 'badge' => ''],
                 ['url' => 'leave_management.php', 'title' => 'Leave Management', 'icon' => 'fas fa-calendar-check', 'badge' => $pending_count > 0 ? $pending_count : ''],
                 ['url' => 'leave_alerts.php', 'title' => 'Leave Alerts', 'icon' => 'fas fa-bell', 'badge' => ''],
-                ['url' => 'cto_management.php', 'title' => 'CTO Management', 'icon' => 'fas fa-clock', 'badge' => '']
+                ['url' => 'cto_management.php', 'title' => 'CTO/SERVICE', 'icon' => 'fas fa-clock', 'badge' => '']
             ],
             'REPORTS' => [
                 ['url' => 'calendar.php', 'title' => 'Leave Chart', 'icon' => 'fas fa-calendar', 'badge' => ''],

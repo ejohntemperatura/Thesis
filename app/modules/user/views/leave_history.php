@@ -17,13 +17,14 @@ $employee = $stmt->fetch();
 // Get leave types configuration
 $leaveTypes = getLeaveTypes();
 
-// Get leave history
+// Get leave history with employee service credit balance (for display hint)
 $stmt = $pdo->prepare("
-    SELECT lr.*, 
+    SELECT lr.*, e.service_credit_balance AS sc_balance,
            lr.leave_type as display_leave_type,
            lr.is_late,
            lr.late_justification
     FROM leave_requests lr 
+    JOIN employees e ON lr.employee_id = e.id
     WHERE lr.employee_id = ? 
     ORDER BY lr.created_at DESC
 ");
@@ -85,7 +86,31 @@ include '../../../../includes/user_header.php';
                                         <td class="px-6 py-4">
                                             <div class="flex flex-col gap-2">
                                                 <span class="bg-primary/20 text-primary px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide">
-                                                    <?php echo getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes); ?>
+                                                    <?php 
+                                                        $disp = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes);
+                                                        if (!isset($disp) || trim($disp) === '') {
+                                                            $base = $request['original_leave_type'] ?? ($request['leave_type'] ?? '');
+                                                            $disp = getLeaveTypeDisplayName($base, null, $leaveTypes);
+                                                            if (!isset($disp) || trim($disp) === '') {
+                                                                if (!empty($request['study_type'])) {
+                                                                    $disp = 'Study Leave (Without Pay)';
+                                                                } elseif (!empty($request['medical_condition']) || !empty($request['illness_specify'])) {
+                                                                    $disp = 'Sick Leave (SL)';
+                                                                } elseif (!empty($request['special_women_condition'])) {
+                                                                    $disp = 'Special Leave Benefits for Women';
+                                                                } elseif (!empty($request['location_type'])) {
+                                                                    $disp = 'Vacation Leave (VL)';
+                                                                } elseif (isset($request['sc_balance']) && (float)$request['sc_balance'] > 0) {
+                                                                    $disp = 'Service Credits';
+                                                                } elseif (($request['pay_status'] ?? '') === 'without_pay' || ($request['leave_type'] ?? '') === 'without_pay') {
+                                                                    $disp = 'Without Pay Leave';
+                                                                } else {
+                                                                    $disp = 'Service Credits';
+                                                                }
+                                                            }
+                                                        }
+                                                        echo $disp;
+                                                    ?>
                                                 </span>
                                                 <?php if ($request['is_late'] == 1): ?>
                                                     <span class="bg-orange-500/20 text-orange-400 px-2 py-1 rounded-full text-xs font-semibold flex items-center">
@@ -307,6 +332,19 @@ include '../../../../includes/user_header.php';
             }
         }
 
+        // Robust resolver for modal/details: prefers helper, then infers from fields and service credit balance
+        function resolveLeaveTypeLabel(req) {
+            const lbl = getLeaveTypeDisplayNameJS(req.leave_type, req.original_leave_type);
+            if (lbl && String(lbl).trim() !== '') return lbl;
+            if (req.study_type) return 'Study Leave (Without Pay)';
+            if (req.medical_condition || req.illness_specify) return 'Sick Leave (SL)';
+            if (req.special_women_condition) return 'Special Leave Benefits for Women';
+            if (req.location_type) return 'Vacation Leave (VL)';
+            if (typeof req.sc_balance !== 'undefined' && parseFloat(req.sc_balance) > 0) return 'Service Credits';
+            if (req.pay_status === 'without_pay' || req.leave_type === 'without_pay') return 'Without Pay Leave';
+            return 'Service Credits';
+        }
+
         function openLeaveDetailsModal() {
             document.getElementById('leaveDetailsModal').classList.remove('hidden');
             document.getElementById('leaveDetailsModal').classList.add('flex');
@@ -368,7 +406,7 @@ include '../../../../includes/user_header.php';
                                 <div>
                                     <h6 class="text-slate-400 mb-2 font-semibold">Leave Type</h6>
                                     <p class="mb-3">
-                                        <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide">${getLeaveTypeDisplayNameJS(leave.leave_type, leave.original_leave_type)}</span>
+                                        <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide">${resolveLeaveTypeLabel(leave)}</span>
                                     </p>
                                     
                                     <h6 class="text-slate-400 mb-2 font-semibold">Start Date</h6>

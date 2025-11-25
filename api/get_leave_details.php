@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once dirname(__DIR__) . '/config/database.php';
+require_once dirname(__DIR__) . '/config/leave_types.php';
 
 // Set JSON header
 header('Content-Type: application/json');
@@ -30,7 +31,8 @@ try {
             e.department,
             e.position,
             e.vacation_leave_balance,
-            e.sick_leave_balance
+            e.sick_leave_balance,
+            e.service_credit_balance as sc_balance
         FROM leave_requests lr
         JOIN employees e ON lr.employee_id = e.id
         WHERE lr.id = ? AND lr.employee_id = ?
@@ -48,9 +50,14 @@ try {
     $end = new DateTime($request['end_date']);
     $request['days'] = $start->diff($end)->days + 1;
     
+    // Compute raw vs display leave type
+    $leaveTypes = getLeaveTypes();
+    $request['leave_type_raw'] = $request['original_leave_type'] ?? $request['leave_type'];
+    $request['leave_type_display'] = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes);
+
     // Add leave-specific information
-    $request['leave_requirements'] = getLeaveRequirements($request['leave_type']);
-    $request['status_info'] = getStatusInformation($request['status'], $request['leave_type']);
+    $request['leave_requirements'] = getLeaveRequirements($request['leave_type_raw']);
+    $request['status_info'] = getStatusInformation($request['status'], $request['leave_type_raw']);
     $request['can_appeal'] = canAppealLeave($request['status'], $request['created_at']);
     
     // Return the leave request data

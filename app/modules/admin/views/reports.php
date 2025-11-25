@@ -275,13 +275,6 @@ include '../../../../includes/admin_header.php';
                                             <i class="fas fa-coins mr-2"></i>Leave Credits
                                         </span>
                                     </label>
-                                    <label class="flex items-center space-x-3 cursor-pointer p-3 rounded-lg border border-slate-600 hover:border-blue-500 <?php echo $report_type == 'pay_summary' ? 'bg-blue-500/10 border-blue-500' : ''; ?>">
-                                        <input type="radio" name="report_type" value="pay_summary" <?php echo $report_type == 'pay_summary' ? 'checked' : ''; ?> 
-                                               class="w-4 h-4 text-blue-500 bg-slate-700 border-slate-600 focus:ring-blue-500">
-                                        <span class="text-slate-300">
-                                            <i class="fas fa-balance-scale mr-2"></i>Pay Summary
-                                        </span>
-                                    </label>
                                 </div>
                             </div>
                             

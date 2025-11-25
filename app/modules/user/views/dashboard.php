@@ -134,18 +134,7 @@ $rejected_count = $stmt->fetchColumn();
 $total_credits = $employee['vacation_leave'] ?? 15; // Default to 15 if not set
 
 // Fetch user's leave requests with approved days calculation
-$stmt = $pdo->prepare("
-    SELECT 
-        lr.*,
-        CASE 
-            WHEN lr.approved_days IS NOT NULL AND lr.approved_days > 0 
-            THEN lr.approved_days
-            ELSE lr.days_requested
-        END as actual_days_approved
-    FROM leave_requests lr 
-    WHERE lr.employee_id = ? 
-    ORDER BY lr.created_at DESC
-");
+$stmt = $pdo->prepare("\n    SELECT \n        lr.*, e.service_credit_balance AS sc_balance,\n        CASE \n            WHEN lr.approved_days IS NOT NULL AND lr.approved_days > 0 \n            THEN lr.approved_days\n            ELSE lr.days_requested\n        END as actual_days_approved\n    FROM leave_requests lr \n    JOIN employees e ON lr.employee_id = e.id\n    WHERE lr.employee_id = ? \n    ORDER BY lr.created_at DESC\n");
 $stmt->execute([$_SESSION['user_id']]);
 $leave_requests = $stmt->fetchAll();
 
@@ -161,8 +150,8 @@ include '../../../../includes/user_header.php';
 <link href='../../../../assets/libs/fullcalendar/css/main.min.css' rel='stylesheet' />
 
     <!-- Apply Leave Modal -->
-    <div id="applyLeaveModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div id="applyLeaveModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 elms-modal-overlay">
+        <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 w-full max-w-2xl max-h-[90vh] overflow-y-auto elms-modal">
             <div class="px-6 py-4 border-b border-slate-700/50 bg-slate-700/30">
                 <div class="flex items-center justify-between">
                     <h3 class="text-xl font-semibold text-white flex items-center">
@@ -201,6 +190,8 @@ include '../../../../includes/user_header.php';
                             </div>
                         </div>
                     </div>
+
+                    
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
@@ -209,7 +200,23 @@ include '../../../../includes/user_header.php';
                             </label>
                             <select id="modal_leave_type" name="leave_type" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" onchange="toggleModalConditionalFields()">
                                 <option value="">Select Leave Type</option>
-                                <?php foreach ($leaveTypes as $type => $config): ?>
+                                <?php foreach ($leaveTypes as $type => $config): 
+                                    // Gender restrictions
+                                    if (isset($config['gender_restricted'])) {
+                                        if ($config['gender_restricted'] === 'female' && ($employee['gender'] ?? 'male') !== 'female') continue;
+                                        if ($config['gender_restricted'] === 'male' && ($employee['gender'] ?? 'male') !== 'male') continue;
+                                    }
+                                    // Solo parent visibility
+                                    if ($type === 'solo_parent' && (int)($employee['is_solo_parent'] ?? 0) !== 1) continue;
+                                    // Credit availability: if requires credits, only show when employee has > 0 balance
+                                    $show = true;
+                                    if (!empty($config['requires_credits'])) {
+                                        $creditField = $config['credit_field'] ?? null;
+                                        if ($creditField && isset($employee[$creditField])) {
+                                            $show = ((float)$employee[$creditField]) > 0;
+                                        }
+                                    }
+                                    if (!$show) continue; ?>
                                     <option value="<?php echo $type; ?>"><?php echo $config['name']; ?></option>
                                 <?php endforeach; ?>
                             </select>
@@ -221,7 +228,7 @@ include '../../../../includes/user_header.php';
                             <input type="date" id="modal_start_date" name="start_date" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
                     </div>
-                    
+
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label for="modal_end_date" class="block text-sm font-semibold text-slate-300 mb-2">
@@ -234,6 +241,21 @@ include '../../../../includes/user_header.php';
                                 <i class="fas fa-calculator mr-2"></i>Total Days
                             </label>
                             <input type="text" id="modal_total_days" readonly class="w-full bg-slate-600 border border-slate-600 rounded-xl px-4 py-3 text-slate-400">
+                        </div>
+                    </div>
+                    
+                    <!-- Maternity/Paternity Supporting Document (Required) - Regular Application -->
+                    <div id="modalMatPatFields" class="hidden bg-slate-700/30 rounded-xl p-6 border border-slate-600/50">
+                        <h4 class="text-lg font-semibold text-white mb-4 flex items-center">
+                            <i class="fas fa-file-shield text-blue-500 mr-3"></i>
+                            Supporting Document (Required)
+                        </h4>
+                        <div class="space-y-2">
+                            <input type="file" id="modal_matpat_file" name="medical_certificate" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <p class="text-xs text-slate-400">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                Accepted: PDF, JPG, JPEG, PNG, DOC, DOCX (Max 10MB)
+                            </p>
                         </div>
                     </div>
                     
@@ -289,10 +311,10 @@ include '../../../../includes/user_header.php';
                                     <input type="text" id="modal_illness_description" name="illness_specify" placeholder="Specify your illness or medical condition..." class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 </div>
                                 <div>
-                                    <label for="modal_medical_cert_file" class="block text-sm font-semibold text-slate-300 mb-2">
+                                    <label for="modal_sick_medical_cert_file" class="block text-sm font-semibold text-slate-300 mb-2">
                                         <i class="fas fa-file-upload mr-2"></i>Medical Certificate (Optional)
                                     </label>
-                                    <input type="file" id="modal_medical_cert_file" name="medical_certificate" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                    <input type="file" id="modal_sick_medical_cert_file" name="sick_medical_certificate" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                     <p class="text-xs text-slate-400 mt-1">
                                         <i class="fas fa-info-circle mr-1"></i>
                                         Supported formats: PDF, JPG, JPEG, PNG, DOC, DOCX (Max 10MB)
@@ -363,8 +385,8 @@ include '../../../../includes/user_header.php';
     </div>
 
     <!-- Late Application Modal -->
-    <div id="lateApplicationModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div id="lateApplicationModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 elms-modal-overlay">
+        <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 w-full max-w-2xl max-h-[90vh] overflow-y-auto elms-modal">
             <div class="px-6 py-4 border-b border-slate-700/50 bg-slate-700/30">
                 <div class="flex items-center justify-between">
                     <h3 class="text-xl font-semibold text-white flex items-center">
@@ -411,7 +433,23 @@ include '../../../../includes/user_header.php';
                             </label>
                             <select id="modal_late_leave_type" name="leave_type" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent" onchange="toggleModalLateConditionalFields()">
                                 <option value="">Select Leave Type</option>
-                                <?php foreach ($leaveTypes as $type => $config): ?>
+                                <?php foreach ($leaveTypes as $type => $config): 
+                                    // Gender restrictions
+                                    if (isset($config['gender_restricted'])) {
+                                        if ($config['gender_restricted'] === 'female' && ($employee['gender'] ?? 'male') !== 'female') continue;
+                                        if ($config['gender_restricted'] === 'male' && ($employee['gender'] ?? 'male') !== 'male') continue;
+                                    }
+                                    // Solo parent visibility
+                                    if ($type === 'solo_parent' && (int)($employee['is_solo_parent'] ?? 0) !== 1) continue;
+                                    // Credit availability: if requires credits, only show when employee has > 0 balance
+                                    $showLate = true;
+                                    if (!empty($config['requires_credits'])) {
+                                        $creditField = $config['credit_field'] ?? null;
+                                        if ($creditField && isset($employee[$creditField])) {
+                                            $showLate = ((float)$employee[$creditField]) > 0;
+                                        }
+                                    }
+                                    if (!$showLate) continue; ?>
                                     <option value="<?php echo $type; ?>"><?php echo $config['name']; ?></option>
                                 <?php endforeach; ?>
                             </select>
@@ -421,6 +459,21 @@ include '../../../../includes/user_header.php';
                                 <i class="fas fa-calendar-day mr-2"></i>Start Date
                             </label>
                             <input type="date" id="modal_late_start_date" name="start_date" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent">
+                        </div>
+                    </div>
+
+                    <!-- Maternity/Paternity Supporting Document (Required) for Late Application -->
+                    <div id="modalLateMatPatFields" class="hidden bg-slate-700/30 rounded-xl p-6 border border-slate-600/50">
+                        <h4 class="text-lg font-semibold text-white mb-4 flex items-center">
+                            <i class="fas fa-file-shield text-gray-500 mr-3"></i>
+                            Supporting Document (Required)
+                        </h4>
+                        <div class="space-y-2">
+                            <input type="file" id="modal_late_matpat_file" name="medical_certificate" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-500 file:text-white hover:file:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent">
+                            <p class="text-xs text-slate-400">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                Accepted: PDF, JPG, JPEG, PNG, DOC, DOCX (Max 10MB)
+                            </p>
                         </div>
                     </div>
                     
@@ -634,28 +687,42 @@ include '../../../../includes/user_header.php';
             <p class="elms-text-muted">Here's what's happening with your leave requests today.</p>
         </div>
         <div style="text-align: right;">
-            <div id="dashboard-time" style="color: white; font-size: 1.5rem; font-weight: 700; font-family: 'Courier New', monospace; margin-bottom: 0.25rem;">00:00:00 AM</div>
-            <div style="color: #94a3b8; font-size: 0.875rem;">Today is</div>
-            <div style="color: white; font-size: 1.125rem; font-weight: 600;"><?php echo date('l, F j, Y'); ?></div>
+            <div style="display: inline-flex; align-items: baseline; gap: 0.5rem; justify-content: flex-end; margin-bottom: 0.25rem;">
+                <span id="clockHM" style="color: white; font-size: 1.75rem; font-weight: 700; font-family: 'Courier New', monospace;">--:--</span>
+                <span id="clockSec" style="color: #cbd5e1; font-size: 1rem; font-family: 'Courier New', monospace;">--</span>
+                <span id="clockAmPm" style="color: #cbd5e1; font-size: 0.875rem; font-family: 'Courier New', monospace;">--</span>
+            </div>
+            <div style="color: #94a3b8; font-size: 0.75rem;">Today is</div>
+            <div id="clockDateChip" style="margin-top: 0.25rem; display: inline-flex; align-items: center; padding: 0.25rem 0.75rem; border-radius: 9999px; border: 1px solid rgba(51,65,85,0.6); background: rgba(51,65,85,0.4); color: #e5e7eb; font-size: 0.875rem;">Loading...</div>
         </div>
     </div>
     
     <script>
-        // Update dashboard time
-        function updateDashboardTime() {
+        // Update employee dashboard time (Split Badge clock)
+        function updateEmployeeDashboardTime() {
             const now = new Date();
-            const timeString = now.toLocaleTimeString('en-US', { 
-                hour12: true,
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
-            document.getElementById('dashboard-time').textContent = timeString;
+            let h = now.getHours();
+            const m = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12; h = h ? h : 12;
+            const hm = `${String(h).padStart(2, '0')}:${m}`;
+            const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            const dateString = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+            const elHM = document.getElementById('clockHM');
+            const elS = document.getElementById('clockSec');
+            const elAP = document.getElementById('clockAmPm');
+            const elDate = document.getElementById('clockDateChip');
+            if (elHM) elHM.textContent = hm;
+            if (elS) elS.textContent = s;
+            if (elAP) elAP.textContent = ampm;
+            if (elDate) elDate.textContent = dateString;
         }
         
         // Update time immediately and then every second
-        updateDashboardTime();
-        setInterval(updateDashboardTime, 1000);
+        updateEmployeeDashboardTime();
+        setInterval(updateEmployeeDashboardTime, 1000);
     </script>
 </div>
 
@@ -811,8 +878,30 @@ include '../../../../includes/user_header.php';
                                             <div>
                                                 <h3 class="text-lg font-semibold text-white">
                                                     <?php 
-                                                    // Use the getLeaveTypeDisplayName function for consistent display
-                                                    echo getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes);
+                                                    // Use the getLeaveTypeDisplayName function for consistent display with fallback
+                                                    $__label = getLeaveTypeDisplayName($request['leave_type'] ?? '', $request['original_leave_type'] ?? null, $leaveTypes);
+                                                    if (!isset($__label) || trim($__label) === '') {
+                                                        $base = $request['original_leave_type'] ?? ($request['leave_type'] ?? '');
+                                                        $__label = getLeaveTypeDisplayName($base, null, $leaveTypes);
+                                                        if (!isset($__label) || trim($__label) === '') {
+                                                            if (!empty($request['study_type'])) {
+                                                                $__label = 'Study Leave (Without Pay)';
+                                                            } elseif (!empty($request['medical_condition']) || !empty($request['illness_specify'])) {
+                                                                $__label = 'Sick Leave (SL)';
+                                                            } elseif (!empty($request['special_women_condition'])) {
+                                                                $__label = 'Special Leave Benefits for Women';
+                                                            } elseif (!empty($request['location_type'])) {
+                                                                $__label = 'Vacation Leave (VL)';
+                                                            } elseif (isset($request['sc_balance']) && (float)$request['sc_balance'] > 0) {
+                                                                $__label = 'Service Credits';
+                                                            } elseif (($request['pay_status'] ?? '') === 'without_pay' || ($request['leave_type'] ?? '') === 'without_pay') {
+                                                                $__label = 'Without Pay Leave';
+                                                            } else {
+                                                                $__label = 'Service Credits';
+                                                            }
+                                                        }
+                                                    }
+                                                    echo $__label;
                                                     ?>
                                                 </h3>
                                                 <p class="text-slate-400 text-sm">
@@ -998,6 +1087,8 @@ include '../../../../includes/user_header.php';
             const sickFields = document.getElementById('modalSickFields');
             const specialWomenFields = document.getElementById('modalSpecialWomenFields');
             const studyFields = document.getElementById('modalStudyFields');
+            const matPatFields = document.getElementById('modalMatPatFields');
+            const matPatInput = document.getElementById('modal_matpat_file');
             
             // Hide all conditional fields first using opacity instead of hidden
             if (vacationFields) {
@@ -1020,6 +1111,11 @@ include '../../../../includes/user_header.php';
                 conditionalFields.classList.add('hidden');
                 conditionalFields.style.display = 'none';
             }
+            if (matPatFields) {
+                matPatFields.classList.add('hidden');
+                matPatFields.style.display = 'none';
+            }
+            if (matPatInput) matPatInput.required = false;
             
             // Show relevant fields based on leave type
             if (leaveType === 'vacation' || leaveType === 'special_privilege') {
@@ -1058,6 +1154,12 @@ include '../../../../includes/user_header.php';
                     conditionalFields.classList.remove('hidden');
                     conditionalFields.style.display = 'block';
                 }
+            } else if (leaveType === 'maternity' || leaveType === 'paternity') {
+                if (matPatFields) {
+                    matPatFields.classList.remove('hidden');
+                    matPatFields.style.display = 'block';
+                }
+                if (matPatInput) matPatInput.required = true;
             }
         }
 
@@ -1069,6 +1171,8 @@ include '../../../../includes/user_header.php';
             const sickFields = document.getElementById('modalLateSickFields');
             const specialWomenFields = document.getElementById('modalLateSpecialWomenFields');
             const studyFields = document.getElementById('modalLateStudyFields');
+            const lateMatPatFields = document.getElementById('modalLateMatPatFields');
+            const lateMatPatInput = document.getElementById('modal_late_matpat_file');
             
             // Hide all conditional fields first
             if (vacationFields) vacationFields.classList.add('hidden');
@@ -1076,6 +1180,9 @@ include '../../../../includes/user_header.php';
             if (specialWomenFields) specialWomenFields.classList.add('hidden');
             if (studyFields) studyFields.classList.add('hidden');
             if (conditionalFields) conditionalFields.classList.add('hidden');
+            if (lateMatPatFields) lateMatPatFields.classList.add('hidden');
+            if (lateMatPatFields) lateMatPatFields.style.display = 'none';
+            if (lateMatPatInput) lateMatPatInput.required = false;
             
             // Show relevant fields based on leave type
             if (leaveType === 'vacation' || leaveType === 'special_privilege') {
@@ -1090,6 +1197,12 @@ include '../../../../includes/user_header.php';
             } else if (leaveType === 'study') {
                 if (studyFields) studyFields.classList.remove('hidden');
                 if (conditionalFields) conditionalFields.classList.remove('hidden');
+            } else if (leaveType === 'maternity' || leaveType === 'paternity') {
+                if (lateMatPatFields) {
+                    lateMatPatFields.classList.remove('hidden');
+                    lateMatPatFields.style.display = 'block';
+                }
+                if (lateMatPatInput) lateMatPatInput.required = true;
             }
         }
 
@@ -1686,6 +1799,10 @@ include '../../../../includes/user_header.php';
         // Initialize FullCalendar
         document.addEventListener('DOMContentLoaded', function() {
             var calendarEl = document.getElementById('calendar');
+            if (!calendarEl) {
+                // Calendar container not present on this view; skip initialization
+                return;
+            }
             var calendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: 'dayGridMonth',
                 headerToolbar: {

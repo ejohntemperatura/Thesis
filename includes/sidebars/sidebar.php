@@ -111,7 +111,7 @@ if ($role === 'admin') {
 ?>
 
 <!-- Left Sidebar -->
-<aside class="fixed left-0 top-16 h-screen w-64 bg-slate-900 border-r border-slate-800 overflow-y-auto z-40">
+<aside class="fixed left-0 top-16 h-screen w-64 bg-slate-900 border-r border-slate-800 overflow-y-auto z-40 elms-sidebar">
     <nav class="p-4 space-y-2">
         <?php foreach ($navSections as $sectionKey => $section): ?>
             <?php if ($sectionKey === 'dashboard'): ?>
@@ -124,7 +124,7 @@ if ($role === 'admin') {
                                           'text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors';
                 ?>
                 <a href="<?php echo $dashboardItem['href']; ?>" 
-                   class="flex items-center space-x-3 px-4 py-3 <?php echo $activeClass; ?>">
+                   class="flex items-center space-x-3 px-4 py-3 elms-nav-item <?php echo $activeClass; ?>">
                     <i class="<?php echo $dashboardItem['icon']; ?> w-5"></i>
                     <span><?php echo $dashboardItem['text']; ?></span>
                 </a>
@@ -142,7 +142,7 @@ if ($role === 'admin') {
                                                   'text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors';
                         ?>
                         <a href="<?php echo $item['href']; ?>" 
-                           class="flex items-center space-x-3 px-4 py-3 <?php echo $activeClass; ?>">
+                           class="flex items-center space-x-3 px-4 py-3 elms-nav-item <?php echo $activeClass; ?>">
                             <i class="<?php echo $item['icon']; ?> w-5"></i>
                             <span><?php echo $item['text']; ?></span>
                             <?php if (isset($item['badge'])): ?>
@@ -157,7 +157,7 @@ if ($role === 'admin') {
         <!-- Logout Section -->
         <div class="pt-4 border-t border-slate-700">
             <a href="../auth/logout.php" 
-               class="flex items-center space-x-3 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors">
+               class="flex items-center space-x-3 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors elms-nav-item">
                 <i class="fas fa-sign-out-alt w-5"></i>
                 <span>Logout</span>
             </a>

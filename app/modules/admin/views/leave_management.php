@@ -220,7 +220,7 @@ try {
 // Fetch initial leave requests (limited)
 try {
     $query = "
-        SELECT lr.*, e.name as employee_name, e.email as employee_email, e.department,
+        SELECT lr.*, e.name as employee_name, e.email as employee_email, e.department, e.service_credit_balance AS sc_balance,
                dept_approver.name as dept_head_name, director_approver.name as director_name, admin_approver.name as admin_name,
                CASE 
                    WHEN lr.approved_days IS NOT NULL AND lr.approved_days > 0 
@@ -407,7 +407,32 @@ include '../../../../includes/admin_header.php';
                                                 <td class="py-4 px-4 text-slate-300"><?php echo htmlspecialchars($request['department']); ?></td>
                                                 <td class="py-4 px-4">
                                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-primary/20 text-primary border border-primary/30">
-                                                        <?php echo getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes); ?>
+                                                        <?php 
+                                                            $disp = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes);
+                                                            if (!isset($disp) || trim($disp) === '') {
+                                                                $base = $request['original_leave_type'] ?? ($request['leave_type'] ?? '');
+                                                                $disp = getLeaveTypeDisplayName($base, null, $leaveTypes);
+                                                                if (!isset($disp) || trim($disp) === '') {
+                                                                    // Try to infer based on available fields
+                                                                    if (!empty($request['study_type'])) {
+                                                                        $disp = 'Study Leave (Without Pay)';
+                                                                    } elseif (!empty($request['medical_condition']) || !empty($request['illness_specify'])) {
+                                                                        $disp = 'Sick Leave (SL)';
+                                                                    } elseif (!empty($request['special_women_condition'])) {
+                                                                        $disp = 'Special Leave Benefits for Women';
+                                                                    } elseif (!empty($request['location_type'])) {
+                                                                        $disp = 'Vacation Leave (VL)';
+                                                                    } elseif (isset($request['sc_balance']) && (float)$request['sc_balance'] > 0) {
+                                                                        $disp = 'Service Credits';
+                                                                    } elseif (($request['pay_status'] ?? '') === 'without_pay' || ($request['leave_type'] ?? '') === 'without_pay') {
+                                                                        $disp = 'Without Pay Leave';
+                                                                    } else {
+                                                                        $disp = 'Service Credits';
+                                                                    }
+                                                                }
+                                                            }
+                                                            echo $disp;
+                                                        ?>
                                                     </span>
                                                 </td>
                                                 <td class="py-4 px-4 text-slate-300"><?php echo date('M d, Y', strtotime($request['start_date'])); ?></td>
@@ -538,7 +563,7 @@ include '../../../../includes/admin_header.php';
                                                     <?php else: ?>
                                                         <?php if ($hr_can_act): ?>
                                                             <div class="flex items-center gap-2">
-                                                                <button type="button" onclick="openHRApprovalModal(<?php echo $request['id']; ?>)" class="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-primary hover:bg-primary/90 text-white text-xs font-medium transition-colors">
+                                                                <button type="button" onclick="openHRApprovalModal(<?php echo $request['id']; ?>)" class="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-primary hover:bg-primary/90 text-white text-xs font-medium transition-colors" data-loading="Loading...">
                                                                     <i class="fas fa-gavel"></i><span>Process Request</span>
                                                                 </button>
                                                             </div>
@@ -583,8 +608,8 @@ include '../../../../includes/admin_header.php';
     </div>
 
     <!-- Request Details Modal -->
-    <div id="requestDetailsModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-800 rounded-2xl border border-slate-700 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div id="requestDetailsModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden elms-modal-overlay">
+        <div class="bg-slate-800 rounded-2xl border border-slate-700 max-w-4xl w-full max-h-[90vh] overflow-y-auto elms-modal">
             <div class="px-6 py-4 border-b border-slate-700 bg-slate-700/30">
                 <div class="flex items-center justify-between">
                     <h3 class="text-xl font-semibold text-white">Leave Request Details</h3>
@@ -660,13 +685,30 @@ include '../../../../includes/admin_header.php';
             }
         }
         
+        // Robust resolver for modal/details: prefers helper, then infers from fields and service credit balance
+        function resolveLeaveTypeLabel(req) {
+            const lbl = getLeaveTypeDisplayNameJS(req.leave_type, req.original_leave_type);
+            if (lbl && String(lbl).trim() !== '') return lbl;
+            if (req.study_type) return 'Study Leave (Without Pay)';
+            if (req.medical_condition || req.illness_specify) return 'Sick Leave (SL)';
+            if (req.special_women_condition) return 'Special Leave Benefits for Women';
+            if (req.location_type) return 'Vacation Leave (VL)';
+            if (typeof req.sc_balance !== 'undefined' && parseFloat(req.sc_balance) > 0) return 'Service Credits';
+            if (req.pay_status === 'without_pay' || req.leave_type === 'without_pay') return 'Without Pay Leave';
+            return 'Service Credits';
+        }
         // Select all functionality
-        document.getElementById('selectAll').addEventListener('change', function() {
-            const checkboxes = document.querySelectorAll('.request-checkbox');
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = this.checked;
-            });
-        });
+        (function(){
+            const selectAllEl = document.getElementById('selectAll');
+            if (selectAllEl) {
+                selectAllEl.addEventListener('change', function() {
+                    const checkboxes = document.querySelectorAll('.request-checkbox');
+                    checkboxes.forEach(checkbox => {
+                        checkbox.checked = this.checked;
+                    });
+                });
+            }
+        })();
 
         // Bulk action functionality
         function bulkAction(action) {
@@ -715,11 +757,11 @@ include '../../../../includes/admin_header.php';
             content.innerHTML = `
                 <div class="flex items-center justify-center py-12">
                     <div class="text-center">
-                        <div class="w-16 h-16 bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <i class="fas fa-spinner fa-spin text-primary text-2xl"></i>
+                        <div class="inline-flex items-center justify-center w-16 h-16 bg-slate-700 rounded-full mb-4">
+                            <i class="fas fa-spinner fa-spin text-blue-400 text-2xl"></i>
                         </div>
                         <h4 class="text-lg font-semibold text-white mb-2">Loading Details</h4>
-                        <p class="text-slate-400">Please wait while we fetch the leave request details...</p>
+                        <p class="text-slate-300">Please wait while we fetch the leave request details...</p>
                     </div>
                 </div>
             `;
@@ -835,6 +877,27 @@ include '../../../../includes/admin_header.php';
                 }
             })();
             
+            // Compute robust leave type label (never blank)
+            let leaveTypeLabel = (() => {
+                // Prefer API precomputed display
+                const apiLbl = (leaveRequest.leave_type_display || '').trim();
+                if (apiLbl) return apiLbl;
+                // Try helper mapping using raw/current
+                const base = leaveRequest.leave_type_raw || leaveRequest.leave_type;
+                const lbl = getLeaveTypeDisplayNameJS(base, leaveRequest.original_leave_type);
+                if (lbl && String(lbl).trim() !== '') return lbl;
+                // Fall back to provided strings
+                const cur = (leaveRequest.leave_type || '').trim();
+                if (cur) return cur;
+                const raw = (leaveRequest.leave_type_raw || '').trim();
+                if (raw) return raw;
+                // Final fallback
+                return 'Service Credits';
+            })();
+            if (!leaveTypeLabel || String(leaveTypeLabel).trim() === '') {
+                leaveTypeLabel = 'Service Credits';
+            }
+            
             // Status colors and styling
             const getStatusBadge = (status) => {
                 const colorMap = {
@@ -890,8 +953,10 @@ include '../../../../includes/admin_header.php';
                         </h4>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                            <label class="text-sm font-medium text-slate-400">Leave Type</label>
-                                            <p class="text-white">${leaveRequest.leave_type}</p>
+                                <label class="text-sm font-medium text-slate-400">Leave Type</label>
+                                <div class="mt-1">
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30">${leaveTypeLabel}</span>
+                                </div>
                             </div>
                             <div>
                                 <label class="text-sm font-medium text-slate-400">Duration</label>
@@ -1194,17 +1259,25 @@ include '../../../../includes/admin_header.php';
 
         // Function to fetch pending leave count
         function fetchPendingLeaveCount() {
-            fetch('api/get_pending_leave_count.php')
-                .then(response => response.json())
+            fetch('../api/get_pending_leave_count.php')
+                .then(async (response) => {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    const ct = response.headers.get('content-type') || '';
+                    if (!ct.includes('application/json')) {
+                        const text = await response.text();
+                        throw new Error('Non-JSON response: ' + text.slice(0, 100));
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    if (data.success) {
-                        const badge = document.getElementById('pendingLeaveBadge');
-                        if (data.count > 0) {
-                            badge.textContent = data.count;
-                            badge.style.display = 'inline-block';
-                        } else {
-                            badge.style.display = 'none';
-                        }
+                    if (!data || !data.success) return;
+                    const badge = document.getElementById('pendingLeaveBadge');
+                    if (!badge) return;
+                    if (data.count > 0) {
+                        badge.textContent = data.count;
+                        badge.style.display = 'inline-block';
+                    } else {
+                        badge.style.display = 'none';
                     }
                 })
                 .catch(error => {
@@ -1539,28 +1612,29 @@ include '../../../../includes/admin_header.php';
                 </div>`;
         }
 
-        // Simple processing overlay
-        function showProcessingOverlay(title = 'Processing Your Request', subtitle = 'Please wait while we process your request...') {
-            const existing = document.getElementById('processingOverlay');
+        // Processing overlay (matches Department/Director style)
+        function showProcessingOverlay(title = 'Processing Leave Request', subtitle = 'Please wait while we process the leave request...') {
+            const existing = document.getElementById('processingModal');
             if (existing) existing.remove();
-            const overlay = document.createElement('div');
-            overlay.id = 'processingOverlay';
-            overlay.className = 'fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm';
-            overlay.setAttribute('style', 'z-index:9999');
-            overlay.innerHTML = `
-                <div class="bg-slate-800 text-white rounded-2xl border border-slate-700 shadow-2xl px-8 py-6 w-full max-w-md text-center">
-                    <div class="mx-auto mb-4 w-12 h-12 flex items-center justify-center text-blue-400">
-                        <i class="fas fa-spinner fa-spin text-2xl"></i>
+            const html = `
+                <div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 elms-modal-overlay">
+                    <div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4 elms-modal">
+                        <div class="p-6 text-center">
+                            <div class="mb-4">
+                                <div class="inline-flex items-center justify-center w-16 h-16 bg-slate-700 rounded-full mb-4">
+                                    <i class="fas fa-spinner fa-spin text-blue-400 text-2xl"></i>
+                                </div>
+                                <h3 class="text-lg font-semibold text-white mb-2">${title}</h3>
+                                <p class="text-slate-300 mb-0">${subtitle}</p>
+                            </div>
+                        </div>
                     </div>
-                    <h3 class="text-lg font-semibold mb-1">${title}</h3>
-                    <p class="text-slate-300 text-sm">${subtitle}</p>
-                </div>
-            `;
-            document.body.appendChild(overlay);
+                </div>`;
+            document.body.insertAdjacentHTML('beforeend', html);
         }
 
         function hideProcessingOverlay() {
-            const overlay = document.getElementById('processingOverlay');
+            const overlay = document.getElementById('processingModal');
             if (overlay) overlay.remove();
         }
 

@@ -10,7 +10,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 
 $calculator = new LeaveCreditsCalculator($pdo);
 
-// Handle CTO earning submission
+// Handle CTO earning submission and Service Credit addition
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'manual_add_cto') {
         // Handle manual CTO addition
@@ -75,6 +75,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         
         header('Location: cto_management.php');
         exit();
+    } elseif ($_POST['action'] === 'manual_add_service_credit') {
+        $employee_id = $_POST['employee_id'];
+        $days_to_add = (float)($_POST['days_to_add'] ?? 0);
+        $reason = $_POST['reason'] ?? 'Manual service credit by admin';
+        try {
+            // Ensure column exists
+            $pdo->exec("ALTER TABLE employees ADD COLUMN IF NOT EXISTS service_credit_balance DECIMAL(5,2) DEFAULT 0.00");
+            // Ensure history table exists
+            $pdo->exec("CREATE TABLE IF NOT EXISTS service_credit_history (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                employee_id INT NOT NULL,
+                days_added DECIMAL(5,2) NOT NULL,
+                reason TEXT NULL,
+                approved_by INT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                INDEX (employee_id),
+                CONSTRAINT fk_svc_emp FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+                CONSTRAINT fk_svc_appr FOREIGN KEY (approved_by) REFERENCES employees(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+            // Get current balance
+            $stmt = $pdo->prepare("SELECT service_credit_balance, name FROM employees WHERE id = ?");
+            $stmt->execute([$employee_id]);
+            $employee = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$employee) { throw new Exception('Employee not found'); }
+
+            $current_balance = (float)($employee['service_credit_balance'] ?? 0);
+            $add = max(0, $days_to_add);
+            if ($add <= 0) { throw new Exception('Days to add must be greater than 0'); }
+            $new_balance = $current_balance + $add;
+
+            // Approver ID (admin)
+            $approver_id = null;
+            if (isset($_SESSION['user_id'])) {
+                $stmt = $pdo->prepare("SELECT id FROM employees WHERE id = ?");
+                $stmt->execute([$_SESSION['user_id']]);
+                if ($stmt->fetchColumn()) { $approver_id = $_SESSION['user_id']; }
+            }
+
+            // Apply update + history atomically
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare("UPDATE employees SET service_credit_balance = ? WHERE id = ?");
+            $stmt->execute([$new_balance, $employee_id]);
+
+            $stmt = $pdo->prepare("INSERT INTO service_credit_history (employee_id, days_added, reason, approved_by) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$employee_id, $add, $reason, $approver_id]);
+            $pdo->commit();
+
+            $_SESSION['success'] = "Successfully added {$add} day(s) Service Credit to {$employee['name']}. New balance: {$new_balance} day(s)";
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) { $pdo->rollBack(); }
+            $_SESSION['error'] = "Error: " . $e->getMessage();
+        }
+        header('Location: cto_management.php');
+        exit();
     }
 }
 
@@ -112,7 +167,7 @@ $stmt = $pdo->query("
 $employeesWithCTO = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Set page title
-$page_title = "CTO Management";
+$page_title = "CTO/SERVICE";
 
 // Include admin header
 include '../../../../includes/admin_header.php';
@@ -122,9 +177,10 @@ include '../../../../includes/admin_header.php';
                     <div class="flex items-center gap-3">
                         <i class="fas fa-clock text-3xl text-primary mr-2"></i>
                         <div>
-                            <h1 class="text-3xl font-bold text-white mb-1">CTO Management</h1>
+                            <h1 class="text-3xl font-bold text-white mb-1">CTO/SERVICE</h1>
                             <p class="text-slate-400">Manage Compensatory Time Off (CTO) earnings and usage</p>
                         </div>
+
                     </div>
                 </div>
 
@@ -218,6 +274,57 @@ include '../../../../includes/admin_header.php';
                             <button type="submit" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-blue-500/20">
                                 <i class="fas fa-plus-circle mr-2"></i>
                                 Add CTO Credits
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Manual Service Credit Addition Form (placed below CTO form) -->
+                <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-6 mb-8">
+                    <div class="flex items-start gap-4 mb-6">
+                        <i class="fas fa-info-circle text-emerald-400 text-2xl mt-1"></i>
+                        <div>
+                            <h3 class="text-xl font-semibold text-emerald-400 mb-2">Manual Service Credit Addition</h3>
+                            <p class="text-slate-300">Add Service Credit days directly to an employee's balance. This will also log a history record.</p>
+                        </div>
+                    </div>
+
+                    <form method="POST" class="space-y-4">
+                        <input type="hidden" name="action" value="manual_add_service_credit">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-300 mb-2">Employee</label>
+                                <select name="employee_id" required class="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                                    <option value="">Select Employee</option>
+                                    <?php 
+                                    if (!isset($allEmployees)) {
+                                        $stmt = $pdo->query("SELECT id, name, department FROM employees WHERE role NOT IN ('admin', 'manager', 'director') ORDER BY name");
+                                        $allEmployees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                                    }
+                                    foreach ($allEmployees as $employee): ?>
+                                        <option value="<?php echo $employee['id']; ?>">
+                                            <?php echo htmlspecialchars($employee['name']); ?> - <?php echo htmlspecialchars($employee['department']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-300 mb-2">Days to Add</label>
+                                <input type="number" name="days_to_add" step="0.5" min="0.5" required 
+                                       class="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                       placeholder="Enter days to add">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-slate-300 mb-2">Reason</label>
+                                <input type="text" name="reason" 
+                                       class="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                       placeholder="e.g., Service rendered on weekend, Administrative adjustment">
+                            </div>
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-emerald-500/20">
+                                <i class="fas fa-plus-circle mr-2"></i>
+                                Add Service Credit
                             </button>
                         </div>
                     </form>

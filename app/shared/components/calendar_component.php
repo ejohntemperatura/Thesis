@@ -32,6 +32,7 @@ $sql = "
         e.name as employee_name, 
         e.position, 
         e.department,
+        e.service_credit_balance AS sc_balance,
         CASE 
             WHEN lr.approved_days IS NOT NULL AND lr.approved_days > 0 
             THEN lr.approved_days
@@ -79,6 +80,10 @@ $leaveTypes = getLeaveTypes();
                 <div class="flex items-center space-x-2">
                     <div class="w-4 h-4 rounded leave-vacation"></div>
                     <span class="text-sm text-slate-300">Vacation</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div class="w-4 h-4 rounded leave-service_credits"></div>
+                    <span class="text-sm text-slate-300">Service Credits</span>
                 </div>
                 <div class="flex items-center space-x-2">
                     <div class="w-4 h-4 rounded leave-special_privilege"></div>
@@ -228,6 +233,8 @@ $leaveTypes = getLeaveTypes();
 .leave-adoption { background: #10b981 !important; color: white !important; }
 .leave-study { background: #6366f1 !important; color: white !important; }
 .leave-without_pay { background: #6b7280 !important; color: white !important; }
+.leave-service_credits { background: #14b8a6 !important; color: white !important; }
+.leave-service_credit { background: #14b8a6 !important; color: white !important; }
 
 /* Holiday Events - Option B: transparent background with cool tones (strong specificity) */
 .holiday-regular, .holiday-special,
@@ -389,13 +396,44 @@ document.addEventListener('DOMContentLoaded', function() {
         events: [
             <?php foreach ($leave_requests as $request): 
                 // Get proper display name using the function
-                $leaveDisplayName = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes);
-                
-                // For without pay leaves, use original leave type color if available
-                $colorClass = 'leave-' . $request['leave_type'];
-                if ($request['leave_type'] === 'without_pay' && !empty($request['original_leave_type'])) {
-                    $colorClass = 'leave-' . $request['original_leave_type'];
+                $leaveDisplayName = getLeaveTypeDisplayName($request['leave_type'] ?? '', $request['original_leave_type'] ?? null, $leaveTypes);
+
+                // If still blank, infer from fields (same logic used in dashboards)
+                if (!isset($leaveDisplayName) || trim((string)$leaveDisplayName) === '') {
+                    if (!empty($request['study_type'])) {
+                        $leaveDisplayName = 'Study Leave (Without Pay)';
+                    } elseif (!empty($request['medical_condition']) || !empty($request['illness_specify'])) {
+                        $leaveDisplayName = 'Sick Leave (SL)';
+                    } elseif (!empty($request['special_women_condition'])) {
+                        $leaveDisplayName = 'Special Leave Benefits for Women';
+                    } elseif (!empty($request['location_type'])) {
+                        $leaveDisplayName = 'Vacation Leave (VL)';
+                    } elseif (isset($request['sc_balance']) && (float)$request['sc_balance'] > 0) {
+                        $leaveDisplayName = 'Service Credits';
+                    } elseif (($request['pay_status'] ?? '') === 'without_pay' || ($request['leave_type'] ?? '') === 'without_pay') {
+                        $leaveDisplayName = 'Without Pay Leave';
+                    } else {
+                        $leaveDisplayName = 'Service Credits';
+                    }
                 }
+
+                // Determine color class robustly
+                $typeForColor = $request['leave_type'] ?? '';
+                if ($typeForColor === 'without_pay' && !empty($request['original_leave_type'])) {
+                    $typeForColor = $request['original_leave_type'];
+                }
+                if (empty($typeForColor)) {
+                    if (isset($request['sc_balance']) && (float)$request['sc_balance'] > 0) {
+                        $typeForColor = 'service_credit';
+                    } elseif (!empty($request['location_type'])) {
+                        $typeForColor = 'vacation';
+                    }
+                }
+                $typeForColor = strtolower(preg_replace('/[^a-z0-9_]/', '_', str_replace([' ', '-'], '_', (string)$typeForColor)));
+                if ($typeForColor === 'service_credits' || ($typeForColor && strpos($typeForColor, 'service') !== false && strpos($typeForColor, 'credit') !== false)) {
+                    $typeForColor = 'service_credit';
+                }
+                $colorClass = 'leave-' . ($typeForColor ?: 'vacation');
                 
                 // Collect all weekday dates and group consecutive weekdays
                 $start = new DateTime($request['start_date']);
@@ -440,7 +478,7 @@ document.addEventListener('DOMContentLoaded', function() {
             ?>
             {
                 id: '<?php echo $request['id'] . '_' . $index; ?>',
-                title: '<?php echo addslashes($request['employee_name']); ?> - <?php echo addslashes($leaveDisplayName); ?> (<?php echo $request['actual_days_approved']; ?> day<?php echo $request['actual_days_approved'] != 1 ? 's' : ''; ?>)',
+                title: '<?php echo addslashes($leaveDisplayName); ?> (<?php echo $request['actual_days_approved']; ?> day<?php echo $request['actual_days_approved'] != 1 ? 's' : ''; ?>)',
                 start: '<?php echo $group['start']; ?>',
                 end: '<?php echo $groupEnd->format('Y-m-d'); ?>',
                 allDay: true,

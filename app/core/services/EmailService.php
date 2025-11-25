@@ -162,7 +162,17 @@ class EmailService {
         $statusText = $this->getStatusText($status);
         $approverInfo = $this->getApproverInfo($approverName, $approverRole);
         
-        $typeText = $leaveType ? "<p><strong>Leave Type:</strong> " . $this->getLeaveTypeDisplayName($leaveType, $originalLeaveType) . "</p>" : '';
+        // Resolve Leave Type display name robustly so it's always shown
+        $displayType = trim((string)$this->getLeaveTypeDisplayName($leaveType ?? '', $originalLeaveType ?? null));
+        if ($displayType === '') {
+            if (!empty($originalLeaveType)) {
+                $displayType = trim((string)$this->getLeaveTypeDisplayName($originalLeaveType, null));
+            }
+        }
+        if ($displayType === '') {
+            $displayType = 'Service Credits';
+        }
+        $typeText = "<p><strong>Leave Type:</strong> {$displayType}</p>";
         $approverText = $approverInfo ? "<p><strong>Approved by:</strong> {$approverInfo}</p>" : '';
         $daysText = $approvedDays ? "<p><strong>Days Approved:</strong> {$approvedDays} day(s)</p>" : '';
         
@@ -318,7 +328,7 @@ class EmailService {
             . "Your leave request has been {$statusText}.\n"
             . ($status === 'rejected' && $rejectionReason ? "\nReason: {$rejectionReason}\n" : '') . "\n"
             . "LEAVE REQUEST DETAILS:\n"
-            . ($leaveType ? "Leave Type: " . $this->getLeaveTypeDisplayName($leaveType, $originalLeaveType) . "\n" : '')
+            . ("Leave Type: " . $displayType . "\n")
             . "Start Date: {$startDate}\n"
             . "End Date: {$endDate}\n"
             . ($approvedDays ? "Days Approved: {$approvedDays} day(s)\n" : '')

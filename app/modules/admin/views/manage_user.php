@@ -50,6 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $department = trim($_POST['department'] ?? '');
                 $contact = trim($_POST['contact'] ?? '');
                 $role = $_POST['role'] ?? 'employee';
+                $gender = isset($_POST['gender']) && in_array($_POST['gender'], ['male','female']) ? $_POST['gender'] : 'male';
+                $address = trim($_POST['address'] ?? '');
+                $maritalStatus = isset($_POST['marital_status']) && in_array($_POST['marital_status'], ['single','married','widowed','separated']) ? $_POST['marital_status'] : null;
 
                 // Validate email format
                 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -88,15 +91,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Create temporary password (will be changed after email verification)
                     $temporaryPassword = password_hash('temp_' . time(), PASSWORD_DEFAULT);
                     
+                    // Gender handling
+                    $gender = isset($_POST['gender']) && in_array($_POST['gender'], ['male','female']) ? $_POST['gender'] : 'male';
+                    $isSoloParent = isset($_POST['is_solo_parent']) ? 1 : 0;
+                    $eligibleVacation = isset($_POST['eligible_vacation']) ? 1 : 0;
+                    $eligibleSick = isset($_POST['eligible_sick']) ? 1 : 0;
+                    $vacationInit = $eligibleVacation ? 15 : 0;
+                    $sickInit = $eligibleSick ? 10 : 0;
+                    
+                    // Enforce: Leave eligibility applies only to Employees
+                    if ($role !== 'employee') {
+                        $vacationInit = 0;
+                        $sickInit = 0;
+                    }
+                    
+                    // Only employees keep marital status; others set to NULL
+                    if ($role !== 'employee') { $maritalStatus = null; }
                     $stmt = $pdo->prepare("
-                        INSERT INTO employees (name, email, password, position, department, contact, role, 
-                                             email_verified, verification_token, verification_expires, account_status)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'pending')
+                        INSERT INTO employees (name, email, password, position, department, contact, role, gender, address, marital_status, is_solo_parent,
+                                               vacation_leave_balance, sick_leave_balance, email_verified, verification_token, verification_expires, account_status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'pending')
                     ");
-                    $stmt->execute([$name, $email, $temporaryPassword, $position, $department, $contact, $role, 
-                                  $verificationToken, $verificationExpires]);
+                    $stmt->execute([$name, $email, $temporaryPassword, $position, $department, $contact, $role, $gender, $address, $maritalStatus, $isSoloParent,
+                                  $vacationInit, $sickInit, $verificationToken, $verificationExpires]);
                     
                     $userId = $pdo->lastInsertId();
+                    
+                    // Initialize leave balances based on gender
+                    if ($gender === 'female') {
+                        $initStmt = $pdo->prepare("UPDATE employees SET maternity_leave_balance = 105, paternity_leave_balance = 0, last_leave_credit_update = CURDATE() WHERE id = ?");
+                        $initStmt->execute([$userId]);
+                    } else {
+                        $initStmt = $pdo->prepare("UPDATE employees SET paternity_leave_balance = 7, maternity_leave_balance = 0, last_leave_credit_update = CURDATE() WHERE id = ?");
+                        $initStmt->execute([$userId]);
+                    }
                     
                     // Log verification attempt
                     $stmt = $pdo->prepare("
@@ -149,6 +177,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $department = trim($_POST['department'] ?? '');
                 $contact = trim($_POST['contact'] ?? '');
                 $role = $_POST['role'] ?? 'employee';
+                $gender = isset($_POST['gender']) && in_array($_POST['gender'], ['male','female']) ? $_POST['gender'] : 'male';
+                $isSoloParent = isset($_POST['is_solo_parent']) ? 1 : 0;
+                $eligibleVacation = isset($_POST['eligible_vacation']) ? 1 : 0;
+                $eligibleSick = isset($_POST['eligible_sick']) ? 1 : 0;
+                $vacationNew = $eligibleVacation ? 15 : 0;
+                $sickNew = $eligibleSick ? 10 : 0;
+                $address = trim($_POST['address'] ?? '');
+                $maritalStatus = isset($_POST['marital_status']) && in_array($_POST['marital_status'], ['single','married','widowed','separated']) ? $_POST['marital_status'] : null;
 
                 // Validate email format
                 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -180,12 +216,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 try {
-                    $stmt = $pdo->prepare("
-                        UPDATE employees 
-                        SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?
-                        WHERE id = ?
-                    ");
-                    $stmt->execute([$name, $email, $position, $department, $contact, $role, $id]);
+                    // Only employees keep marital status; others set to NULL
+                    if ($role !== 'employee') { $maritalStatus = null; }
+                    if ($role === 'employee') {
+                        $stmt = $pdo->prepare("
+                            UPDATE employees 
+                            SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
+                                is_solo_parent = ?, vacation_leave_balance = ?, sick_leave_balance = ?
+                            WHERE id = ?
+                        ");
+                        $stmt->execute([$name, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, $isSoloParent, $vacationNew, $sickNew, $id]);
+                    } else {
+                        // Do not alter VL/SL for non-employee roles
+                        $stmt = $pdo->prepare("
+                            UPDATE employees 
+                            SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = NULL,
+                                is_solo_parent = ?
+                            WHERE id = ?
+                        ");
+                        $stmt->execute([$name, $email, $position, $department, $contact, $role, $gender, $address, $isSoloParent, $id]);
+                    }
                     $_SESSION['success'] = "User updated successfully!";
                     header('Location: ' . $_SERVER['PHP_SELF']);
                     exit();
@@ -378,6 +428,29 @@ include '../../../../includes/admin_header.php';
                     else roleDisplay = 'Employee';
                     document.getElementById('viewRole').textContent = roleDisplay;
                     
+                    // Gender and Address always
+                    const genderText = (user.gender === 'female') ? 'Female' : 'Male';
+                    const viewGenderEl = document.getElementById('viewGender');
+                    if (viewGenderEl) viewGenderEl.textContent = genderText;
+                    const viewAddressEl = document.getElementById('viewAddress');
+                    if (viewAddressEl) viewAddressEl.textContent = user.address && user.address.trim() !== '' ? user.address : 'Not set';
+                    
+                    // Employee-only fields visibility (Marital Status + Solo Parent)
+                    const isEmployee = user.role === 'employee';
+                    const maritalWrap = document.getElementById('viewMaritalContainer');
+                    const soloWrap = document.getElementById('viewSoloContainer');
+                    if (maritalWrap) maritalWrap.style.display = isEmployee ? 'block' : 'none';
+                    if (soloWrap) soloWrap.style.display = isEmployee ? 'block' : 'none';
+                    
+                    // Populate employee-only values if visible
+                    if (isEmployee) {
+                        const maritalMap = { single: 'Single', married: 'Married', widowed: 'Widowed', separated: 'Separated' };
+                        const maritalEl = document.getElementById('viewMarital');
+                        if (maritalEl) maritalEl.textContent = maritalMap[user.marital_status] || 'Not set';
+                        const soloEl = document.getElementById('viewSoloParent');
+                        if (soloEl) soloEl.textContent = Number(user.is_solo_parent || 0) === 1 ? 'Yes' : 'No';
+                    }
+                    
                     // Format status
                     const statusText = user.account_status === 'active' ? 'Active' : 
                                      user.account_status === 'pending' ? 'Pending Verification' : 
@@ -404,7 +477,7 @@ include '../../../../includes/admin_header.php';
         <p class="elms-text-muted">Add, edit, and manage user accounts</p>
     </div>
     <button type="button" onclick="openAddUserModal()" class="elms-btn elms-btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem; white-space: nowrap; padding: 0.625rem 1.25rem; font-weight: 600;">
-        <i class="fas fa-plus"></i>Add New User
+        <i class="fas fa-plus"></i>Add New Employee
     </button>
 </div>
 
@@ -508,7 +581,7 @@ include '../../../../includes/admin_header.php';
         <div class="bg-slate-800 rounded-2xl p-8 w-full max-w-2xl mx-4 max-h-screen overflow-y-auto border border-slate-700">
             <div class="flex items-center justify-between mb-6">
                 <h5 class="text-2xl font-bold text-white flex items-center">
-                    <i class="fas fa-user-plus text-primary mr-3"></i>Add New User
+                    <i class="fas fa-user-plus text-primary mr-3"></i>Add New Employee
                 </h5>
                 <button type="button" onclick="closeAddUserModal()" class="text-slate-400 hover:text-white transition-colors">
                     <i class="fas fa-times text-xl"></i>
@@ -516,10 +589,11 @@ include '../../../../includes/admin_header.php';
             </div>
             
             <form id="addUserForm" method="POST" class="space-y-6">
+                <input type="hidden" name="action" value="add">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label for="addName" class="block text-sm font-semibold text-slate-300 mb-2">Name</label>
-                        <input type="text" id="addName" name="name" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        <input type="text" id="addName" name="name" required autofocus autocomplete="off" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                     </div>
                     <div>
                         <label for="addEmail" class="block text-sm font-semibold text-slate-300 mb-2">Email</label>
@@ -547,11 +621,72 @@ include '../../../../includes/admin_header.php';
                         <input type="text" id="addPosition" name="position" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                     </div>
                 </div>
+
+                <div class="md:col-span-2">
+                    <div id="eligibilitySection" class="bg-slate-700/40 border border-slate-600 rounded-xl p-4">
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-clipboard-check text-primary"></i>
+                                <h6 class="font-semibold text-slate-200">Leave Eligibility <span class="text-slate-400 font-normal">(optional)</span></h6>
+                            </div>
+                        </div>
+                        <p class="text-slate-400 text-sm mb-4">Select the leave types this employee is initially eligible for. Unchecked types will start at 0 balance.</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <label class="group flex items-center gap-3 px-4 py-3 rounded-lg border border-slate-600 bg-slate-800/40 hover:bg-slate-700/40 transition-colors cursor-pointer">
+                                <input type="checkbox" id="addEligibleVacation" name="eligible_vacation" class="h-5 w-5 text-primary bg-slate-700 border-slate-600 rounded focus:ring-primary">
+                                <div class="flex flex-col">
+                                    <span class="text-slate-200 font-medium">Vacation Leave</span>
+                                    <span class="text-slate-400 text-xs">Starts with 15 credits when enabled</span>
+                                </div>
+                            </label>
+                            <label class="group flex items-center gap-3 px-4 py-3 rounded-lg border border-slate-600 bg-slate-800/40 hover:bg-slate-700/40 transition-colors cursor-pointer">
+                                <input type="checkbox" id="addEligibleSick" name="eligible_sick" class="h-5 w-5 text-primary bg-slate-700 border-slate-600 rounded focus:ring-primary">
+                                <div class="flex flex-col">
+                                    <span class="text-slate-200 font-medium">Sick Leave</span>
+                                    <span class="text-slate-400 text-xs">Starts with 10 credits when enabled</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="addGender" class="block text-sm font-semibold text-slate-300 mb-2">Gender</label>
+                        <select id="addGender" name="gender" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="addAddress" class="block text-sm font-semibold text-slate-300 mb-2">Address</label>
+                        <input type="text" id="addAddress" name="address" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div id="addMaritalContainer">
+                        <label for="addMaritalStatus" class="block text-sm font-semibold text-slate-300 mb-2">Marital Status</label>
+                        <select id="addMaritalStatus" name="marital_status" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <option value="">Select</option>
+                            <option value="single">Single</option>
+                            <option value="married">Married</option>
+                            <option value="widowed">Widowed</option>
+                            <option value="separated">Separated</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <label class="inline-flex items-center gap-2 text-slate-300" id="addSoloParentContainer">
+                            <input type="checkbox" id="addSoloParent" name="is_solo_parent" class="form-checkbox h-5 w-5 text-primary bg-slate-700 border-slate-600 rounded">
+                            <span>Solo Parent (optional)</span>
+                        </label>
+                    </div>
+                </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label for="addRole" class="block text-sm font-semibold text-slate-300 mb-2">Role</label>
-                        <select id="addRole" name="role" required onchange="toggleDepartmentField('add')" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        <select id="addRole" name="role" required onchange="toggleDepartmentField('add'); updateRoleDependentFields('add');" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                             <option value="employee">Employee</option>
                             <option value="manager">Department Head</option>
                             <option value="director">Director Head</option>
@@ -575,7 +710,7 @@ include '../../../../includes/admin_header.php';
                         Cancel
                     </button>
                     <button type="submit" class="bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-[1.02]">
-                        <i class="fas fa-plus mr-2"></i>Add User
+                        <i class="fas fa-plus mr-2"></i>Add Employee
                     </button>
                 </div>
             </form>
@@ -636,6 +771,30 @@ include '../../../../includes/admin_header.php';
                     </div>
                 </div>
                 
+                <!-- Gender + Address (always) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-slate-700/50 rounded-xl p-4">
+                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-2">Gender</label>
+                        <p id="viewGender" class="text-white font-medium"></p>
+                    </div>
+                    <div class="bg-slate-700/50 rounded-xl p-4">
+                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-2">Address</label>
+                        <p id="viewAddress" class="text-white font-medium"></p>
+                    </div>
+                </div>
+                
+                <!-- Employee-only: Marital Status + Solo Parent -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div id="viewMaritalContainer" class="bg-slate-700/50 rounded-xl p-4">
+                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-2">Marital Status</label>
+                        <p id="viewMarital" class="text-white font-medium"></p>
+                    </div>
+                    <div id="viewSoloContainer" class="bg-slate-700/50 rounded-xl p-4">
+                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-2">Solo Parent</label>
+                        <p id="viewSoloParent" class="text-white font-medium"></p>
+                    </div>
+                </div>
+                
                 <div class="bg-slate-700/50 rounded-xl p-4">
                     <label class="block text-xs font-semibold text-slate-400 uppercase mb-2">Account Status</label>
                     <p id="viewStatus" class="text-white font-medium"></p>
@@ -690,11 +849,72 @@ include '../../../../includes/admin_header.php';
                         <input type="text" id="editPosition" name="position" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                     </div>
                 </div>
+
+                <div class="md:col-span-2">
+                    <div id="editEligibilitySection" class="bg-slate-700/40 border border-slate-600 rounded-xl p-4">
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-clipboard-check text-primary"></i>
+                                <h6 class="font-semibold text-slate-200">Leave Eligibility <span class="text-slate-400 font-normal">(optional)</span></h6>
+                            </div>
+                        </div>
+                        <p class="text-slate-400 text-sm mb-4">Enable or disable initial eligibility. Turning off will set balance to 0.</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <label class="group flex items-center gap-3 px-4 py-3 rounded-lg border border-slate-600 bg-slate-800/40 hover:bg-slate-700/40 transition-colors cursor-pointer">
+                                <input type="checkbox" id="editEligibleVacation" name="eligible_vacation" class="h-5 w-5 text-primary bg-slate-700 border-slate-600 rounded focus:ring-primary">
+                                <div class="flex flex-col">
+                                    <span class="text-slate-200 font-medium">Vacation Leave</span>
+                                    <span class="text-slate-400 text-xs">Set to 15 when enabled</span>
+                                </div>
+                            </label>
+                            <label class="group flex items-center gap-3 px-4 py-3 rounded-lg border border-slate-600 bg-slate-800/40 hover:bg-slate-700/40 transition-colors cursor-pointer">
+                                <input type="checkbox" id="editEligibleSick" name="eligible_sick" class="h-5 w-5 text-primary bg-slate-700 border-slate-600 rounded focus:ring-primary">
+                                <div class="flex flex-col">
+                                    <span class="text-slate-200 font-medium">Sick Leave</span>
+                                    <span class="text-slate-400 text-xs">Set to 10 when enabled</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
+                        <label for="editGender" class="block text-sm font-semibold text-slate-300 mb-2">Gender</label>
+                        <select id="editGender" name="gender" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="editAddress" class="block text-sm font-semibold text-slate-300 mb-2">Address</label>
+                        <input type="text" id="editAddress" name="address" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div id="editMaritalContainer">
+                        <label for="editMaritalStatus" class="block text-sm font-semibold text-slate-300 mb-2">Marital Status</label>
+                        <select id="editMaritalStatus" name="marital_status" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <option value="">Select</option>
+                            <option value="single">Single</option>
+                            <option value="married">Married</option>
+                            <option value="widowed">Widowed</option>
+                            <option value="separated">Separated</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <label class="inline-flex items-center gap-2 text-slate-300" id="editSoloParentContainer">
+                            <input type="checkbox" id="editSoloParent" name="is_solo_parent" class="form-checkbox h-5 w-5 text-primary bg-slate-700 border-slate-600 rounded">
+                            <span>Solo Parent (optional)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
                         <label for="editRole" class="block text-sm font-semibold text-slate-300 mb-2">Role</label>
-                        <select id="editRole" name="role" required onchange="toggleDepartmentField('edit')" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        <select id="editRole" name="role" required onchange="toggleDepartmentField('edit'); updateRoleDependentFields('edit');" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                             <option value="employee">Employee</option>
                             <option value="manager">Department Head</option>
                             <option value="director">Director Head</option>
@@ -709,7 +929,7 @@ include '../../../../includes/admin_header.php';
                             <!-- Departments will be loaded dynamically -->
                         </select>
                         <!-- Text input for manager role (new department) -->
-                        <input type="text" id="editDepartmentInput" name="department" placeholder="Enter new department name" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" style="display: none;">
+                        <input type="text" id="editDepartmentInput" name="department" placeholder="Enter new department name" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus-border-transparent" style="display: none;">
                     </div>
                 </div>
                 
@@ -784,11 +1004,33 @@ include '../../../../includes/admin_header.php';
         }
 
         // Modal functions
+        function focusAddName(retries = 5) {
+            const nameInput = document.getElementById('addName');
+            if (nameInput) {
+                try {
+                    nameInput.blur();
+                    nameInput.focus({ preventScroll: true });
+                    return true;
+                } catch (e) {}
+            }
+            if (retries > 0) {
+                setTimeout(() => focusAddName(retries - 1), 100);
+            }
+            return false;
+        }
+
         function openAddUserModal() {
             loadDepartments(); // Load departments when opening modal
             toggleDepartmentField('add'); // Set initial department field state
             document.getElementById('addUserModal').classList.remove('hidden');
             document.getElementById('addUserModal').classList.add('flex');
+            updateRoleDependentFields('add');
+            // Ensure modal starts at top and focus Name field for quick entry
+            setTimeout(() => {
+                const modalContent = document.querySelector('#addUserModal > div');
+                if (modalContent) modalContent.scrollTop = 0;
+                requestAnimationFrame(() => { focusAddName(); });
+            }, 150);
         }
 
         function closeAddUserModal() {
@@ -800,6 +1042,7 @@ include '../../../../includes/admin_header.php';
             loadDepartments(); // Load departments when opening modal
             document.getElementById('editUserModal').classList.remove('hidden');
             document.getElementById('editUserModal').classList.add('flex');
+            updateRoleDependentFields('edit');
         }
 
         function closeEditUserModal() {
@@ -837,6 +1080,18 @@ include '../../../../includes/admin_header.php';
         }
 
         // Global functions
+        function updateRoleDependentFields(modalType) {
+            const role = document.getElementById(modalType + 'Role')?.value || 'employee';
+            const isEmployee = role === 'employee';
+            const elig = document.getElementById(modalType === 'add' ? 'eligibilitySection' : 'editEligibilitySection');
+            // Correctly resolve the Marital Status container per modal
+            const maritalContainer = document.getElementById(modalType === 'add' ? 'addMaritalContainer' : 'editMaritalContainer');
+            const soloContainer = document.getElementById(modalType === 'add' ? 'addSoloParentContainer' : 'editSoloParentContainer');
+
+            if (elig) elig.style.display = isEmployee ? 'block' : 'none';
+            if (maritalContainer) maritalContainer.style.display = isEmployee ? 'block' : 'none';
+            if (soloContainer) soloContainer.style.display = isEmployee ? 'inline-flex' : 'none';
+        }
         function deleteUser(userId) {
             if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
                 return;
@@ -960,6 +1215,33 @@ include '../../../../includes/admin_header.php';
                     }
                 }
             }, 100);
+
+            // Prefill gender, solo parent, and eligibility using latest data
+            fetch(`manage_user.php?action=get_user&id=${encodeURIComponent(id)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.success && data.user) {
+                        const u = data.user;
+                        const genderSel = document.getElementById('editGender');
+                        if (genderSel && (u.gender === 'male' || u.gender === 'female')) {
+                            genderSel.value = u.gender;
+                        }
+                        const solo = document.getElementById('editSoloParent');
+                        if (solo) solo.checked = Number(u.is_solo_parent || 0) === 1;
+                        // Prefill eligibility based on current balances
+                        const vacEl = document.getElementById('editEligibleVacation');
+                        const sickEl = document.getElementById('editEligibleSick');
+                        const vac = parseFloat(u.vacation_leave_balance || 0);
+                        const sick = parseFloat(u.sick_leave_balance || 0);
+                        if (vacEl) vacEl.checked = vac > 0;
+                        if (sickEl) sickEl.checked = sick > 0;
+                        const addr = document.getElementById('editAddress');
+                        const marital = document.getElementById('editMaritalStatus');
+                        if (addr) addr.value = u.address || '';
+                        if (marital && u.marital_status) marital.value = u.marital_status;
+                    }
+                })
+                .catch(() => {});
         }
 
         function showNotification(message, type = 'info') {
