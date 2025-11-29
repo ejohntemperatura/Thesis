@@ -52,6 +52,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $role = $_POST['role'] ?? 'employee';
                 $gender = isset($_POST['gender']) && in_array($_POST['gender'], ['male','female']) ? $_POST['gender'] : 'male';
                 $address = trim($_POST['address'] ?? '');
+                // Manual credit inputs (CTO & Service Credits only)
+                $ctoBal = isset($_POST['cto_balance']) ? (float)$_POST['cto_balance'] : null;
+                $serviceBal = isset($_POST['service_credit_balance']) ? (float)$_POST['service_credit_balance'] : null;
                 $maritalStatus = isset($_POST['marital_status']) && in_array($_POST['marital_status'], ['single','married','widowed','separated']) ? $_POST['marital_status'] : null;
 
                 // Validate email format
@@ -94,26 +97,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Gender handling
                     $gender = isset($_POST['gender']) && in_array($_POST['gender'], ['male','female']) ? $_POST['gender'] : 'male';
                     $isSoloParent = isset($_POST['is_solo_parent']) ? 1 : 0;
-                    $eligibleVacation = isset($_POST['eligible_vacation']) ? 1 : 0;
-                    $eligibleSick = isset($_POST['eligible_sick']) ? 1 : 0;
-                    $vacationInit = $eligibleVacation ? 15 : 0;
-                    $sickInit = $eligibleSick ? 10 : 0;
+                    // Fused VL/SL eligibility: one checkbox controls both initial balances
+                    // Monthly accrual system: Start with 1.25 days (1 month worth)
+                    $eligibleCombined = isset($_POST['eligible_vl_sl']) ? 1 : 0;
+                    $vacationInit = $eligibleCombined ? 1.25 : 0;
+                    $sickInit = $eligibleCombined ? 1.25 : 0;
+                    // Include Special Leave Privilege in fused eligibility
+                    $slpInit = $eligibleCombined ? 3 : 0;
                     
                     // Enforce: Leave eligibility applies only to Employees
                     if ($role !== 'employee') {
                         $vacationInit = 0;
                         $sickInit = 0;
+                        $slpInit = 0;
                     }
                     
                     // Only employees keep marital status; others set to NULL
                     if ($role !== 'employee') { $maritalStatus = null; }
                     $stmt = $pdo->prepare("
                         INSERT INTO employees (name, email, password, position, department, contact, role, gender, address, marital_status, is_solo_parent,
-                                               vacation_leave_balance, sick_leave_balance, email_verified, verification_token, verification_expires, account_status)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'pending')
+                                               vacation_leave_balance, sick_leave_balance, special_leave_privilege_balance, email_verified, verification_token, verification_expires, account_status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'pending')
                     ");
                     $stmt->execute([$name, $email, $temporaryPassword, $position, $department, $contact, $role, $gender, $address, $maritalStatus, $isSoloParent,
-                                  $vacationInit, $sickInit, $verificationToken, $verificationExpires]);
+                                  $vacationInit, $sickInit, $slpInit, $verificationToken, $verificationExpires]);
                     
                     $userId = $pdo->lastInsertId();
                     
@@ -179,12 +186,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $role = $_POST['role'] ?? 'employee';
                 $gender = isset($_POST['gender']) && in_array($_POST['gender'], ['male','female']) ? $_POST['gender'] : 'male';
                 $isSoloParent = isset($_POST['is_solo_parent']) ? 1 : 0;
-                $eligibleVacation = isset($_POST['eligible_vacation']) ? 1 : 0;
-                $eligibleSick = isset($_POST['eligible_sick']) ? 1 : 0;
-                $vacationNew = $eligibleVacation ? 15 : 0;
-                $sickNew = $eligibleSick ? 10 : 0;
+                // Fused VL/SL/SLP eligibility in Edit
+                $eligibleCombined = isset($_POST['eligible_vl_sl']) ? 1 : 0;
+                $vacationNew = $eligibleCombined ? 15 : 0;
+                $sickNew = $eligibleCombined ? 10 : 0;
+                $slpNew = $eligibleCombined ? 3 : 0;
                 $address = trim($_POST['address'] ?? '');
                 $maritalStatus = isset($_POST['marital_status']) && in_array($_POST['marital_status'], ['single','married','widowed','separated']) ? $_POST['marital_status'] : null;
+                
+                // Manual credit inputs (CTO & Service Credits only)
+                $ctoBal = isset($_POST['cto_balance']) && $_POST['cto_balance'] !== '' ? (float)$_POST['cto_balance'] : null;
+                $serviceBal = isset($_POST['service_credit_balance']) && $_POST['service_credit_balance'] !== '' ? (float)$_POST['service_credit_balance'] : null;
 
                 // Validate email format
                 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -218,23 +230,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     // Only employees keep marital status; others set to NULL
                     if ($role !== 'employee') { $maritalStatus = null; }
+                    // Detect if service_credit_balance column exists
+                    $hasServiceCredit = false;
+                    try {
+                        $cols = $pdo->query("DESCRIBE employees")->fetchAll(PDO::FETCH_COLUMN);
+                        $hasServiceCredit = in_array('service_credit_balance', $cols);
+                    } catch (Exception $e) {}
+
                     if ($role === 'employee') {
-                        $stmt = $pdo->prepare("
-                            UPDATE employees 
-                            SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
-                                is_solo_parent = ?, vacation_leave_balance = ?, sick_leave_balance = ?
-                            WHERE id = ?
-                        ");
-                        $stmt->execute([$name, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, $isSoloParent, $vacationNew, $sickNew, $id]);
+                        // Build dynamic SQL to include service_credit_balance when available
+                        if ($hasServiceCredit) {
+                            // Additive update for both CTO and service credits
+                            $stmt = $pdo->prepare("
+                                UPDATE employees 
+                                SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
+                                    is_solo_parent = ?, vacation_leave_balance = ?, sick_leave_balance = ?, special_leave_privilege_balance = ?, 
+                                    cto_balance = cto_balance + ?, service_credit_balance = service_credit_balance + ?
+                                WHERE id = ?
+                            ");
+                            $stmt->execute([
+                                $name, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
+                                $isSoloParent, 
+                                $vacationNew,
+                                $sickNew,
+                                $slpNew,
+                                ($ctoBal !== null ? $ctoBal : 0),
+                                ($serviceBal !== null ? $serviceBal : 0),
+                                $id
+                            ]);
+                        } else {
+                            // Additive update for CTO only (no service_credit_balance column)
+                            $stmt = $pdo->prepare("
+                                UPDATE employees 
+                                SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
+                                    is_solo_parent = ?, vacation_leave_balance = ?, sick_leave_balance = ?, special_leave_privilege_balance = ?, 
+                                    cto_balance = cto_balance + ?
+                                WHERE id = ?
+                            ");
+                            $stmt->execute([
+                                $name, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
+                                $isSoloParent, 
+                                $vacationNew,
+                                $sickNew,
+                                $slpNew,
+                                ($ctoBal !== null ? $ctoBal : 0),
+                                $id
+                            ]);
+                        }
                     } else {
                         // Do not alter VL/SL for non-employee roles
-                        $stmt = $pdo->prepare("
-                            UPDATE employees 
-                            SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = NULL,
-                                is_solo_parent = ?
-                            WHERE id = ?
-                        ");
-                        $stmt->execute([$name, $email, $position, $department, $contact, $role, $gender, $address, $isSoloParent, $id]);
+                        if ($hasServiceCredit) {
+                            // Additive update for both CTO and service credits
+                            $stmt = $pdo->prepare("
+                                UPDATE employees 
+                                SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = NULL,
+                                    is_solo_parent = ?, cto_balance = cto_balance + ?, service_credit_balance = service_credit_balance + ?
+                                WHERE id = ?
+                            ");
+                            $stmt->execute([$name, $email, $position, $department, $contact, $role, $gender, $address, $isSoloParent, ($ctoBal !== null ? $ctoBal : 0), ($serviceBal !== null ? $serviceBal : 0), $id]);
+                        } else {
+                            // Additive update for CTO only (no service_credit_balance column)
+                            $stmt = $pdo->prepare("
+                                UPDATE employees 
+                                SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = NULL,
+                                    is_solo_parent = ?, cto_balance = cto_balance + ?
+                                WHERE id = ?
+                            ");
+                            $stmt->execute([$name, $email, $position, $department, $contact, $role, $gender, $address, $isSoloParent, ($ctoBal !== null ? $ctoBal : 0), $id]);
+                        }
                     }
                     $_SESSION['success'] = "User updated successfully!";
                     header('Location: ' . $_SERVER['PHP_SELF']);
@@ -606,7 +669,7 @@ include '../../../../includes/admin_header.php';
                         <i class="fas fa-info-circle mr-3 mt-1"></i>
                         <div>
                             <strong>Note:</strong> A verification email will be sent to the user's email address. 
-                            The user will receive a temporary password after email verification.
+                            After verification, the user will create their own password to log in.
                         </div>
                     </div>
                 </div>
@@ -630,20 +693,13 @@ include '../../../../includes/admin_header.php';
                                 <h6 class="font-semibold text-slate-200">Leave Eligibility <span class="text-slate-400 font-normal">(optional)</span></h6>
                             </div>
                         </div>
-                        <p class="text-slate-400 text-sm mb-4">Select the leave types this employee is initially eligible for. Unchecked types will start at 0 balance.</p>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <p class="text-slate-400 text-sm mb-4">Enable initial leave credits. When enabled, this employee will receive initial leave credits based on your current settings.</p>
+                        <div class="grid grid-cols-1 gap-3">
                             <label class="group flex items-center gap-3 px-4 py-3 rounded-lg border border-slate-600 bg-slate-800/40 hover:bg-slate-700/40 transition-colors cursor-pointer">
-                                <input type="checkbox" id="addEligibleVacation" name="eligible_vacation" class="h-5 w-5 text-primary bg-slate-700 border-slate-600 rounded focus:ring-primary">
+                                <input type="checkbox" id="addEligibleVLSL" name="eligible_vl_sl" class="h-5 w-5 text-primary bg-slate-700 border-slate-600 rounded focus:ring-primary">
                                 <div class="flex flex-col">
-                                    <span class="text-slate-200 font-medium">Vacation Leave</span>
-                                    <span class="text-slate-400 text-xs">Starts with 15 credits when enabled</span>
-                                </div>
-                            </label>
-                            <label class="group flex items-center gap-3 px-4 py-3 rounded-lg border border-slate-600 bg-slate-800/40 hover:bg-slate-700/40 transition-colors cursor-pointer">
-                                <input type="checkbox" id="addEligibleSick" name="eligible_sick" class="h-5 w-5 text-primary bg-slate-700 border-slate-600 rounded focus:ring-primary">
-                                <div class="flex flex-col">
-                                    <span class="text-slate-200 font-medium">Sick Leave</span>
-                                    <span class="text-slate-400 text-xs">Starts with 10 credits when enabled</span>
+                                    <span class="text-slate-200 font-medium">Vacation, Sick & Special Leave Privilege</span>
+                                    <span class="text-slate-400 text-xs">Grants initial leave credits when enabled</span>
                                 </div>
                             </label>
                         </div>
@@ -858,20 +914,13 @@ include '../../../../includes/admin_header.php';
                                 <h6 class="font-semibold text-slate-200">Leave Eligibility <span class="text-slate-400 font-normal">(optional)</span></h6>
                             </div>
                         </div>
-                        <p class="text-slate-400 text-sm mb-4">Enable or disable initial eligibility. Turning off will set balance to 0.</p>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <p class="text-slate-400 text-sm mb-4">Enable or disable initial eligibility. Turning off will set balances to 0.</p>
+                        <div class="grid grid-cols-1 gap-3">
                             <label class="group flex items-center gap-3 px-4 py-3 rounded-lg border border-slate-600 bg-slate-800/40 hover:bg-slate-700/40 transition-colors cursor-pointer">
-                                <input type="checkbox" id="editEligibleVacation" name="eligible_vacation" class="h-5 w-5 text-primary bg-slate-700 border-slate-600 rounded focus:ring-primary">
+                                <input type="checkbox" id="editEligibleVLSL" name="eligible_vl_sl" class="h-5 w-5 text-primary bg-slate-700 border-slate-600 rounded focus:ring-primary">
                                 <div class="flex flex-col">
-                                    <span class="text-slate-200 font-medium">Vacation Leave</span>
-                                    <span class="text-slate-400 text-xs">Set to 15 when enabled</span>
-                                </div>
-                            </label>
-                            <label class="group flex items-center gap-3 px-4 py-3 rounded-lg border border-slate-600 bg-slate-800/40 hover:bg-slate-700/40 transition-colors cursor-pointer">
-                                <input type="checkbox" id="editEligibleSick" name="eligible_sick" class="h-5 w-5 text-primary bg-slate-700 border-slate-600 rounded focus:ring-primary">
-                                <div class="flex flex-col">
-                                    <span class="text-slate-200 font-medium">Sick Leave</span>
-                                    <span class="text-slate-400 text-xs">Set to 10 when enabled</span>
+                                    <span class="text-slate-200 font-medium">Vacation, Sick & Special Leave Privilege</span>
+                                    <span class="text-slate-400 text-xs">Grants initial leave credits when enabled</span>
                                 </div>
                             </label>
                         </div>
@@ -889,6 +938,33 @@ include '../../../../includes/admin_header.php';
                     <div>
                         <label for="editAddress" class="block text-sm font-semibold text-slate-300 mb-2">Address</label>
                         <input type="text" id="editAddress" name="address" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                </div>
+
+                <!-- Manual Credits (CTO & Service Credits) -->
+                <div id="manualCreditsSection" class="bg-slate-700/40 border border-slate-600 rounded-xl p-4">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-calculator text-primary"></i>
+                            <h6 class="font-semibold text-slate-200">Manual Credits</h6>
+                        </div>
+                    </div>
+                    <p class="text-slate-400 text-sm mb-4">Add CTO and service credits to this employee's balance. Values entered will be <strong class="text-green-400">added</strong> to their current balance.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-300 mb-2" for="editCTOBalance">
+                                CTO (hours) 
+                                <span class="text-xs text-slate-400 font-normal">- Add to balance</span>
+                            </label>
+                            <input type="number" step="0.5" min="0" id="editCTOBalance" name="cto_balance" placeholder="0" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-300 mb-2" for="editServiceCreditBalance">
+                                Service Credits (days)
+                                <span class="text-xs text-slate-400 font-normal">- Add to balance</span>
+                            </label>
+                            <input type="number" step="0.5" min="0" id="editServiceCreditBalance" name="service_credit_balance" placeholder="0" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white">
+                        </div>
                     </div>
                 </div>
 
@@ -1229,12 +1305,19 @@ include '../../../../includes/admin_header.php';
                         const solo = document.getElementById('editSoloParent');
                         if (solo) solo.checked = Number(u.is_solo_parent || 0) === 1;
                         // Prefill eligibility based on current balances
-                        const vacEl = document.getElementById('editEligibleVacation');
-                        const sickEl = document.getElementById('editEligibleSick');
+                        const fusedEl = document.getElementById('editEligibleVLSL');
                         const vac = parseFloat(u.vacation_leave_balance || 0);
                         const sick = parseFloat(u.sick_leave_balance || 0);
-                        if (vacEl) vacEl.checked = vac > 0;
-                        if (sickEl) sickEl.checked = sick > 0;
+                        const slp = parseFloat(u.special_leave_privilege_balance || 0);
+                        if (fusedEl) fusedEl.checked = (vac > 0 || sick > 0 || slp > 0);
+                        // Reset manual credit fields to 0 (additive entry - not showing current balance)
+                        const ctob = document.getElementById('editCTOBalance');
+                        const scb = document.getElementById('editServiceCreditBalance');
+                        // Both fields default to 0 since they are additive
+                        if (ctob) ctob.value = '0';
+                        if (scb) scb.value = '0';
+                        // Toggle visibility by role
+                        updateRoleDependentFields('edit');
                         const addr = document.getElementById('editAddress');
                         const marital = document.getElementById('editMaritalStatus');
                         if (addr) addr.value = u.address || '';

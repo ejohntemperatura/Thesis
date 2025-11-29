@@ -215,8 +215,12 @@ $leave_requests = $stmt->fetchAll();
                     <span>Leave Alerts</span>
                 </a>
                 <a href="cto_management.php" class="elms-sidebar-link">
-                    <i class="fas fa-clock elms-sidebar-icon"></i>
-                    <span>CTO/SERVICE</span>
+                    <i class="fas fa-plus-circle elms-sidebar-icon"></i>
+                    <span>Add Leave Credits</span>
+                </a>
+                <a href="dtr_kiosk.php" class="elms-sidebar-link">
+                    <i class="fas fa-id-card elms-sidebar-icon"></i>
+                    <span>DTR</span>
                 </a>
             </div>
             

@@ -142,7 +142,7 @@ $leave_requests = $stmt->fetchAll();
 error_log("Dashboard - Fetched " . count($leave_requests) . " leave requests for user " . $_SESSION['user_id']);
 
 // Set page title
-$page_title = "Dashboard";
+$page_title = "Leave Application";
 
 // Include user header
 include '../../../../includes/user_header.php';
@@ -832,20 +832,20 @@ include '../../../../includes/user_header.php';
             <i class="fas fa-history elms-stat-icon" style="color: #60a5fa;"></i>
         </div>
     </a>
-            
-    <!-- DTR Card -->
-    <a href="dtr.php" class="elms-stat-card" style="text-decoration: none;">
+    
+    <!-- Attendance Log Card -->
+    <button onclick="openAttendanceModal()" class="elms-stat-card" style="border: none; cursor: pointer; text-align: left;">
         <div>
-            <p class="elms-stat-label">DTR</p>
-            <p class="elms-stat-value" style="font-size: 1rem; margin-top: 0.5rem;">🕐</p>
-            <p style="color: #34d399; font-size: 0.875rem; margin-top: 0.5rem;">
-                <i class="fas fa-arrow-right"></i> Time in/out and attendance
+            <p class="elms-stat-label">Attendance Log</p>
+            <p class="elms-stat-value" style="font-size: 1rem; margin-top: 0.5rem;">📊</p>
+            <p style="color: #a78bfa; font-size: 0.875rem; margin-top: 0.5rem;">
+                <i class="fas fa-arrow-right"></i> View attendance
             </p>
         </div>
-        <div class="elms-stat-icon-container" style="background-color: #064e3b;">
-            <i class="fas fa-clock elms-stat-icon" style="color: #34d399;"></i>
+        <div class="elms-stat-icon-container" style="background-color: #4c1d95;">
+            <i class="fas fa-clipboard-list elms-stat-icon" style="color: #a78bfa;"></i>
         </div>
-    </a>
+    </button>
 </div>
 
                 <!-- Recent Leave Requests -->
@@ -1011,6 +1011,46 @@ include '../../../../includes/user_header.php';
             modal.classList.remove('flex');
             // Reset form
             document.getElementById('lateApplicationForm').reset();
+        }
+
+        function openAttendanceModal() {
+            const modal = document.getElementById('attendanceModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            loadAttendanceData();
+        }
+
+        function closeAttendanceModal() {
+            const modal = document.getElementById('attendanceModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function loadAttendanceData() {
+            const tbody = document.getElementById('attendanceTableBody');
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Loading...</td></tr>';
+            
+            fetch('dtr_status.php?ajax=1')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.records && data.records.length > 0) {
+                        tbody.innerHTML = data.records.map(record => `
+                            <tr class="hover:bg-slate-700/30 transition-colors">
+                                <td class="px-3 py-2 text-xs text-slate-300">${record.date}</td>
+                                <td class="px-3 py-2 text-xs text-slate-300">${record.morning_time_in || '-'}</td>
+                                <td class="px-3 py-2 text-xs text-slate-300">${record.morning_time_out || '-'}</td>
+                                <td class="px-3 py-2 text-xs text-slate-300">${record.afternoon_time_in || '-'}</td>
+                                <td class="px-3 py-2 text-xs text-slate-300">${record.afternoon_time_out || '-'}</td>
+                                <td class="px-3 py-2 text-xs font-semibold ${record.total_hours >= 8 ? 'text-green-400' : 'text-yellow-400'}">${record.total_hours}h</td>
+                            </tr>
+                        `).join('');
+                    } else {
+                        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-400 text-sm"><i class="fas fa-calendar-times text-xl mb-2"></i><br>No records found</td></tr>';
+                    }
+                })
+                .catch(error => {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-red-400 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>Error loading data</td></tr>';
+                });
         }
 
         // Close modals when clicking outside
@@ -2043,3 +2083,45 @@ Date: ${info.event.start.toLocaleDateString()}
     </script>
 
 <?php include '../../../../includes/user_footer.php'; ?>
+
+
+<!-- Attendance Log Modal -->
+<div id="attendanceModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-800/95 backdrop-blur-sm rounded-2xl border border-slate-700/50 w-full max-w-3xl max-h-[85vh] overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-700/50 bg-slate-700/30">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-white flex items-center">
+                    <i class="fas fa-clipboard-list mr-2 text-purple-500"></i>
+                    My Attendance Log
+                </h3>
+                <button onclick="closeAttendanceModal()" class="text-slate-400 hover:text-white transition-colors">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+        </div>
+        <div class="p-4 overflow-y-auto" style="max-height: calc(85vh - 60px);">
+            <div class="bg-slate-700/30 rounded-xl border border-slate-600/50 overflow-hidden">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-700/50">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-semibold text-slate-300 uppercase">Date</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold text-slate-300 uppercase">AM In</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold text-slate-300 uppercase">AM Out</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold text-slate-300 uppercase">PM In</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold text-slate-300 uppercase">PM Out</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold text-slate-300 uppercase">Hours</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendanceTableBody" class="divide-y divide-slate-700">
+                        <tr>
+                            <td colspan="6" class="text-center py-6 text-slate-400">
+                                <i class="fas fa-spinner fa-spin text-xl mb-2"></i>
+                                <br>Loading...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

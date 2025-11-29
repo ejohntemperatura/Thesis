@@ -360,9 +360,9 @@ include '../../../../includes/admin_header.php';
                                 <button type="submit" name="export" class="w-full text-left">
                                     <div class="flex items-center mb-2">
                                         <i class="fas fa-file-pdf text-red-400 text-xl mr-3"></i>
-                                        <span class="font-semibold text-white">Pay Summary</span>
+                                        <span class="font-semibold text-white">Leave Summary</span>
                                     </div>
-                                    <p class="text-slate-400 text-sm">Export with-pay vs without-pay summary</p>
+                                    <p class="text-slate-400 text-sm">Export employee VL/SL usage (with pay and without pay)</p>
                                 </button>
                             </form>
                         </div>

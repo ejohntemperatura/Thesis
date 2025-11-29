@@ -8,7 +8,58 @@ if (!isset($_SESSION['user_id'])) {
     exit('Unauthorized');
 }
 
-// Get today's DTR record
+// Check if this is an AJAX request for attendance records
+if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
+    // Get last 30 days of attendance records
+    $stmt = $pdo->prepare("
+        SELECT 
+            date,
+            morning_time_in,
+            morning_time_out,
+            afternoon_time_in,
+            afternoon_time_out
+        FROM dtr 
+        WHERE user_id = ? 
+        ORDER BY date DESC 
+        LIMIT 30
+    ");
+    $stmt->execute([$_SESSION['user_id']]);
+    $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    $formatted_records = [];
+    foreach ($records as $record) {
+        $total_hours = 0;
+        
+        // Calculate morning hours
+        if ($record['morning_time_in'] && $record['morning_time_out']) {
+            $morning_in = strtotime($record['morning_time_in']);
+            $morning_out = strtotime($record['morning_time_out']);
+            $total_hours += ($morning_out - $morning_in) / 3600;
+        }
+        
+        // Calculate afternoon hours
+        if ($record['afternoon_time_in'] && $record['afternoon_time_out']) {
+            $afternoon_in = strtotime($record['afternoon_time_in']);
+            $afternoon_out = strtotime($record['afternoon_time_out']);
+            $total_hours += ($afternoon_out - $afternoon_in) / 3600;
+        }
+        
+        $formatted_records[] = [
+            'date' => date('M d, Y', strtotime($record['date'])),
+            'morning_time_in' => $record['morning_time_in'] ? date('h:i A', strtotime($record['morning_time_in'])) : null,
+            'morning_time_out' => $record['morning_time_out'] ? date('h:i A', strtotime($record['morning_time_out'])) : null,
+            'afternoon_time_in' => $record['afternoon_time_in'] ? date('h:i A', strtotime($record['afternoon_time_in'])) : null,
+            'afternoon_time_out' => $record['afternoon_time_out'] ? date('h:i A', strtotime($record['afternoon_time_out'])) : null,
+            'total_hours' => round($total_hours, 2)
+        ];
+    }
+    
+    header('Content-Type: application/json');
+    echo json_encode(['records' => $formatted_records]);
+    exit();
+}
+
+// Original code for today's record (for backward compatibility)
 $today = date('Y-m-d');
 $stmt = $pdo->prepare("SELECT * FROM dtr WHERE user_id = ? AND date = ?");
 $stmt->execute([$_SESSION['user_id'], $today]);

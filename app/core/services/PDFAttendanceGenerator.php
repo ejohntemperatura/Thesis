@@ -229,30 +229,44 @@ class PDFAttendanceGenerator {
             $this->pdf->Ln(2);
             
             // Table header
-            $this->pdf->SetFont('helvetica', 'B', 8);
+            $this->pdf->SetFont('helvetica', 'B', 7);
             $this->pdf->SetFillColor(200, 200, 200);
             $this->pdf->SetTextColor(0, 0, 0);
-            $this->pdf->Cell(25, 8, 'Employee', 1, 0, 'C', true);
-            $this->pdf->Cell(15, 8, 'Date', 1, 0, 'C', true);
-            $this->pdf->Cell(20, 8, 'Morning In', 1, 0, 'C', true);
-            $this->pdf->Cell(20, 8, 'Morning Out', 1, 0, 'C', true);
-            $this->pdf->Cell(20, 8, 'Afternoon In', 1, 0, 'C', true);
-            $this->pdf->Cell(20, 8, 'Afternoon Out', 1, 0, 'C', true);
-            $this->pdf->Cell(15, 8, 'Total Hrs', 1, 0, 'C', true);
-            $this->pdf->Cell(15, 8, 'Status', 1, 0, 'C', true);
+            $this->pdf->Cell(30, 8, 'Employee', 1, 0, 'C', true);
+            $this->pdf->Cell(18, 8, 'Date', 1, 0, 'C', true);
+            $this->pdf->Cell(18, 8, 'Morning In', 1, 0, 'C', true);
+            $this->pdf->Cell(18, 8, 'Morning Out', 1, 0, 'C', true);
+            $this->pdf->Cell(18, 8, 'Afternoon In', 1, 0, 'C', true);
+            $this->pdf->Cell(18, 8, 'Afternoon Out', 1, 0, 'C', true);
+            $this->pdf->Cell(12, 8, 'Total Hrs', 1, 0, 'C', true);
+            $this->pdf->Cell(28, 8, 'Status', 1, 0, 'C', true);
             $this->pdf->Ln();
             
             // Table data for this department
             $this->pdf->SetFont('helvetica', '', 7);
             foreach ($records as $record) {
-                $this->pdf->Cell(25, 8, substr($record['employee_name'], 0, 12), 1, 0, 'L');
-                $this->pdf->Cell(15, 8, date('m/d/Y', strtotime($record['date'])), 1, 0, 'C');
-                $this->pdf->Cell(20, 8, $record['morning_time_in'] ? date('H:i', strtotime($record['morning_time_in'])) : '-', 1, 0, 'C');
-                $this->pdf->Cell(20, 8, $record['morning_time_out'] ? date('H:i', strtotime($record['morning_time_out'])) : '-', 1, 0, 'C');
-                $this->pdf->Cell(20, 8, $record['afternoon_time_in'] ? date('H:i', strtotime($record['afternoon_time_in'])) : '-', 1, 0, 'C');
-                $this->pdf->Cell(20, 8, $record['afternoon_time_out'] ? date('H:i', strtotime($record['afternoon_time_out'])) : '-', 1, 0, 'C');
-                $this->pdf->Cell(15, 8, number_format($record['total_hours'], 1), 1, 0, 'C');
-                $this->pdf->Cell(15, 8, $record['status'], 1, 0, 'C');
+                // Format times in 12-hour format with AM/PM
+                $morningIn = $record['morning_time_in'] ? date('g:i A', strtotime($record['morning_time_in'])) : '-';
+                $morningOut = $record['morning_time_out'] ? date('g:i A', strtotime($record['morning_time_out'])) : '-';
+                $afternoonIn = $record['afternoon_time_in'] ? date('g:i A', strtotime($record['afternoon_time_in'])) : '-';
+                $afternoonOut = $record['afternoon_time_out'] ? date('g:i A', strtotime($record['afternoon_time_out'])) : '-';
+                
+                // Shorten status text to fit
+                $status = $record['status'];
+                if ($status == 'Half Day (Morning)') {
+                    $status = 'Half Day (AM)';
+                } elseif ($status == 'Half Day (Afternoon)') {
+                    $status = 'Half Day (PM)';
+                }
+                
+                $this->pdf->Cell(30, 8, substr($record['employee_name'], 0, 15), 1, 0, 'L');
+                $this->pdf->Cell(18, 8, date('m/d/Y', strtotime($record['date'])), 1, 0, 'C');
+                $this->pdf->Cell(18, 8, $morningIn, 1, 0, 'C');
+                $this->pdf->Cell(18, 8, $morningOut, 1, 0, 'C');
+                $this->pdf->Cell(18, 8, $afternoonIn, 1, 0, 'C');
+                $this->pdf->Cell(18, 8, $afternoonOut, 1, 0, 'C');
+                $this->pdf->Cell(12, 8, number_format($record['total_hours'], 1), 1, 0, 'C');
+                $this->pdf->Cell(28, 8, $status, 1, 0, 'C');
                 $this->pdf->Ln();
             }
             

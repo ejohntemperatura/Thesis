@@ -119,9 +119,11 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     <span>Leave Alerts</span>
                 </a>
                 <a href="cto_management.php" class="elms-sidebar-link <?php echo ($current_page == 'cto_management.php') ? 'active' : ''; ?>">
-                    <i class="fas fa-clock elms-sidebar-icon"></i>
-                    <span>CTO/SERVICE</span>
+                    <i class="fas fa-plus-circle elms-sidebar-icon"></i>
+                    <span>Add Leave Credits</span>
                 </a>
+                <!-- Updated: Changed from CTO/SERVICE to Add Leave Credits -->
+                <!-- Updated: CTO/SERVICE renamed to Add Leave Credits -->
             </div>
             
             <!-- Reports Section -->

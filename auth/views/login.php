@@ -20,7 +20,7 @@ if (isset($_COOKIE['remember_token']) && !isset($_SESSION['user_id']) && !isset(
         
         // Redirect based on role
         if ($user['role'] === 'employee') {
-            header('Location: ../../app/modules/user/views/dtr.php');
+            header('Location: ../../app/modules/user/views/dashboard.php');
             exit();
         } elseif ($user['role'] === 'admin') {
             header('Location: ../../app/modules/admin/views/dashboard.php');
@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // For employees, always redirect to DTR page first
         if ($user['role'] === 'employee') {
-            header('Location: ../../app/modules/user/views/dtr.php');
+            header('Location: ../../app/modules/user/views/dashboard.php');
             exit();
         }
         

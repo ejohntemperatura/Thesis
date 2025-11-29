@@ -45,8 +45,8 @@ if ($allFieldsMissing) {
     $paternityInit = $isFemale ? 0 : 7;
     $stmt = $pdo->prepare("
         UPDATE employees SET 
-            vacation_leave_balance = 15,
-            sick_leave_balance = 15,
+            vacation_leave_balance = 1.25,
+            sick_leave_balance = 1.25,
             special_leave_privilege_balance = 3,
             maternity_leave_balance = ?,
             paternity_leave_balance = ?,
@@ -187,6 +187,11 @@ include '../../../../includes/user_header.php';
                     $leaveTypes = getLeaveTypes();
                     
                     foreach ($leaveTypes as $type => $info):
+                        // Skip "Without Pay Leave" - it should not appear in leave credits display
+                        if ($type === 'without_pay') {
+                            continue;
+                        }
+                        
                         // Hide female-only leave types for male employees
                         if (!empty($employee) && isset($employee['gender']) && $employee['gender'] !== 'female') {
                             if (isset($info['gender_restricted']) && $info['gender_restricted'] === 'female') {
@@ -209,8 +214,8 @@ include '../../../../includes/user_header.php';
                         $fieldName = isset($info['credit_field']) ? $info['credit_field'] : ($type . '_leave_balance');
                         $currentBalance = isset($leaveSummary[$fieldName]) ? $leaveSummary[$fieldName] : 0;
                         
-                        // Hide VL/SL cards if not eligible (no credits)
-                        if (in_array($type, ['vacation','sick']) && (float)$currentBalance <= 0) {
+                        // Hide VL/SL/SLP cards if not eligible (no credits)
+                        if (in_array($type, ['vacation','sick','special_privilege']) && (float)$currentBalance <= 0) {
                             continue;
                         }
 
@@ -253,7 +258,7 @@ include '../../../../includes/user_header.php';
                                 </div>
                             </div>
                             <div class="text-right">
-                                <div class="text-2xl font-bold text-white"><?php echo number_format($currentBalance, 1); ?></div>
+                                <div class="text-2xl font-bold text-white"><?php echo number_format($currentBalance, 2); ?></div>
                                 <div class="text-slate-400 text-sm"><?php echo $type === 'cto' ? 'hours remaining' : 'days remaining'; ?></div>
                             </div>
                         </div>
@@ -261,22 +266,22 @@ include '../../../../includes/user_header.php';
                         <div class="space-y-2">
                             <div class="flex justify-between text-sm">
                                 <span class="text-slate-400">Total Allocated:</span>
-                                <span class="text-white font-semibold"><?php echo number_format($isCTO ? $totalAllocatedHours : $totalAllocatedDays, 1); ?> <?php echo $type === 'cto' ? 'hours' : 'days'; ?></span>
+                                <span class="text-white font-semibold"><?php echo number_format($totalAllocated, 2); ?> <?php echo $type === 'cto' ? 'hours' : 'days'; ?></span>
                             </div>
                             <div class="flex justify-between text-sm">
                                 <span class="text-slate-400">Used (Approved):</span>
-                                <span class="text-white font-semibold"><?php echo number_format($isCTO ? $totalAllocatedHours : $totalAllocatedDays, 1); ?> <?php echo $type === 'cto' ? 'hours' : 'days'; ?></span>
+                                <span class="text-white font-semibold"><?php echo number_format($usedAmount, 2); ?> <?php echo $type === 'cto' ? 'hours' : 'days'; ?></span>
                             </div>
                             <?php if ($isCTO ? $pendingHours > 0 : $pendingDays > 0): ?>
                             <div class="flex justify-between text-sm">
                                 <span class="text-slate-400">Pending:</span>
-                                <span class="text-yellow-400 font-semibold"><?php echo number_format($isCTO ? $pendingHours : $pendingDays, 1); ?> <?php echo $type === 'cto' ? 'hours' : 'days'; ?></span>
+                                <span class="text-yellow-400 font-semibold"><?php echo number_format($isCTO ? $pendingHours : $pendingDays, 2); ?> <?php echo $type === 'cto' ? 'hours' : 'days'; ?></span>
                             </div>
                             <?php endif; ?>
                             <?php if ($isCTO ? $rejectedHours > 0 : $rejectedDays > 0): ?>
                             <div class="flex justify-between text-sm">
                                 <span class="text-slate-400">Rejected:</span>
-                                <span class="text-red-400 font-semibold"><?php echo number_format($isCTO ? $rejectedHours : $rejectedDays, 1); ?> <?php echo $type === 'cto' ? 'hours' : 'days'; ?></span>
+                                <span class="text-red-400 font-semibold"><?php echo number_format($isCTO ? $rejectedHours : $rejectedDays, 2); ?> <?php echo $type === 'cto' ? 'hours' : 'days'; ?></span>
                             </div>
                             <?php endif; ?>
                             <div class="w-full bg-slate-700 rounded-full h-2">
@@ -284,7 +289,7 @@ include '../../../../includes/user_header.php';
                                      style="width: <?php echo $remainingPercentage; ?>%"></div>
                             </div>
                             <div class="text-xs text-slate-400 text-center">
-                                <?php echo number_format($remainingPercentage, 1); ?>% available
+                                <?php echo number_format($remainingPercentage, 2); ?>% available
                             </div>
                         </div>
                     </div>

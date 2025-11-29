@@ -432,8 +432,36 @@ class PDFReportGenerator {
                 
                 // Table data for this employee
                 $this->pdf->SetFont('helvetica', '', 7);
+                $leaveTypes = getLeaveTypes();
+                
                 foreach ($requests as $request) {
-                    $this->pdf->Cell(25, 6, substr(ucwords(str_replace('_', ' ', $request['leave_type'])), 0, 12), 1, 0, 'L');
+                    // Get proper leave type display name
+                    $leaveType = $request['leave_type'];
+                    $originalLeaveType = $request['original_leave_type'] ?? null;
+                    
+                    // Handle empty or null leave types
+                    if (empty($leaveType)) {
+                        $leaveType = $originalLeaveType ?: 'vacation';
+                    }
+                    
+                    // Use getLeaveTypeDisplayName if available, otherwise format manually
+                    if (function_exists('getLeaveTypeDisplayName')) {
+                        $displayName = getLeaveTypeDisplayName($leaveType, $originalLeaveType, $leaveTypes);
+                    } else {
+                        $displayName = isset($leaveTypes[$leaveType]) ? $leaveTypes[$leaveType]['name'] : ucwords(str_replace('_', ' ', $leaveType));
+                    }
+                    
+                    // Final fallback if still empty
+                    if (empty($displayName) || trim($displayName) === '') {
+                        $displayName = 'Leave';
+                    }
+                    
+                    // Shorten long names
+                    if (strlen($displayName) > 20) {
+                        $displayName = substr($displayName, 0, 18) . '..';
+                    }
+                    
+                    $this->pdf->Cell(25, 6, $displayName, 1, 0, 'L');
                     $this->pdf->Cell(18, 6, date('m/d/Y', strtotime($request['start_date'])), 1, 0, 'C');
                     $this->pdf->Cell(18, 6, date('m/d/Y', strtotime($request['end_date'])), 1, 0, 'C');
                     $this->pdf->Cell(12, 6, $request['actual_days_approved'], 1, 0, 'C');

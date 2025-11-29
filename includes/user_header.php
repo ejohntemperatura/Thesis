@@ -133,12 +133,12 @@ $current_page = basename($_SERVER['PHP_SELF']);
     <!-- Sidebar -->
     <aside class="elms-sidebar">
         <nav>
-            <!-- Dashboard Section -->
+            <!-- Leave Application Section -->
             <div class="elms-sidebar-section">
-                <h3 class="elms-sidebar-header">Dashboard</h3>
+                <h3 class="elms-sidebar-header">Leave Application</h3>
                 <a href="dashboard.php" class="elms-sidebar-link <?php echo ($current_page == 'dashboard.php') ? 'active' : ''; ?>">
-                    <i class="fas fa-tachometer-alt elms-sidebar-icon"></i>
-                    <span>Dashboard</span>
+                    <i class="fas fa-file-alt elms-sidebar-icon"></i>
+                    <span>Leave Application</span>
                 </a>
             </div>
             

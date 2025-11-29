@@ -172,8 +172,8 @@ function getLeaveTypes() {
         'commutable' => false
     ],
     'without_pay' => [
-        'name' => 'Without Pay Leave',
-        'name_with_note' => 'Without Pay Leave (No Salary)',
+        'name' => 'Leave Without Pay',
+        'name_with_note' => 'Leave Without Pay (No Salary)',
         'icon' => 'fas fa-exclamation-triangle',
         'color' => 'bg-gray-500',
         'requires_credits' => false,

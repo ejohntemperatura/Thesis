@@ -1,55 +1,16 @@
 <?php
 session_start();
 require_once '../../../../config/database.php';
-require_once '../../../../app/core/services/DTRToCTOProcessor.php';
+require_once '../../../../config/database.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header('Location: ../../../auth/views/login.php');
     exit();
 }
 
-$processor = new DTRToCTOProcessor($pdo);
-$message = '';
-$error = '';
-
-// Handle manual processing
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    if ($_POST['action'] === 'process_dtr') {
-        $startDate = $_POST['start_date'];
-        $endDate = $_POST['end_date'];
-        $employeeId = $_POST['employee_id'] ?: null;
-        
-        $result = $processor->processDTRForCTO($startDate, $endDate, $employeeId);
-        
-        if ($result['success']) {
-            $message = "Successfully processed {$result['processed']} DTR records";
-            if (!empty($result['errors'])) {
-                $message .= " with " . count($result['errors']) . " warnings";
-            }
-        } else {
-            $error = "Processing failed: " . $result['error'];
-        }
-    }
-}
-
-// Get processing summary for current month
-$currentMonth = date('Y-m');
-$summary = $processor->getProcessingSummary($currentMonth . '-01', date('Y-m-t'));
-
-// Get recent CTO earnings from DTR processing
-$stmt = $pdo->query("
-    SELECT ce.*, e.name as employee_name, e.department
-    FROM cto_earnings ce
-    JOIN employees e ON ce.employee_id = e.id
-    WHERE ce.status = 'approved'
-    ORDER BY ce.created_at DESC
-    LIMIT 20
-");
-$recentEarnings = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Get employees for dropdown
-$stmt = $pdo->query("SELECT id, name, department FROM employees WHERE role != 'admin' ORDER BY name");
-$employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// DTR Processing has been removed. Redirect to Admin Dashboard.
+header('Location: dashboard.php');
+exit();
 ?>
 
 <!DOCTYPE html>
@@ -83,8 +44,8 @@ $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     </a>
                     
                     <a href="cto_management.php" class="flex items-center space-x-3 px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors elms-sidebar-link">
-                        <i class="fas fa-clock w-5"></i>
-                        <span>CTO/SERVICE</span>
+                        <i class="fas fa-plus-circle w-5"></i>
+                        <span>Add Leave Credits</span>
                     </a>
                     
                     <a href="dtr_cto_processing.php" class="flex items-center space-x-3 px-4 py-3 text-white bg-blue-500/20 rounded-lg border border-blue-500/30 elms-sidebar-link">
