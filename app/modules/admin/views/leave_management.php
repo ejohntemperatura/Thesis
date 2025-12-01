@@ -263,11 +263,17 @@ include '../../../../includes/admin_header.php';
 ?>
 
 <!-- Page Header -->
-<div style="margin-bottom: 2rem;">
-    <h1 class="elms-h1" style="margin-bottom: 0.5rem; display: flex; align-items: center;">
-        <i class="fas fa-calendar-check" style="color: #0891b2; margin-right: 0.75rem;"></i>Leave Management
-    </h1>
-    <p class="elms-text-muted">Review and manage all leave requests across the organization</p>
+<div style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+    <div>
+        <h1 class="elms-h1" style="margin-bottom: 0.5rem; display: flex; align-items: center;">
+            <i class="fas fa-calendar-check" style="color: #0891b2; margin-right: 0.75rem;"></i>Leave Management
+        </h1>
+        <p class="elms-text-muted">Review and manage all leave requests across the organization</p>
+    </div>
+    <button onclick="openAddLeaveCreditsModal()" class="px-5 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl transition-all duration-300 flex items-center gap-2 shadow-lg">
+        <i class="fas fa-plus-circle"></i>
+        <span>Add Leave Credits</span>
+    </button>
 </div>
 
                 <!-- Success Message -->
@@ -1665,6 +1671,139 @@ include '../../../../includes/admin_header.php';
             // delay a moment so overlay is painted before submit
             setTimeout(() => form.submit(), 300);
         }
+        
+        // Add Leave Credits Modal Functions
+        function openAddLeaveCreditsModal() {
+            document.getElementById('addLeaveCreditsModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function closeAddLeaveCreditsModal() {
+            document.getElementById('addLeaveCreditsModal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+        
+        // Close modal when clicking outside
+        document.getElementById('addLeaveCreditsModal')?.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeAddLeaveCreditsModal();
+            }
+        });
     </script>
+    
+    <!-- Add Leave Credits Modal - Professional Design -->
+    <!-- Add Leave Credits Modal -->
+    <div id="addLeaveCreditsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(0,0,0,0.8); backdrop-filter: blur(4px);">
+        <!-- Modal panel -->
+        <div class="bg-slate-800 rounded-2xl border border-slate-600 shadow-2xl w-full max-w-lg" style="animation: modalFadeIn 0.3s ease-out;">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700 bg-gradient-to-r from-green-600/20 to-emerald-600/20 rounded-t-2xl">
+                <h3 class="text-xl font-bold text-white flex items-center">
+                    <div class="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center mr-3">
+                        <i class="fas fa-plus-circle text-green-400 text-lg"></i>
+                    </div>
+                    Add Leave Credits
+                </h3>
+                <button onclick="closeAddLeaveCreditsModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-700 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- Modal Body -->
+            <form action="cto_management.php" method="POST">
+                <div class="p-6 space-y-5">
+                    <input type="hidden" name="action" value="add_leave_credit">
+                    
+                    <!-- Employee Selection -->
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">
+                            <i class="fas fa-user text-cyan-400 mr-2"></i>Employee
+                        </label>
+                        <select name="employee_id" required class="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all appearance-none cursor-pointer" style="background-image: url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%2394a3b8%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e'); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1em;">
+                            <option value="">Select Employee</option>
+                            <?php
+                            $empStmt = $pdo->query("SELECT id, name, department, gender FROM employees WHERE role = 'employee' ORDER BY name");
+                            while ($emp = $empStmt->fetch(PDO::FETCH_ASSOC)):
+                            ?>
+                                <option value="<?php echo $emp['id']; ?>" data-gender="<?php echo $emp['gender']; ?>">
+                                    <?php echo htmlspecialchars($emp['name']); ?> - <?php echo htmlspecialchars($emp['department']); ?>
+                                </option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                    
+                    <!-- Leave Type Selection -->
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">
+                            <i class="fas fa-calendar-alt text-cyan-400 mr-2"></i>Leave Type
+                        </label>
+                        <select name="leave_type" required class="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all appearance-none cursor-pointer" style="background-image: url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%2394a3b8%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e'); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1em;">
+                            <option value="">Select Leave Type</option>
+                            <?php
+                            $leaveTypesConfig = getLeaveTypes();
+                            $excludedTypes = ['vacation', 'sick', 'special_privilege', 'cto', 'service_credit'];
+                            foreach ($leaveTypesConfig as $key => $config):
+                                if (in_array($key, $excludedTypes)) continue;
+                                if ($config['requires_credits']):
+                            ?>
+                                <option value="<?php echo $key; ?>">
+                                    <?php echo htmlspecialchars($config['name']); ?>
+                                </option>
+                            <?php 
+                                endif;
+                            endforeach; 
+                            ?>
+                        </select>
+                    </div>
+                    
+                    <!-- Credits Amount -->
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">
+                            <i class="fas fa-calculator text-cyan-400 mr-2"></i>Credits to Add (days)
+                        </label>
+                        <input type="number" name="credits_to_add" step="0.5" min="0.5" required 
+                               class="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                               placeholder="Enter amount (e.g., 1, 1.5, 2)">
+                    </div>
+                    
+                    <!-- Reason -->
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">
+                            <i class="fas fa-comment-alt text-cyan-400 mr-2"></i>Reason <span class="text-slate-500 font-normal">(Optional)</span>
+                        </label>
+                        <textarea name="reason" rows="2" 
+                                  class="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all resize-none"
+                                  placeholder="e.g., Special approval, Administrative correction"></textarea>
+                    </div>
+                </div>
+                
+                <!-- Modal Footer -->
+                <div class="flex justify-end gap-3 px-6 py-4 border-t border-slate-700 bg-slate-900/50 rounded-b-2xl">
+                    <button type="button" onclick="closeAddLeaveCreditsModal()" 
+                            class="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl transition-all">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-green-500/20">
+                        <i class="fas fa-plus-circle"></i>
+                        Add Credits
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <style>
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95) translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+    </style>
     
 <?php include '../../../../includes/admin_footer.php'; ?>

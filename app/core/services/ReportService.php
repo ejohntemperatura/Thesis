@@ -132,24 +132,41 @@ class ReportService {
      * Get department-wise counts of approved leave requests with pay vs without pay
      */
     public function getDepartmentPayStatusSummary($startDate, $endDate, $filters = []) {
-        // Only constrain by date; ignore employee/department filters for global summary
-        $whereConditions = ["lr.start_date BETWEEN ? AND ?"];
+        // Build where conditions
+        $whereConditions = ["lr.start_date BETWEEN ? AND ?", "lr.status = 'approved'"];
         $params = [$startDate, $endDate];
+        
+        if (!empty($filters['employee_id'])) {
+            $whereConditions[] = "lr.employee_id = ?";
+            $params[] = $filters['employee_id'];
+        }
+        
+        if (!empty($filters['department'])) {
+            $whereConditions[] = "e.department = ?";
+            $params[] = $filters['department'];
+        }
+        
         $whereClause = implode(' AND ', $whereConditions);
 
         $sql = "
             SELECT 
+                e.id as employee_id,
+                e.name as employee_name,
                 e.department,
-                SUM(CASE WHEN lr.status = 'approved' AND lr.pay_status = 'with_pay' THEN 1 ELSE 0 END) AS with_pay_count,
-                SUM(CASE WHEN lr.status = 'approved' AND (lr.pay_status = 'without_pay' OR lr.leave_type = 'without_pay') THEN 1 ELSE 0 END) AS without_pay_count
+                SUM(CASE WHEN lr.leave_type = 'vacation' THEN COALESCE(lr.approved_days, lr.days_requested) ELSE 0 END) AS vacation_days,
+                SUM(CASE WHEN lr.leave_type = 'sick' THEN COALESCE(lr.approved_days, lr.days_requested) ELSE 0 END) AS sick_days,
+                SUM(CASE WHEN lr.leave_type = 'special_privilege' THEN COALESCE(lr.approved_days, lr.days_requested) ELSE 0 END) AS special_privilege_days,
+                SUM(CASE WHEN lr.leave_type = 'maternity' THEN COALESCE(lr.approved_days, lr.days_requested) ELSE 0 END) AS maternity_days,
+                SUM(CASE WHEN lr.leave_type = 'paternity' THEN COALESCE(lr.approved_days, lr.days_requested) ELSE 0 END) AS paternity_days,
+                SUM(CASE WHEN lr.leave_type = 'solo_parent' THEN COALESCE(lr.approved_days, lr.days_requested) ELSE 0 END) AS solo_parent_days,
+                SUM(CASE WHEN lr.leave_type = 'cto' THEN COALESCE(lr.approved_days, lr.days_requested) ELSE 0 END) AS cto_days,
+                SUM(CASE WHEN lr.leave_type = 'without_pay' THEN COALESCE(lr.approved_days, lr.days_requested) ELSE 0 END) AS without_pay_days
             FROM employees e
             LEFT JOIN leave_requests lr ON e.id = lr.employee_id AND $whereClause
-            WHERE e.role = 'employee' 
-            AND e.department NOT IN ('Executive', 'Operations')
-            AND e.position NOT LIKE '%Department Head%'
-            AND e.position NOT LIKE '%Director Head%'
-            GROUP BY e.department
-            ORDER BY e.department ASC
+            WHERE e.role = 'employee'
+            GROUP BY e.id, e.name, e.department
+            HAVING (vacation_days > 0 OR sick_days > 0 OR special_privilege_days > 0 OR maternity_days > 0 OR paternity_days > 0 OR solo_parent_days > 0 OR cto_days > 0 OR without_pay_days > 0)
+            ORDER BY e.department ASC, e.name ASC
         ";
 
         $stmt = $this->pdo->prepare($sql);

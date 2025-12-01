@@ -152,21 +152,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="apple-touch-icon" href="/ELMS/elmsicon.png">
 </head>
 <body class="bg-slate-900 text-white min-h-screen">
-    <!-- Fullscreen Entry Overlay -->
-    <div id="fullscreenOverlay" class="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center cursor-pointer" onclick="enterKioskMode()">
-        <div class="text-center">
-            <div class="w-24 h-24 bg-cyan-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
-                <i class="fas fa-expand text-cyan-400 text-4xl"></i>
-            </div>
-            <h2 class="text-3xl font-bold text-white mb-4">ELMS DTR Kiosk</h2>
-            <p class="text-slate-400 mb-8">Click anywhere to enter fullscreen mode</p>
-            <button class="px-8 py-4 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold rounded-xl text-lg transition-colors">
-                <i class="fas fa-play mr-2"></i> Enter Kiosk Mode
-            </button>
-            <p class="text-slate-500 text-sm mt-6">Press ESC to exit fullscreen | Alt+F4 to close</p>
-        </div>
-    </div>
-
     <div class="min-h-screen flex flex-col items-center justify-center px-4">
         <div class="w-full max-w-xl">
             <div class="text-center mb-8">
@@ -234,52 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <script>
-        // Enter kiosk mode (fullscreen) when user clicks
-        function enterKioskMode() {
-            const elem = document.documentElement;
-            const overlay = document.getElementById('fullscreenOverlay');
-            
-            try {
-                if (elem.requestFullscreen) {
-                    elem.requestFullscreen().then(function() {
-                        overlay.style.display = 'none';
-                    }).catch(function(err) {
-                        console.log('Fullscreen error:', err);
-                        overlay.style.display = 'none'; // Hide overlay anyway
-                    });
-                } else if (elem.webkitRequestFullscreen) {
-                    elem.webkitRequestFullscreen();
-                    overlay.style.display = 'none';
-                } else if (elem.msRequestFullscreen) {
-                    elem.msRequestFullscreen();
-                    overlay.style.display = 'none';
-                } else if (elem.mozRequestFullScreen) {
-                    elem.mozRequestFullScreen();
-                    overlay.style.display = 'none';
-                } else {
-                    // Fullscreen not supported, just hide overlay
-                    overlay.style.display = 'none';
-                }
-            } catch (e) {
-                console.log('Fullscreen failed:', e);
-                overlay.style.display = 'none';
-            }
-            
-            // Focus on employee ID input
-            setTimeout(function() {
-                const input = document.querySelector('input[name="employee_id"]');
-                if (input) input.focus();
-            }, 100);
-        }
-        
-        // Show overlay again if user exits fullscreen
-        document.addEventListener('fullscreenchange', function() {
-            const overlay = document.getElementById('fullscreenOverlay');
-            if (!document.fullscreenElement && overlay) {
-                overlay.style.display = 'flex';
-            }
-        });
-        
+        // Clock function
         function updateClock() {
             const now = new Date();
             let h = now.getHours();
@@ -296,6 +236,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         updateClock();
         setInterval(updateClock, 1000);
+        
+        // Disable right-click context menu
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            return false;
+        });
+        
+        // Disable F12, Ctrl+Shift+I, Ctrl+U (view source)
+        document.addEventListener('keydown', function(e) {
+            // F12
+            if (e.key === 'F12') {
+                e.preventDefault();
+                return false;
+            }
+            // Ctrl+Shift+I (Developer Tools)
+            if (e.ctrlKey && e.shiftKey && e.key === 'I') {
+                e.preventDefault();
+                return false;
+            }
+            // Ctrl+U (View Source)
+            if (e.ctrlKey && e.key === 'u') {
+                e.preventDefault();
+                return false;
+            }
+            // Ctrl+Shift+C (Inspect Element)
+            if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+                e.preventDefault();
+                return false;
+            }
+        });
     </script>
 </body>
 </html>

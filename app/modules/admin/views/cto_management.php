@@ -90,7 +90,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $_SESSION['error'] = "Error: " . $e->getMessage();
     }
     
-    header('Location: cto_management.php');
+    // Redirect back to the referring page (leave_management or cto_management)
+    $redirect = isset($_SERVER['HTTP_REFERER']) && strpos($_SERVER['HTTP_REFERER'], 'leave_management') !== false 
+                ? 'leave_management.php' 
+                : 'cto_management.php';
+    header('Location: ' . $redirect);
     exit();
 }
 

@@ -118,10 +118,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     <i class="fas fa-bell elms-sidebar-icon"></i>
                     <span>Leave Alerts</span>
                 </a>
-                <a href="cto_management.php" class="elms-sidebar-link <?php echo ($current_page == 'cto_management.php') ? 'active' : ''; ?>">
-                    <i class="fas fa-plus-circle elms-sidebar-icon"></i>
-                    <span>Add Leave Credits</span>
-                </a>
                 <a href="#" onclick="openDTRKiosk(); return false;" class="elms-sidebar-link <?php echo ($current_page == 'dtr_kiosk.php') ? 'active' : ''; ?>">
                     <i class="fas fa-clock elms-sidebar-icon"></i>
                     <span>DTR</span>
@@ -163,40 +159,24 @@ $current_page = basename($_SERVER['PHP_SELF']);
             }
         });
         
-        // Open DTR Kiosk in fullscreen popup
+        // Open DTR Kiosk in popup window (minimal UI - no address bar)
         function openDTRKiosk() {
-            // Get screen dimensions
             const width = screen.width;
             const height = screen.height;
+            const left = 0;
+            const top = 0;
             
-            // Open popup window (fullscreen size, minimal UI)
-            const dtrWindow = window.open(
+            // Open popup with minimal UI (no toolbar, no location bar, no menubar)
+            const popup = window.open(
                 'dtr_kiosk.php',
                 'DTR_Kiosk',
-                `width=${width},height=${height},top=0,left=0,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no`
+                'width=' + width + ',height=' + height + ',left=' + left + ',top=' + top + ',toolbar=no,location=no,directories=no,status=no,menubar=no,scrollbars=no,resizable=yes,fullscreen=yes'
             );
             
-            // Try to enter fullscreen mode after window opens
-            if (dtrWindow) {
-                dtrWindow.focus();
-                
-                // Wait for window to load, then request fullscreen
-                dtrWindow.onload = function() {
-                    try {
-                        const elem = dtrWindow.document.documentElement;
-                        if (elem.requestFullscreen) {
-                            elem.requestFullscreen();
-                        } else if (elem.webkitRequestFullscreen) {
-                            elem.webkitRequestFullscreen();
-                        } else if (elem.msRequestFullscreen) {
-                            elem.msRequestFullscreen();
-                        } else if (elem.mozRequestFullScreen) {
-                            elem.mozRequestFullScreen();
-                        }
-                    } catch (e) {
-                        console.log('Fullscreen request failed:', e);
-                    }
-                };
+            // Try to make it fullscreen
+            if (popup) {
+                popup.moveTo(0, 0);
+                popup.resizeTo(screen.width, screen.height);
             }
         }
     </script>
