@@ -145,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     require_once '../../../../app/core/services/RobustEmail.php';
                     $emailService = new RobustEmail($pdo);
                     
-                    if ($emailService->sendVerificationEmail($email, $name, $verificationToken)) {
+                    if ($emailService->sendVerificationEmail($email, $name, $verificationToken, $userId)) {
                         $_SESSION['success'] = "User added successfully! A verification email has been sent to {$email}";
                     } else {
                         $_SESSION['success'] = "User added successfully! However, there was an issue sending the verification email. Please contact the user directly.";

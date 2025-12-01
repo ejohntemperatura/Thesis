@@ -172,14 +172,14 @@ class RobustEmail {
     /**
      * Send email verification to new user
      */
-    public function sendVerificationEmail($userEmail, $userName, $verificationToken) {
+    public function sendVerificationEmail($userEmail, $userName, $verificationToken, $employeeId = null) {
         try {
             // Build verification link
             $baseUrl = $this->getBaseUrl();
             $verificationLink = $baseUrl . '/auth/views/verify_email.php?token=' . $verificationToken;
             
             $subject = 'Verify Your Email - ELMS System';
-            $body = $this->getVerificationEmailTemplate($userName, $verificationLink);
+            $body = $this->getVerificationEmailTemplate($userName, $verificationLink, $employeeId);
             
             return $this->sendEmail($userEmail, $subject, $body, true);
             
@@ -192,10 +192,10 @@ class RobustEmail {
     /**
      * Send welcome email after verification
      */
-    public function sendWelcomeEmail($userEmail, $userName, $temporaryPassword) {
+    public function sendWelcomeEmail($userEmail, $userName, $temporaryPassword, $employeeId = null) {
         try {
             $subject = 'Welcome to ELMS System - Account Verified';
-            $body = $this->getWelcomeEmailTemplate($userName, $temporaryPassword);
+            $body = $this->getWelcomeEmailTemplate($userName, $temporaryPassword, $employeeId);
             
             return $this->sendEmail($userEmail, $subject, $body, true);
             
@@ -483,7 +483,24 @@ class RobustEmail {
     /**
      * Get HTML verification email template
      */
-    private function getVerificationEmailTemplate($userName, $verificationLink) {
+    private function getVerificationEmailTemplate($userName, $verificationLink, $employeeId = null) {
+        $employeeIdSection = '';
+        if ($employeeId) {
+            $employeeIdSection = "
+                <div style='background: #e0f2fe; border: 1px solid #0ea5e9; padding: 15px; border-radius: 6px; margin: 20px 0;'>
+                    <h4 style='color: #0369a1; margin: 0 0 10px 0; font-size: 16px;'>
+                        <i class='fas fa-id-card' style='margin-right: 8px;'></i>Your Employee ID Number
+                    </h4>
+                    <p style='color: #0c4a6e; margin: 0; font-size: 18px; font-weight: bold; font-family: monospace;'>
+                        {$employeeId}
+                    </p>
+                    <p style='color: #0c4a6e; margin: 10px 0 0 0; font-size: 14px;'>
+                        You will need this ID number for DTR (Daily Time Record) and other system functions. Please keep it safe.
+                    </p>
+                </div>
+            ";
+        }
+        
         return "
         <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
             <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
@@ -494,6 +511,7 @@ class RobustEmail {
             <div style='background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;'>
                 <h2>Hello {$userName}!</h2>
                 <p>Welcome to the ELMS System! Your account has been created by an administrator.</p>
+                {$employeeIdSection}
                 <p>To complete your account setup and start using the system, please verify your email address by clicking the button below:</p>
                 
                 <div style='text-align: center; margin: 30px 0;'>
@@ -519,7 +537,26 @@ class RobustEmail {
     /**
      * Get HTML welcome email template
      */
-    private function getWelcomeEmailTemplate($userName, $temporaryPassword) {
+    private function getWelcomeEmailTemplate($userName, $temporaryPassword, $employeeId = null) {
+        $employeeIdSection = '';
+        if ($employeeId) {
+            $employeeIdSection = "
+                <div style='background: #e0f2fe; border: 2px solid #0ea5e9; padding: 20px; border-radius: 8px; margin: 25px 0; text-align: center;'>
+                    <h3 style='color: #0369a1; margin: 0 0 15px 0; font-size: 18px;'>
+                        <i class='fas fa-id-card' style='margin-right: 8px;'></i>Your Employee ID Number
+                    </h3>
+                    <div style='background: white; padding: 15px; border-radius: 6px; margin: 10px 0;'>
+                        <p style='color: #0c4a6e; margin: 0; font-size: 32px; font-weight: bold; font-family: monospace; letter-spacing: 2px;'>
+                            {$employeeId}
+                        </p>
+                    </div>
+                    <p style='color: #0c4a6e; margin: 10px 0 0 0; font-size: 14px;'>
+                        <strong>Important:</strong> You will need this ID number for DTR (Daily Time Record) and other system functions. Please save it for future reference.
+                    </p>
+                </div>
+            ";
+        }
+        
         return "
         <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
             <div style='background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
@@ -531,6 +568,8 @@ class RobustEmail {
                 <h2>Hello {$userName}!</h2>
                 <p>Congratulations! Your email address has been verified and your account is now active.</p>
                 <p>You can now start using the ELMS System with your chosen password.</p>
+                
+                {$employeeIdSection}
                 
                 <div style='background: #e3f2fd; border: 1px solid #2196f3; padding: 15px; border-radius: 5px; margin: 20px 0;'>
                     <h3>🔐 Account Security</h3>

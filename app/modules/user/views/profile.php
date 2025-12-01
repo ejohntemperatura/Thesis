@@ -170,6 +170,10 @@ include '../../../../includes/user_header.php';
                             
                             <div class="space-y-3">
                                 <div class="flex items-center text-slate-300">
+                                    <i class="fas fa-id-card w-5 mr-3 text-primary"></i>
+                                    <span class="text-sm font-semibold">ID: <?php echo htmlspecialchars($employee['id']); ?></span>
+                                </div>
+                                <div class="flex items-center text-slate-300">
                                     <i class="fas fa-envelope w-5 mr-3 text-primary"></i>
                                     <span class="text-sm"><?php echo htmlspecialchars($employee['email']); ?></span>
                                 </div>
@@ -199,6 +203,24 @@ include '../../../../includes/user_header.php';
                             </div>
                             <div class="p-6">
                                 <form method="POST" action="" enctype="multipart/form-data" class="space-y-6">
+                                    <!-- Employee ID (Read-only) -->
+                                    <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+                                        <label class="block text-sm font-semibold text-slate-300 mb-2">
+                                            <i class="fas fa-id-card mr-2 text-blue-400"></i>Employee ID Number (for DTR)
+                                        </label>
+                                        <div class="flex items-center gap-3">
+                                            <input type="text" value="<?php echo htmlspecialchars($employee['id']); ?>" readonly
+                                                   class="flex-1 bg-slate-600 border border-slate-500 rounded-xl px-4 py-3 text-white font-mono text-lg font-bold cursor-not-allowed">
+                                            <button type="button" onclick="copyEmployeeId()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-xl transition-colors flex items-center gap-2">
+                                                <i class="fas fa-copy"></i>
+                                                <span class="hidden sm:inline">Copy</span>
+                                            </button>
+                                        </div>
+                                        <p class="text-xs text-blue-300 mt-2">
+                                            <i class="fas fa-info-circle mr-1"></i>Use this ID number for DTR time in/out at the kiosk
+                                        </p>
+                                    </div>
+                                    
                                     <!-- Profile Picture Upload -->
                                     <div>
                                         <label class="block text-sm font-semibold text-slate-300 mb-2">
@@ -257,5 +279,32 @@ include '../../../../includes/user_header.php';
             </div>
         </div>
     </div>
+
+<script>
+function copyEmployeeId() {
+    const employeeId = '<?php echo $employee['id']; ?>';
+    
+    // Create temporary input to copy
+    const tempInput = document.createElement('input');
+    tempInput.value = employeeId;
+    document.body.appendChild(tempInput);
+    tempInput.select();
+    document.execCommand('copy');
+    document.body.removeChild(tempInput);
+    
+    // Show feedback
+    const button = event.target.closest('button');
+    const originalHTML = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-check"></i><span class="hidden sm:inline ml-2">Copied!</span>';
+    button.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+    button.classList.add('bg-green-500');
+    
+    setTimeout(() => {
+        button.innerHTML = originalHTML;
+        button.classList.remove('bg-green-500');
+        button.classList.add('bg-blue-500', 'hover:bg-blue-600');
+    }, 2000);
+}
+</script>
 
 <?php include '../../../../includes/user_footer.php'; ?> 

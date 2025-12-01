@@ -122,8 +122,10 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     <i class="fas fa-plus-circle elms-sidebar-icon"></i>
                     <span>Add Leave Credits</span>
                 </a>
-                <!-- Updated: Changed from CTO/SERVICE to Add Leave Credits -->
-                <!-- Updated: CTO/SERVICE renamed to Add Leave Credits -->
+                <a href="#" onclick="openDTRKiosk(); return false;" class="elms-sidebar-link <?php echo ($current_page == 'dtr_kiosk.php') ? 'active' : ''; ?>">
+                    <i class="fas fa-clock elms-sidebar-icon"></i>
+                    <span>DTR</span>
+                </a>
             </div>
             
             <!-- Reports Section -->
@@ -160,4 +162,41 @@ $current_page = basename($_SERVER['PHP_SELF']);
                 }
             }
         });
+        
+        // Open DTR Kiosk in fullscreen popup
+        function openDTRKiosk() {
+            // Get screen dimensions
+            const width = screen.width;
+            const height = screen.height;
+            
+            // Open popup window (fullscreen size, minimal UI)
+            const dtrWindow = window.open(
+                'dtr_kiosk.php',
+                'DTR_Kiosk',
+                `width=${width},height=${height},top=0,left=0,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no`
+            );
+            
+            // Try to enter fullscreen mode after window opens
+            if (dtrWindow) {
+                dtrWindow.focus();
+                
+                // Wait for window to load, then request fullscreen
+                dtrWindow.onload = function() {
+                    try {
+                        const elem = dtrWindow.document.documentElement;
+                        if (elem.requestFullscreen) {
+                            elem.requestFullscreen();
+                        } else if (elem.webkitRequestFullscreen) {
+                            elem.webkitRequestFullscreen();
+                        } else if (elem.msRequestFullscreen) {
+                            elem.msRequestFullscreen();
+                        } else if (elem.mozRequestFullScreen) {
+                            elem.mozRequestFullScreen();
+                        }
+                    } catch (e) {
+                        console.log('Fullscreen request failed:', e);
+                    }
+                };
+            }
+        }
     </script>

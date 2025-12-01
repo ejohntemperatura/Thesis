@@ -199,8 +199,16 @@ include '../../../../includes/admin_header.php';
                                 <select name="leave_type" id="leave_type_select" required 
                                         class="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-primary focus:border-transparent">
                                     <option value="">Select Leave Type</option>
-                                    <?php foreach ($leaveTypes as $key => $config): ?>
-                                        <?php if ($config['requires_credits']): ?>
+                                    <?php 
+                                    // Exclude these leave types from the dropdown
+                                    $excludedTypes = ['vacation', 'sick', 'special_privilege', 'cto', 'service_credit'];
+                                    
+                                    foreach ($leaveTypes as $key => $config): 
+                                        // Skip excluded leave types
+                                        if (in_array($key, $excludedTypes)) continue;
+                                        
+                                        if ($config['requires_credits']): 
+                                    ?>
                                             <option value="<?php echo $key; ?>" 
                                                     data-name="<?php echo htmlspecialchars($config['name']); ?>"
                                                     data-gender="<?php echo $config['gender_restricted'] ?? ''; ?>"

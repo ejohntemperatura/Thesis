@@ -60,6 +60,10 @@ if (!isset($_GET['token']) || empty($_GET['token'])) {
     <link rel="stylesheet" href="../../assets/libs/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="../../assets/css/style.css">
     <link rel="stylesheet" href="../../assets/css/dark-theme.css">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/ELMS/elmsicon.png">
+    <link rel="shortcut icon" href="/ELMS/elmsicon.png">
+    <link rel="apple-touch-icon" href="/ELMS/elmsicon.png">
 </head>
 <body class="bg-slate-900 min-h-screen flex items-center justify-center relative overflow-x-hidden">
     <!-- Animated Background -->

@@ -106,7 +106,7 @@ try {
         
         // Send welcome email
         $emailService = new RobustEmail($pdo);
-        $emailService->sendWelcomeEmail($user['email'], $user['name'], '');
+        $emailService->sendWelcomeEmail($user['email'], $user['name'], '', $user['id']);
         
         $success_message = "Email verified successfully! Your account is now active. You can now log in with your email and password.";
         $user_name = $user['name'];

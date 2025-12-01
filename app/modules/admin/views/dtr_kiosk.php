@@ -54,27 +54,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if ($current_hour < 12) {
                     if (!$today_record || empty($today_record['morning_time_in'])) {
-                        $showTimeIn = true; // Morning Time In
+                        $showTimeIn = true;
                         $actionHint = 'Ready for Morning Time In';
                     } elseif (!empty($today_record['morning_time_in']) && empty($today_record['morning_time_out'])) {
-                        $showTimeOut = true; // Morning Time Out
+                        $showTimeOut = true;
                         $actionHint = 'Ready for Morning Time Out';
                     } else {
                         $actionHint = 'Morning session completed. Try after 12:00 PM for afternoon session.';
                     }
                 } else {
                     if (!$today_record || empty($today_record['afternoon_time_in'])) {
-                        $showTimeIn = true; // Afternoon Time In
+                        $showTimeIn = true;
                         $actionHint = 'Ready for Afternoon Time In';
                     } elseif (!empty($today_record['afternoon_time_in']) && empty($today_record['afternoon_time_out'])) {
-                        $showTimeOut = true; // Afternoon Time Out
+                        $showTimeOut = true;
                         $actionHint = 'Ready for Afternoon Time Out';
                     } else {
                         $actionHint = 'Afternoon session completed for today.';
                     }
                 }
             } else {
-                // Perform the requested action with the same logic
                 $today = date('Y-m-d');
                 $stmt = $pdo->prepare("SELECT * FROM dtr WHERE user_id = ? AND date = ?");
                 $stmt->execute([$employee['id'], $today]);
@@ -87,7 +86,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     if ($action === 'time_in') {
                         if ($current_hour < 12) {
-                            // Morning time in
                             if (!$today_record) {
                                 $stmt = $pdo->prepare("INSERT INTO dtr (user_id, date, morning_time_in) VALUES (?, ?, ?)");
                                 $stmt->execute([$employee['id'], $today, $formatted_time]);
@@ -100,7 +98,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             header('Location: dtr_kiosk.php');
                             exit();
                         } else {
-                            // Afternoon time in
                             if (!$today_record) {
                                 $stmt = $pdo->prepare("INSERT INTO dtr (user_id, date, afternoon_time_in) VALUES (?, ?, ?)");
                                 $stmt->execute([$employee['id'], $today, $formatted_time]);
@@ -115,7 +112,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     } elseif ($action === 'time_out') {
                         if ($today_record && !empty($today_record['morning_time_in']) && empty($today_record['morning_time_out'])) {
-                            // Morning time out
                             $stmt = $pdo->prepare("UPDATE dtr SET morning_time_out = ? WHERE user_id = ? AND date = ?");
                             $stmt->execute([$formatted_time, $employee['id'], $today]);
                             $message = "Morning Time Out recorded for {$displayName} at " . $current_time->format('h:i A');
@@ -123,7 +119,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             header('Location: dtr_kiosk.php');
                             exit();
                         } elseif ($today_record && !empty($today_record['afternoon_time_in']) && empty($today_record['afternoon_time_out'])) {
-                            // Afternoon time out
                             $stmt = $pdo->prepare("UPDATE dtr SET afternoon_time_out = ? WHERE user_id = ? AND date = ?");
                             $stmt->execute([$formatted_time, $employee['id'], $today]);
                             $message = "Afternoon Time Out recorded for {$displayName} at " . $current_time->format('h:i A');
@@ -151,9 +146,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="../../../../assets/css/tailwind.css">
     <link rel="stylesheet" href="../../../../assets/libs/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="../../../../assets/css/elms-dark-theme.css">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/ELMS/elmsicon.png">
+    <link rel="shortcut icon" href="/ELMS/elmsicon.png">
+    <link rel="apple-touch-icon" href="/ELMS/elmsicon.png">
 </head>
 <body class="bg-slate-900 text-white min-h-screen">
-    <!-- No Sidebar Kiosk UI -->
+    <!-- Fullscreen Entry Overlay -->
+    <div id="fullscreenOverlay" class="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center cursor-pointer" onclick="enterKioskMode()">
+        <div class="text-center">
+            <div class="w-24 h-24 bg-cyan-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+                <i class="fas fa-expand text-cyan-400 text-4xl"></i>
+            </div>
+            <h2 class="text-3xl font-bold text-white mb-4">ELMS DTR Kiosk</h2>
+            <p class="text-slate-400 mb-8">Click anywhere to enter fullscreen mode</p>
+            <button class="px-8 py-4 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold rounded-xl text-lg transition-colors">
+                <i class="fas fa-play mr-2"></i> Enter Kiosk Mode
+            </button>
+            <p class="text-slate-500 text-sm mt-6">Press ESC to exit fullscreen | Alt+F4 to close</p>
+        </div>
+    </div>
+
     <div class="min-h-screen flex flex-col items-center justify-center px-4">
         <div class="w-full max-w-xl">
             <div class="text-center mb-8">
@@ -221,15 +234,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <script>
-        // Simple clock
+        // Enter kiosk mode (fullscreen) when user clicks
+        function enterKioskMode() {
+            const elem = document.documentElement;
+            const overlay = document.getElementById('fullscreenOverlay');
+            
+            try {
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen().then(function() {
+                        overlay.style.display = 'none';
+                    }).catch(function(err) {
+                        console.log('Fullscreen error:', err);
+                        overlay.style.display = 'none'; // Hide overlay anyway
+                    });
+                } else if (elem.webkitRequestFullscreen) {
+                    elem.webkitRequestFullscreen();
+                    overlay.style.display = 'none';
+                } else if (elem.msRequestFullscreen) {
+                    elem.msRequestFullscreen();
+                    overlay.style.display = 'none';
+                } else if (elem.mozRequestFullScreen) {
+                    elem.mozRequestFullScreen();
+                    overlay.style.display = 'none';
+                } else {
+                    // Fullscreen not supported, just hide overlay
+                    overlay.style.display = 'none';
+                }
+            } catch (e) {
+                console.log('Fullscreen failed:', e);
+                overlay.style.display = 'none';
+            }
+            
+            // Focus on employee ID input
+            setTimeout(function() {
+                const input = document.querySelector('input[name="employee_id"]');
+                if (input) input.focus();
+            }, 100);
+        }
+        
+        // Show overlay again if user exits fullscreen
+        document.addEventListener('fullscreenchange', function() {
+            const overlay = document.getElementById('fullscreenOverlay');
+            if (!document.fullscreenElement && overlay) {
+                overlay.style.display = 'flex';
+            }
+        });
+        
         function updateClock() {
             const now = new Date();
-            const h = String(now.getHours()).padStart(2, '0');
+            let h = now.getHours();
             const m = String(now.getMinutes()).padStart(2, '0');
             const s = String(now.getSeconds()).padStart(2, '0');
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12;
+            h = h ? h : 12;
+            const h12 = String(h).padStart(2, '0');
             const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
             const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-            document.getElementById('clock').textContent = `${h}:${m}:${s}`;
+            document.getElementById('clock').textContent = `${h12}:${m}:${s} ${ampm}`;
             document.getElementById('date').textContent = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
         }
         updateClock();

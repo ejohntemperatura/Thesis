@@ -1,0 +1,144 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                    ELMS DTR KIOSK - COMPLETE SETUP GUIDE                      ║
+║                         (URL Bar Completely Hidden)                           ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                              QUICK START
+═══════════════════════════════════════════════════════════════════════════════
+
+STEP 1: Test the kiosk
+        Double-click: launch_dtr_kiosk.bat
+
+STEP 2: Set up auto-start (optional)
+        Double-click: setup_dtr_autostart.bat
+
+That's it! The DTR kiosk will open with NO URL BAR.
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                              FILES INCLUDED
+═══════════════════════════════════════════════════════════════════════════════
+
+1. launch_dtr_kiosk.bat
+   - Launches DTR in Chrome kiosk mode (NO URL bar)
+   - Double-click to run
+
+2. launch_dtr_kiosk_edge.bat
+   - Same as above but for Microsoft Edge
+   - Use if Chrome is not installed
+
+3. setup_dtr_autostart.bat
+   - Sets up DTR to start automatically when Windows starts
+   - Run once to configure
+
+4. remove_dtr_autostart.bat
+   - Removes the auto-start setting
+   - Run if you want to disable auto-start
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                           HOW TO EXIT KIOSK
+═══════════════════════════════════════════════════════════════════════════════
+
+Press: Alt + F4
+
+This closes the kiosk window.
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                        FOR PRODUCTION DEPLOYMENT
+═══════════════════════════════════════════════════════════════════════════════
+
+If deploying to a server (not localhost):
+
+1. Open launch_dtr_kiosk.bat in Notepad
+
+2. Find this line:
+   SET DTR_URL=http://localhost/ELMS/app/modules/admin/views/dtr_kiosk.php
+
+3. Change "localhost" to your server IP or domain:
+   SET DTR_URL=http://192.168.1.100/ELMS/app/modules/admin/views/dtr_kiosk.php
+   or
+   SET DTR_URL=http://yourdomain.com/ELMS/app/modules/admin/views/dtr_kiosk.php
+
+4. Save the file
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                              WHAT YOU GET
+═══════════════════════════════════════════════════════════════════════════════
+
+When using the batch file, the screen looks like this:
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                                                                             │
+│                              ELMS DTR                                       │
+│                   Enter Employee ID number to Time In/Out                   │
+│                                                                             │
+│                   ┌─────────────────────────────────────┐                   │
+│                   │ Enter ID and press Enter            │                   │
+│                   └─────────────────────────────────────┘                   │
+│                                                                             │
+│                              [Submit]                                       │
+│                                                                             │
+│                           09:10:24 PM                                       │
+│                    Monday, December 1, 2025                                 │
+│                                                                             │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+✓ NO URL bar
+✓ NO tabs
+✓ NO browser controls
+✓ FULLSCREEN only
+✓ Cannot navigate away
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                            TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════════
+
+PROBLEM: Chrome not found
+SOLUTION: Edit launch_dtr_kiosk.bat and update the Chrome path:
+          - 64-bit: C:\Program Files\Google\Chrome\Application\chrome.exe
+          - 32-bit: C:\Program Files (x86)\Google\Chrome\Application\chrome.exe
+
+PROBLEM: Page shows "login required"
+SOLUTION: You need to log in as admin first. The kiosk requires admin session.
+          Option 1: Log in via normal browser first, then use kiosk
+          Option 2: Remove the admin check from dtr_kiosk.php (less secure)
+
+PROBLEM: Can't close the kiosk
+SOLUTION: Press Alt+F4, or Ctrl+Alt+Delete → Task Manager → End Chrome
+
+PROBLEM: Auto-start not working
+SOLUTION: Run setup_dtr_autostart.bat as Administrator
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                         SECURITY RECOMMENDATIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+For maximum security on the DTR kiosk computer:
+
+1. Create a separate Windows user account for the kiosk
+2. Set the kiosk to auto-start on that account
+3. Disable Task Manager (via Group Policy)
+4. Disable keyboard shortcuts (via Group Policy)
+5. Physical security: secure the keyboard and mouse
+6. Use a touch screen if possible
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                              SUMMARY
+═══════════════════════════════════════════════════════════════════════════════
+
+To run DTR kiosk (URL hidden):     Double-click launch_dtr_kiosk.bat
+To set up auto-start:              Double-click setup_dtr_autostart.bat
+To remove auto-start:              Double-click remove_dtr_autostart.bat
+To exit kiosk:                     Press Alt+F4
+
+═══════════════════════════════════════════════════════════════════════════════
