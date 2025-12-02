@@ -93,6 +93,57 @@ $stmt = $pdo->prepare("SELECT * FROM dtr WHERE user_id = ? ORDER BY date DESC, m
 $stmt->execute([$_SESSION['user_id']]);
 $recent_records = $stmt->fetchAll();
 
+// Define standard work hours for late detection
+define('MORNING_START_TIME', '08:00:00'); // 8:00 AM
+define('AFTERNOON_START_TIME', '13:00:00'); // 1:00 PM
+define('LATE_GRACE_PERIOD_MINUTES', 15); // 15 minutes grace period
+
+/**
+ * Check if a time-in is late
+ * @param string $timeIn The actual time-in (datetime string)
+ * @param string $standardTime The standard start time (H:i:s format)
+ * @return array ['is_late' => bool, 'minutes_late' => int]
+ */
+function checkIfLate($timeIn, $standardTime) {
+    if (!$timeIn) {
+        return ['is_late' => false, 'minutes_late' => 0];
+    }
+    
+    $timeInObj = new DateTime($timeIn);
+    $standardObj = new DateTime($timeInObj->format('Y-m-d') . ' ' . $standardTime);
+    
+    // Add grace period
+    $standardObj->modify('+' . LATE_GRACE_PERIOD_MINUTES . ' minutes');
+    
+    if ($timeInObj > $standardObj) {
+        $diff = $timeInObj->diff($standardObj);
+        $minutesLate = ($diff->h * 60) + $diff->i;
+        return ['is_late' => true, 'minutes_late' => $minutesLate];
+    }
+    
+    return ['is_late' => false, 'minutes_late' => 0];
+}
+
+/**
+ * Format late indicator HTML
+ */
+function getLateIndicator($lateInfo) {
+    if (!$lateInfo['is_late']) {
+        return '';
+    }
+    
+    $minutes = $lateInfo['minutes_late'];
+    if ($minutes >= 60) {
+        $hours = floor($minutes / 60);
+        $mins = $minutes % 60;
+        $lateText = $hours . 'h ' . $mins . 'm late';
+    } else {
+        $lateText = $minutes . 'm late';
+    }
+    
+    return '<span class="ml-2 px-2 py-0.5 text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 rounded-full">' . $lateText . '</span>';
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -315,19 +366,28 @@ $recent_records = $stmt->fetchAll();
                     Today's Status
                 </h3>
                 
-                <?php if ($today_record): ?>
+                <?php if ($today_record): 
+                    $morningLate = checkIfLate($today_record['morning_time_in'], MORNING_START_TIME);
+                    $afternoonLate = checkIfLate($today_record['afternoon_time_in'], AFTERNOON_START_TIME);
+                ?>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- Morning Session -->
-                        <div class="bg-slate-700/30 rounded-xl p-4">
+                        <div class="bg-slate-700/30 rounded-xl p-4 <?php echo $morningLate['is_late'] ? 'border border-red-500/30' : ''; ?>">
                             <h4 class="text-lg font-semibold text-white mb-3 flex items-center">
                                 <i class="fas fa-sun text-yellow-400 mr-2"></i>
                                 Morning Session
+                                <?php if ($morningLate['is_late']): ?>
+                                    <span class="ml-auto px-2 py-1 text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 rounded-full">
+                                        <i class="fas fa-clock mr-1"></i>Late
+                                    </span>
+                                <?php endif; ?>
                             </h4>
                             <div class="space-y-2">
                                 <div class="flex justify-between items-center">
                                     <span class="text-slate-400">Time In:</span>
-                                    <span class="text-white font-mono">
+                                    <span class="<?php echo $morningLate['is_late'] ? 'text-red-400' : 'text-white'; ?> font-mono flex items-center">
                                         <?php echo $today_record['morning_time_in'] ? date('h:i A', strtotime($today_record['morning_time_in'])) : 'Not recorded'; ?>
+                                        <?php echo getLateIndicator($morningLate); ?>
                                     </span>
                                 </div>
                                 <div class="flex justify-between items-center">
@@ -340,16 +400,22 @@ $recent_records = $stmt->fetchAll();
                         </div>
 
                         <!-- Afternoon Session -->
-                        <div class="bg-slate-700/30 rounded-xl p-4">
+                        <div class="bg-slate-700/30 rounded-xl p-4 <?php echo $afternoonLate['is_late'] ? 'border border-red-500/30' : ''; ?>">
                             <h4 class="text-lg font-semibold text-white mb-3 flex items-center">
                                 <i class="fas fa-moon text-blue-400 mr-2"></i>
                                 Afternoon Session
+                                <?php if ($afternoonLate['is_late']): ?>
+                                    <span class="ml-auto px-2 py-1 text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 rounded-full">
+                                        <i class="fas fa-clock mr-1"></i>Late
+                                    </span>
+                                <?php endif; ?>
                             </h4>
                             <div class="space-y-2">
                                 <div class="flex justify-between items-center">
                                     <span class="text-slate-400">Time In:</span>
-                                    <span class="text-white font-mono">
+                                    <span class="<?php echo $afternoonLate['is_late'] ? 'text-red-400' : 'text-white'; ?> font-mono flex items-center">
                                         <?php echo $today_record['afternoon_time_in'] ? date('h:i A', strtotime($today_record['afternoon_time_in'])) : 'Not recorded'; ?>
+                                        <?php echo getLateIndicator($afternoonLate); ?>
                                     </span>
                                 </div>
                                 <div class="flex justify-between items-center">
@@ -386,16 +452,42 @@ $recent_records = $stmt->fetchAll();
                                 <th class="text-left py-3 px-4 text-slate-400">Morning Out</th>
                                 <th class="text-left py-3 px-4 text-slate-400">Afternoon In</th>
                                 <th class="text-left py-3 px-4 text-slate-400">Afternoon Out</th>
+                                <th class="text-left py-3 px-4 text-slate-400">Status</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($recent_records as $record): ?>
-                            <tr class="border-b border-slate-700">
+                            <?php foreach ($recent_records as $record): 
+                                $recMorningLate = checkIfLate($record['morning_time_in'], MORNING_START_TIME);
+                                $recAfternoonLate = checkIfLate($record['afternoon_time_in'], AFTERNOON_START_TIME);
+                                $hasLate = $recMorningLate['is_late'] || $recAfternoonLate['is_late'];
+                            ?>
+                            <tr class="border-b border-slate-700 <?php echo $hasLate ? 'bg-red-500/5' : ''; ?>">
                                 <td class="py-3 px-4 text-white font-mono"><?php echo date('M d, Y', strtotime($record['date'])); ?></td>
-                                <td class="py-3 px-4 text-slate-300 font-mono"><?php echo $record['morning_time_in'] ? date('h:i A', strtotime($record['morning_time_in'])) : '-'; ?></td>
+                                <td class="py-3 px-4 font-mono <?php echo $recMorningLate['is_late'] ? 'text-red-400' : 'text-slate-300'; ?>">
+                                    <?php echo $record['morning_time_in'] ? date('h:i A', strtotime($record['morning_time_in'])) : '-'; ?>
+                                    <?php if ($recMorningLate['is_late']): ?>
+                                        <i class="fas fa-exclamation-circle text-red-400 ml-1" title="Late"></i>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="py-3 px-4 text-slate-300 font-mono"><?php echo $record['morning_time_out'] ? date('h:i A', strtotime($record['morning_time_out'])) : '-'; ?></td>
-                                <td class="py-3 px-4 text-slate-300 font-mono"><?php echo $record['afternoon_time_in'] ? date('h:i A', strtotime($record['afternoon_time_in'])) : '-'; ?></td>
+                                <td class="py-3 px-4 font-mono <?php echo $recAfternoonLate['is_late'] ? 'text-red-400' : 'text-slate-300'; ?>">
+                                    <?php echo $record['afternoon_time_in'] ? date('h:i A', strtotime($record['afternoon_time_in'])) : '-'; ?>
+                                    <?php if ($recAfternoonLate['is_late']): ?>
+                                        <i class="fas fa-exclamation-circle text-red-400 ml-1" title="Late"></i>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="py-3 px-4 text-slate-300 font-mono"><?php echo $record['afternoon_time_out'] ? date('h:i A', strtotime($record['afternoon_time_out'])) : '-'; ?></td>
+                                <td class="py-3 px-4">
+                                    <?php if ($hasLate): ?>
+                                        <span class="px-2 py-1 text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 rounded-full">
+                                            <i class="fas fa-clock mr-1"></i>Late
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="px-2 py-1 text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30 rounded-full">
+                                            <i class="fas fa-check mr-1"></i>On Time
+                                        </span>
+                                    <?php endif; ?>
+                                </td>
                             </tr>
                             <?php endforeach; ?>
                         </tbody>

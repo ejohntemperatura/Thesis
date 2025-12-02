@@ -525,24 +525,64 @@ include '../../../../includes/user_header.php';
                 const props = info.event.extendedProps;
                 if (props && props.isHoliday) {
                     const typeLabel = props.holidayType === 'special' ? 'Special (Non-Working) Holiday' : 'Regular Holiday';
-                    alert(`Holiday: ${info.event.title}\nType: ${typeLabel}\nDate: ${info.event.start.toLocaleDateString()}`);
+                    const isSpecial = props.holidayType === 'special';
+                    const holidayHtml = `
+                        <div class="space-y-4">
+                            <div class="text-center pb-4 border-b border-slate-600/50">
+                                <div class="w-14 h-14 ${isSpecial ? 'bg-gradient-to-br from-pink-500/30 to-rose-500/20' : 'bg-gradient-to-br from-green-500/30 to-emerald-500/20'} rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <i class="fas ${isSpecial ? 'fa-star' : 'fa-flag'} text-2xl ${isSpecial ? 'text-pink-400' : 'text-green-400'}"></i>
+                                </div>
+                                <div class="text-lg font-semibold text-white">${info.event.title.replace(/^⭐\s*/, '')}</div>
+                                <div class="text-sm ${isSpecial ? 'text-pink-400' : 'text-green-400'}">${typeLabel}</div>
+                            </div>
+                            <div class="bg-slate-700/30 rounded-lg p-4 text-center">
+                                <div class="text-xs text-slate-400 uppercase tracking-wide mb-1">Date</div>
+                                <div class="text-base font-medium text-white">${info.event.start.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
+                            </div>
+                        </div>
+                    `;
+                    showStyledAlert(holidayHtml, 'info', 'Holiday', true);
                     return;
                 }
-                const message = `
-Leave Details:
-Type: ${props.display_name}
-Status: ${props.status}
-Days Approved: ${props.days_approved}
-Days Requested: ${props.days_requested}
-Reason: ${props.reason}
-Date: ${info.event.start.toLocaleDateString()}
+                
+                // Format status nicely
+                let statusDisplay = props.status || 'N/A';
+                statusDisplay = statusDisplay.charAt(0).toUpperCase() + statusDisplay.slice(1);
+                
+                const leaveHtml = `
+                    <div class="space-y-4">
+                        <div class="text-center pb-4 border-b border-slate-600/50">
+                            <div class="w-14 h-14 bg-gradient-to-br from-primary/30 to-cyan-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-calendar-check text-2xl text-primary"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-white">${props.display_name}</div>
+                            <div class="text-sm text-green-400">${statusDisplay}</div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-slate-700/30 rounded-lg p-3 text-center">
+                                <div class="text-xs text-slate-400 uppercase tracking-wide mb-1">Days Approved</div>
+                                <div class="text-sm font-semibold text-white">${props.days_approved} day${props.days_approved !== 1 ? 's' : ''}</div>
+                            </div>
+                            <div class="bg-slate-700/30 rounded-lg p-3 text-center">
+                                <div class="text-xs text-slate-400 uppercase tracking-wide mb-1">Date</div>
+                                <div class="text-sm font-medium text-white">${info.event.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                            </div>
+                        </div>
+                        ${props.reason ? `
+                        <div class="bg-slate-700/30 rounded-lg p-3">
+                            <div class="text-xs text-slate-400 uppercase tracking-wide mb-1">Reason</div>
+                            <div class="text-sm text-white">${props.reason}</div>
+                        </div>
+                        ` : ''}
+                    </div>
                 `;
-                alert(message);
+                showStyledAlert(leaveHtml, 'info', 'Leave Details', true);
             }
         });
         
         calendar.render();
     });
     </script>
+    <script src="../../../../assets/js/modal-alert.js"></script>
 </body>
 </html>

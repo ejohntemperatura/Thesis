@@ -308,6 +308,7 @@ include '../../../../includes/admin_header.php';
                                         <option value="pending" <?php echo (isset($_GET['status']) && $_GET['status'] == 'pending') ? 'selected' : ''; ?>>Pending</option>
                                         <option value="approved" <?php echo (isset($_GET['status']) && $_GET['status'] == 'approved') ? 'selected' : ''; ?>>Approved</option>
                                         <option value="rejected" <?php echo (isset($_GET['status']) && $_GET['status'] == 'rejected') ? 'selected' : ''; ?>>Rejected</option>
+                                        <option value="cancelled" <?php echo (isset($_GET['status']) && $_GET['status'] == 'cancelled') ? 'selected' : ''; ?>>Cancelled</option>
                                     </select>
                                 </div>
                             <div>
@@ -492,8 +493,11 @@ include '../../../../includes/admin_header.php';
                                                 <!-- Department Head Approval -->
                                                 <td class="py-4 px-4">
                                                     <?php 
-                                                    $dept_status = $request['dept_head_approval'] ?? 'pending';
-                                                    $dept_color = $dept_status == 'approved' ? 'green' : ($dept_status == 'rejected' ? 'red' : 'yellow');
+                                                    $final_status = $request['status'] ?? 'pending';
+                                                    $is_cancelled = $final_status == 'cancelled';
+                                                    $is_rejected = $final_status == 'rejected';
+                                                    $dept_status = $is_cancelled ? 'cancelled' : ($request['dept_head_approval'] ?? 'pending');
+                                                    $dept_color = $dept_status == 'approved' ? 'green' : ($dept_status == 'rejected' ? 'red' : ($dept_status == 'cancelled' ? 'gray' : 'yellow'));
                                                     ?>
                                                     <div class="flex flex-col gap-1">
                                                         <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-<?php echo $dept_color; ?>-500/20 text-<?php echo $dept_color; ?>-400 border border-<?php echo $dept_color; ?>-500/30" data-dept-status="<?php echo ucfirst($dept_status); ?>">
@@ -504,13 +508,28 @@ include '../../../../includes/admin_header.php';
                                                 <!-- HR Approval -->
                                                 <td class="py-4 px-4">
                                                     <?php 
+                                                    $final_status = $request['status'] ?? 'pending';
+                                                    $is_cancelled = $final_status == 'cancelled';
+                                                    $is_rejected = $final_status == 'rejected';
                                                     $dept_status = $request['dept_head_approval'] ?? 'pending';
-                                                    $admin_status = $request['admin_approval'] ?? 'pending';
-                                                    // If department head rejected, HR should reflect blocked/rejected state
-                                                    if ($dept_status == 'rejected') {
+                                                    $admin_status_raw = $request['admin_approval'] ?? 'pending';
+                                                    
+                                                    // Determine display status for HR
+                                                    if ($is_cancelled) {
+                                                        $admin_status = 'cancelled';
+                                                    } elseif ($dept_status == 'rejected') {
+                                                        // Dept Head rejected - cascade rejection to HR
                                                         $admin_status = 'rejected';
+                                                    } elseif ($admin_status_raw == 'rejected') {
+                                                        // HR actually rejected
+                                                        $admin_status = 'rejected';
+                                                    } elseif ($is_rejected && $admin_status_raw == 'pending') {
+                                                        // Final status is rejected but HR shows pending - cascade
+                                                        $admin_status = 'rejected';
+                                                    } else {
+                                                        $admin_status = $admin_status_raw;
                                                     }
-                                                    $admin_color = $admin_status == 'approved' ? 'green' : ($admin_status == 'rejected' ? 'red' : 'yellow');
+                                                    $admin_color = $admin_status == 'approved' ? 'green' : ($admin_status == 'rejected' ? 'red' : ($admin_status == 'cancelled' ? 'gray' : 'yellow'));
                                                     ?>
                                                     <div class="flex flex-col gap-1">
                                                         <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-<?php echo $admin_color; ?>-500/20 text-<?php echo $admin_color; ?>-400 border border-<?php echo $admin_color; ?>-500/30" data-hr-status="<?php echo ucfirst($admin_status); ?>">
@@ -521,13 +540,29 @@ include '../../../../includes/admin_header.php';
                                                 <!-- Director Approval -->
                                                 <td class="py-4 px-4">
                                                     <?php 
+                                                    $final_status = $request['status'] ?? 'pending';
+                                                    $is_cancelled = $final_status == 'cancelled';
+                                                    $is_rejected = $final_status == 'rejected';
                                                     $dept_status = $request['dept_head_approval'] ?? 'pending';
-                                                    $director_status = $request['director_approval'] ?? 'pending';
-                                                    // Block director with rejected if dept head rejected
-                                                    if ($dept_status == 'rejected') {
+                                                    $admin_status_raw = $request['admin_approval'] ?? 'pending';
+                                                    $director_status_raw = $request['director_approval'] ?? 'pending';
+                                                    
+                                                    // Determine display status for Director
+                                                    if ($is_cancelled) {
+                                                        $director_status = 'cancelled';
+                                                    } elseif ($dept_status == 'rejected' || $admin_status_raw == 'rejected') {
+                                                        // Dept Head or HR rejected - cascade rejection to Director
                                                         $director_status = 'rejected';
+                                                    } elseif ($director_status_raw == 'rejected') {
+                                                        // Director actually rejected
+                                                        $director_status = 'rejected';
+                                                    } elseif ($is_rejected && $director_status_raw == 'pending') {
+                                                        // Final status is rejected but Director shows pending - cascade
+                                                        $director_status = 'rejected';
+                                                    } else {
+                                                        $director_status = $director_status_raw;
                                                     }
-                                                    $director_color = $director_status == 'approved' ? 'green' : ($director_status == 'rejected' ? 'red' : 'yellow');
+                                                    $director_color = $director_status == 'approved' ? 'green' : ($director_status == 'rejected' ? 'red' : ($director_status == 'cancelled' ? 'gray' : 'yellow'));
                                                     ?>
                                                     <div class="flex flex-col gap-1">
                                                         <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-<?php echo $director_color; ?>-500/20 text-<?php echo $director_color; ?>-400 border border-<?php echo $director_color; ?>-500/30" data-director-status="<?php echo ucfirst($director_status); ?>">
@@ -542,16 +577,27 @@ include '../../../../includes/admin_header.php';
                                                     $dept_status = $request['dept_head_approval'] ?? 'pending';
                                                     $director_status = $request['director_approval'] ?? 'pending';
                                                     $admin_status = $request['admin_approval'] ?? 'pending';
+                                                    $final_status = $request['status'] ?? 'pending';
                                                     
                                                     $dept_approved = $dept_status == 'approved';
                                                     $director_approved = $director_status == 'approved';
                                                     $both_approved = $dept_approved && $director_approved;
                                                     $any_rejected = $dept_status == 'rejected' || $director_status == 'rejected' || $admin_status == 'rejected';
-                                                    $hr_can_act = ($__SESSION_ROLE = ($_SESSION['role'] ?? '')) === 'admin' && $dept_approved && ($director_status == 'pending' || $director_status == null) && $admin_status != 'approved';
+                                                    $is_cancelled = $final_status == 'cancelled';
+                                                    $hr_can_act = ($__SESSION_ROLE = ($_SESSION['role'] ?? '')) === 'admin' && $dept_approved && ($director_status == 'pending' || $director_status == null) && $admin_status != 'approved' && !$is_cancelled;
                                                     ?>
                                                     
                                                     <div class="flex flex-col gap-2">
-                                                    <?php if ($both_approved): ?>
+                                                    <?php if ($is_cancelled): ?>
+                                                        <!-- Cancelled by employee -->
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400 border border-gray-500/30">Cancelled</span>
+                                                            <button type="button" class="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-slate-600 hover:bg-slate-500 text-white text-xs font-medium transition-colors" 
+                                                                    onclick="viewRequestDetails(<?php echo $request['id']; ?>)" title="View details">
+                                                                <i class="fas fa-eye"></i><span>View</span>
+                                                            </button>
+                                                        </div>
+                                                    <?php elseif ($both_approved): ?>
                                                         <!-- View + Print pills for approved requests -->
                                                         <div class="flex items-center gap-2">
                                                             <button type="button" class="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-slate-600 hover:bg-slate-500 text-white text-xs font-medium transition-colors" 
@@ -720,29 +766,33 @@ include '../../../../includes/admin_header.php';
         function bulkAction(action) {
             const selectedCheckboxes = document.querySelectorAll('.request-checkbox:checked');
             if (selectedCheckboxes.length === 0) {
-                alert('Please select at least one leave request.');
+                showStyledAlert('Please select at least one leave request.', 'warning');
                 return;
             }
 
-            if (confirm('Are you sure you want to ' + action + ' the selected leave requests?')) {
-                document.getElementById('bulkAction').value = action;
-                document.getElementById('bulkForm').submit();
-            }
+            showStyledConfirm('Are you sure you want to ' + action + ' the selected leave requests?', function(confirmed) {
+                if (confirmed) {
+                    document.getElementById('bulkAction').value = action;
+                    document.getElementById('bulkForm').submit();
+                }
+            }, 'warning', 'Bulk Action', 'Yes, Proceed', 'Cancel');
         }
 
         // Individual status update
         function updateRequestStatus(leaveId, status) {
-            if (confirm('Are you sure you want to ' + status + ' this leave request?')) {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.innerHTML = `
-                    <input type="hidden" name="update_status" value="1">
-                    <input type="hidden" name="leave_id" value="${leaveId}">
-                    <input type="hidden" name="status" value="${status}">
-                `;
-                document.body.appendChild(form);
-                form.submit();
-            }
+            showStyledConfirm('Are you sure you want to ' + status + ' this leave request?', function(confirmed) {
+                if (confirmed) {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.innerHTML = `
+                        <input type="hidden" name="update_status" value="1">
+                        <input type="hidden" name="leave_id" value="${leaveId}">
+                        <input type="hidden" name="status" value="${status}">
+                    `;
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            }, status === 'approve' ? 'info' : 'danger', 'Update Status', 'Yes, ' + status.charAt(0).toUpperCase() + status.slice(1), 'Cancel');
         }
 
         // View request details
@@ -754,7 +804,7 @@ include '../../../../includes/admin_header.php';
             
             if (!modal || !content) {
                 console.error('Modal elements not found');
-                alert('Error: Modal elements not found. Please refresh the page.');
+                showStyledAlert('Error: Modal elements not found. Please refresh the page.', 'error');
                 return;
             }
             
@@ -909,7 +959,8 @@ include '../../../../includes/admin_header.php';
                 const colorMap = {
                     'approved': 'bg-green-500/20 text-green-400 border-green-500/30',
                     'rejected': 'bg-red-500/20 text-red-400 border-red-500/30',
-                    'pending': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                    'pending': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+                    'cancelled': 'bg-gray-500/20 text-gray-400 border-gray-500/30'
                 };
                 const color = colorMap[status] || 'bg-slate-500/20 text-slate-400 border-slate-500/30';
                 return `<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${color} border">${status.charAt(0).toUpperCase() + status.slice(1)}</span>`;
@@ -1096,7 +1147,11 @@ include '../../../../includes/admin_header.php';
                             <!-- Dept. Head -->
                             <div class="text-center">
                                 <label class="text-sm font-medium text-slate-400 mb-2 block">Department Head</label>
-                                <div class="mb-2">${getStatusBadge(leaveRequest.dept_head_approval || 'pending')}</div>
+                                <div class="mb-2">${getStatusBadge(
+                                    leaveRequest.status === 'cancelled' ? 'cancelled' :
+                                    (leaveRequest.status === 'rejected' && (leaveRequest.dept_head_approval === 'pending' || !leaveRequest.dept_head_approval)) ? 'rejected' :
+                                    (leaveRequest.dept_head_approval || 'pending')
+                                )}</div>
                                 ${leaveRequest.dept_head_name ? `<p class=\"text-xs text-slate-400\">by ${leaveRequest.dept_head_name}</p>` : ''}
                                 ${leaveRequest.dept_head_approved_at ? `<p class=\"text-xs text-slate-400\">${new Date(leaveRequest.dept_head_approved_at).toLocaleDateString()}</p>` : ''}
                                 ${leaveRequest.dept_head_rejection_reason ? `<p class=\"text-xs text-red-400 mt-1\">${leaveRequest.dept_head_rejection_reason}</p>` : ''}
@@ -1104,7 +1159,11 @@ include '../../../../includes/admin_header.php';
                             <!-- HR -->
                             <div class="text-center">
                                 <label class="text-sm font-medium text-slate-400 mb-2 block">HR</label>
-                                <div class="mb-2">${getStatusBadge((leaveRequest.dept_head_approval === 'rejected') ? 'rejected' : (leaveRequest.admin_approval || 'pending'))}</div>
+                                <div class="mb-2">${getStatusBadge(
+                                    leaveRequest.status === 'cancelled' ? 'cancelled' :
+                                    (leaveRequest.dept_head_approval === 'rejected') ? 'rejected' :
+                                    (leaveRequest.admin_approval || 'pending')
+                                )}</div>
                                 ${leaveRequest.admin_name ? `<p class=\"text-xs text-slate-400\">by ${leaveRequest.admin_name}</p>` : ''}
                                 ${leaveRequest.admin_approved_at ? `<p class=\"text-xs text-slate-400\">${new Date(leaveRequest.admin_approved_at).toLocaleDateString()}</p>` : ''}
                                 ${leaveRequest.admin_rejection_reason ? `<p class=\"text-xs text-red-400 mt-1\">${leaveRequest.admin_rejection_reason}</p>` : ''}
@@ -1113,11 +1172,10 @@ include '../../../../includes/admin_header.php';
                             <div class="text-center">
                                 <label class="text-sm font-medium text-slate-400 mb-2 block">Director Head</label>
                                 <div class="mb-2">${getStatusBadge(
-                                    (leaveRequest.dept_head_approval === 'rejected')
-                                        ? 'rejected'
-                                        : ((leaveRequest.admin_approval !== 'approved')
-                                            ? 'pending'
-                                            : (leaveRequest.director_approval || 'pending'))
+                                    leaveRequest.status === 'cancelled' ? 'cancelled' :
+                                    (leaveRequest.dept_head_approval === 'rejected') ? 'rejected' :
+                                    (leaveRequest.admin_approval === 'rejected') ? 'rejected' :
+                                    (leaveRequest.director_approval || 'pending')
                                 )}</div>
                                 ${leaveRequest.director_name ? `<p class=\"text-xs text-slate-400\">by ${leaveRequest.director_name}</p>` : ''}
                                 ${leaveRequest.director_approved_at ? `<p class=\"text-xs text-slate-400\">${new Date(leaveRequest.director_approved_at).toLocaleDateString()}</p>` : ''}
@@ -1258,8 +1316,7 @@ include '../../../../includes/admin_header.php';
         // Show status info modal
         function showStatusInfo(leaveId) {
             // This would typically fetch data via AJAX
-            // For now, just show an alert
-            alert('Status information for leave request #' + leaveId);
+            showStyledAlert('Status information for leave request #' + leaveId, 'info');
         }
 
 
@@ -1498,7 +1555,7 @@ include '../../../../includes/admin_header.php';
         function openHRApprovalModal(requestId) {
             const modal = document.getElementById('requestDetailsModal');
             const content = document.getElementById('requestDetailsContent');
-            if (!modal || !content) { alert('Error: Modal elements not found.'); return; }
+            if (!modal || !content) { showStyledAlert('Error: Modal elements not found.', 'error'); return; }
             modal.classList.remove('hidden');
             content.innerHTML = `<div class="flex items-center justify-center py-12"><div class="text-center"><div class="w-16 h-16 bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-4"><i class="fas fa-spinner fa-spin text-primary text-2xl"></i></div><h4 class="text-lg font-semibold text-white mb-2">Loading Details</h4><p class="text-slate-400">Please wait while we fetch the leave request details...</p></div></div>`;
             fetch(`../api/get_leave_request_details.php?id=${requestId}`)
@@ -1623,7 +1680,7 @@ include '../../../../includes/admin_header.php';
             const existing = document.getElementById('processingModal');
             if (existing) existing.remove();
             const html = `
-                <div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 elms-modal-overlay">
+                <div id="processingModal" class="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[9999] elms-modal-overlay">
                     <div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4 elms-modal">
                         <div class="p-6 text-center">
                             <div class="mb-4">
@@ -1631,7 +1688,12 @@ include '../../../../includes/admin_header.php';
                                     <i class="fas fa-spinner fa-spin text-blue-400 text-2xl"></i>
                                 </div>
                                 <h3 class="text-lg font-semibold text-white mb-2">${title}</h3>
-                                <p class="text-slate-300 mb-0">${subtitle}</p>
+                                <p class="text-slate-300 mb-4">${subtitle}</p>
+                            </div>
+                            <div class="flex items-center justify-center space-x-2 text-sm text-slate-400">
+                                <div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                                <div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                                <div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
                             </div>
                         </div>
                     </div>
@@ -1645,31 +1707,116 @@ include '../../../../includes/admin_header.php';
         }
 
         function confirmHRApproval(id) {
-            if (!confirm('Approve this leave as HR?')) return;
-            showProcessingOverlay('Processing Leave Request', 'Please wait while we process the leave request...');
-            // submit via POST to keep overlay visible until navigation
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = `../controllers/approve_leave.php?id=${id}`;
-            document.body.appendChild(form);
-            setTimeout(() => form.submit(), 300);
+            // Close the details modal first
+            closeRequestModal();
+            
+            // Small delay to let the modal close, then show confirm
+            setTimeout(() => {
+                showStyledConfirm('Approve this leave as HR?', function(confirmed) {
+                    if (confirmed) {
+                        showProcessingOverlay('Processing Leave Request', 'Please wait while we process the leave request...');
+                        // submit via POST to keep overlay visible until navigation
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = `../controllers/approve_leave.php?id=${id}`;
+                        document.body.appendChild(form);
+                        setTimeout(() => form.submit(), 300);
+                    }
+                }, 'info', 'HR Approval', 'Yes, Approve', 'Cancel');
+            }, 100);
         }
 
+        // Store rejection ID for the styled confirm flow
+        let pendingRejectionId = null;
+
         function promptHRRejection(id) {
-            const reason = prompt('Enter reason for HR rejection:');
-            if (reason === null) return;
-            showProcessingOverlay('Processing Leave Request', 'Please wait while we process the leave request...');
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = `../controllers/reject_leave.php?id=${id}`;
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'reason';
-            input.value = reason;
-            form.appendChild(input);
-            document.body.appendChild(form);
-            // delay a moment so overlay is painted before submit
-            setTimeout(() => form.submit(), 300);
+            // Close the details modal first
+            closeRequestModal();
+            
+            // Small delay to let the modal close, then show rejection reason input
+            setTimeout(() => {
+                // Show a styled modal for rejection reason input
+                showHRRejectionReasonModal(id);
+            }, 100);
+        }
+        
+        function showHRRejectionReasonModal(id) {
+            pendingRejectionId = id;
+            
+            // Create rejection reason modal
+            const modalHtml = `
+                <div id="hrRejectionModal" class="fixed inset-0 z-[9999]">
+                    <div class="fixed inset-0 bg-black/70 backdrop-blur-md" onclick="closeHRRejectionModal()"></div>
+                    <div class="fixed inset-0 flex items-center justify-center p-4">
+                        <div class="bg-slate-800 rounded-2xl border border-slate-700 shadow-2xl w-full max-w-md">
+                            <div class="p-6">
+                                <div class="flex items-start gap-4">
+                                    <div class="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center bg-red-500/20">
+                                        <i class="fas fa-times-circle text-xl text-red-400"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="text-lg font-semibold text-white mb-2">HR Rejection</h3>
+                                        <p class="text-slate-300 text-sm mb-4">Please provide a reason for rejecting this leave request:</p>
+                                        <textarea id="hrRejectionReason" rows="3" class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-red-500 focus:border-red-500" placeholder="Enter rejection reason..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="px-6 py-4 bg-slate-700/30 border-t border-slate-700 rounded-b-2xl flex justify-end gap-3">
+                                <button onclick="closeHRRejectionModal()" class="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg font-medium transition-colors">
+                                    Cancel
+                                </button>
+                                <button onclick="submitHRRejection()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors">
+                                    Reject
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            document.getElementById('hrRejectionReason').focus();
+        }
+        
+        function closeHRRejectionModal() {
+            const modal = document.getElementById('hrRejectionModal');
+            if (modal) modal.remove();
+            pendingRejectionId = null;
+        }
+        
+        function submitHRRejection() {
+            const reason = document.getElementById('hrRejectionReason').value.trim();
+            if (!reason) {
+                showStyledAlert('Please provide a reason for rejection.', 'warning');
+                return;
+            }
+            
+            // Store the ID before closing the modal (which clears it)
+            const rejectionId = pendingRejectionId;
+            
+            // Close the rejection modal (just remove it, don't clear the ID yet)
+            const modal = document.getElementById('hrRejectionModal');
+            if (modal) modal.remove();
+            
+            // Show processing overlay after a small delay to ensure rejection modal is fully closed
+            setTimeout(() => {
+                showProcessingOverlay('Processing Rejection', 'Please wait while we process the leave request rejection...');
+                
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `../controllers/reject_leave.php?id=${rejectionId}`;
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'reason';
+                input.value = reason;
+                form.appendChild(input);
+                document.body.appendChild(form);
+                // delay a moment so overlay is painted before submit
+                setTimeout(() => form.submit(), 500);
+            }, 100);
+            
+            // Clear the pending ID
+            pendingRejectionId = null;
         }
         
         // Add Leave Credits Modal Functions
@@ -1805,5 +1952,6 @@ include '../../../../includes/admin_header.php';
             }
         }
     </style>
+    <script src="../../../../assets/js/modal-alert.js"></script>
     
 <?php include '../../../../includes/admin_footer.php'; ?>

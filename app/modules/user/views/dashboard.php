@@ -1030,28 +1030,51 @@ include '../../../../includes/user_header.php';
 
         function loadAttendanceData() {
             const tbody = document.getElementById('attendanceTableBody');
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Loading...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-sm"><i class="fas fa-spinner fa-spin mr-2"></i>Loading...</td></tr>';
             
             fetch('dtr_status.php?ajax=1')
                 .then(response => response.json())
                 .then(data => {
                     if (data.records && data.records.length > 0) {
-                        tbody.innerHTML = data.records.map(record => `
-                            <tr class="hover:bg-slate-700/30 transition-colors">
+                        tbody.innerHTML = data.records.map(record => {
+                            // Determine status badges
+                            let statusBadges = [];
+                            const hasOvertime = record.total_hours > 8;
+                            const overtimeHours = hasOvertime ? (record.total_hours - 8).toFixed(1) : 0;
+                            
+                            if (record.has_late) {
+                                statusBadges.push('<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30"><i class="fas fa-clock mr-1"></i>Late</span>');
+                            }
+                            if (hasOvertime) {
+                                statusBadges.push('<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30"><i class="fas fa-star mr-1"></i>OT +' + overtimeHours + 'h</span>');
+                            }
+                            if (!record.has_late && !hasOvertime) {
+                                statusBadges.push('<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30"><i class="fas fa-check mr-1"></i>OK</span>');
+                            }
+                            
+                            // Format time cells with late indicator
+                            const morningInClass = record.morning_late ? 'text-red-400' : 'text-slate-300';
+                            const afternoonInClass = record.afternoon_late ? 'text-red-400' : 'text-slate-300';
+                            const morningInIcon = record.morning_late ? ' <i class="fas fa-exclamation-circle text-red-400" title="Late"></i>' : '';
+                            const afternoonInIcon = record.afternoon_late ? ' <i class="fas fa-exclamation-circle text-red-400" title="Late"></i>' : '';
+                            
+                            return `
+                            <tr class="hover:bg-slate-700/30 transition-colors ${record.has_late ? 'bg-red-500/5' : ''}">
                                 <td class="px-3 py-2 text-xs text-slate-300">${record.date}</td>
-                                <td class="px-3 py-2 text-xs text-slate-300">${record.morning_time_in || '-'}</td>
+                                <td class="px-3 py-2 text-xs ${morningInClass}">${record.morning_time_in || '-'}${morningInIcon}</td>
                                 <td class="px-3 py-2 text-xs text-slate-300">${record.morning_time_out || '-'}</td>
-                                <td class="px-3 py-2 text-xs text-slate-300">${record.afternoon_time_in || '-'}</td>
+                                <td class="px-3 py-2 text-xs ${afternoonInClass}">${record.afternoon_time_in || '-'}${afternoonInIcon}</td>
                                 <td class="px-3 py-2 text-xs text-slate-300">${record.afternoon_time_out || '-'}</td>
                                 <td class="px-3 py-2 text-xs font-semibold ${record.total_hours >= 8 ? 'text-green-400' : 'text-yellow-400'}">${record.total_hours}h</td>
+                                <td class="px-3 py-2 text-xs">${statusBadges.join(' ')}</td>
                             </tr>
-                        `).join('');
+                        `}).join('');
                     } else {
-                        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-400 text-sm"><i class="fas fa-calendar-times text-xl mb-2"></i><br>No records found</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-6 text-slate-400 text-sm"><i class="fas fa-calendar-times text-xl mb-2"></i><br>No records found</td></tr>';
                     }
                 })
                 .catch(error => {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-red-400 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>Error loading data</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-red-400 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>Error loading data</td></tr>';
                 });
         }
 
@@ -1379,7 +1402,7 @@ include '../../../../includes/user_header.php';
                     form.submit();
                 }, 1500); // 1.5 second delay to show processing modal
             } else {
-                alert('Unable to process request. Please try again.');
+                showStyledAlert('Unable to process request. Please try again.', 'error');
                 window.location.href = 'dashboard.php';
             }
         }
@@ -1398,7 +1421,7 @@ include '../../../../includes/user_header.php';
                 
                 // If Saturday (6) or Sunday (0), clear the selection
                 if (dayOfWeek === 0 || dayOfWeek === 6) {
-                    alert('Weekends (Saturday and Sunday) cannot be selected for leave applications.');
+                    showStyledAlert('Weekends (Saturday and Sunday) cannot be selected for leave applications.', 'warning');
                     this.value = '';
                 }
             });
@@ -1907,16 +1930,8 @@ include '../../../../includes/user_header.php';
                 ],
                 eventClick: function(info) {
                     const props = info.event.extendedProps;
-                    const message = `
-Leave Details:
-Type: ${props.display_name}
-Status: ${props.status}
-Days Approved: ${props.days_approved}
-Days Requested: ${props.days_requested}
-Reason: ${props.reason}
-Date: ${info.event.start.toLocaleDateString()}
-                    `;
-                    alert(message);
+                    const message = `Leave Details:\nType: ${props.display_name}\nStatus: ${props.status}\nDays Approved: ${props.days_approved}\nDays Requested: ${props.days_requested}\nReason: ${props.reason}\nDate: ${info.event.start.toLocaleDateString()}`;
+                    showStyledAlert(message, 'info', 'Leave Details');
                 }
             });
             
@@ -2083,6 +2098,7 @@ Date: ${info.event.start.toLocaleDateString()}
             sessionStorage.setItem('successModalShown', 'true');
         }
     </script>
+    <script src="../../../../assets/js/modal-alert.js"></script>
 
 <?php include '../../../../includes/user_footer.php'; ?>
 
@@ -2112,6 +2128,7 @@ Date: ${info.event.start.toLocaleDateString()}
                             <th class="px-3 py-2 text-left text-xs font-semibold text-slate-300 uppercase">PM In</th>
                             <th class="px-3 py-2 text-left text-xs font-semibold text-slate-300 uppercase">PM Out</th>
                             <th class="px-3 py-2 text-left text-xs font-semibold text-slate-300 uppercase">Hours</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold text-slate-300 uppercase">Status</th>
                         </tr>
                     </thead>
                     <tbody id="attendanceTableBody" class="divide-y divide-slate-700">

@@ -163,6 +163,9 @@ include '../../../../includes/user_header.php';
                                                     case 'rejected':
                                                         echo 'bg-red-500/20 text-red-400';
                                                         break;
+                                                    case 'cancelled':
+                                                        echo 'bg-gray-500/20 text-gray-400';
+                                                        break;
                                                     case 'under_appeal':
                                                         echo 'bg-orange-500/20 text-orange-400';
                                                         break;
@@ -172,7 +175,8 @@ include '../../../../includes/user_header.php';
                                             ?>">
                                                 <?php 
                                                 $status_display = [
-                                                    'under_appeal' => 'Under Appeal'
+                                                    'under_appeal' => 'Under Appeal',
+                                                    'cancelled' => 'Cancelled'
                                                 ];
                                                 echo $status_display[$request['status']] ?? ucfirst($request['status']); 
                                                 ?>
@@ -180,10 +184,18 @@ include '../../../../includes/user_header.php';
                                         </td>
                                         <td class="px-6 py-4 text-slate-300 text-sm"><?php echo date('M d, Y', strtotime($request['created_at'])); ?></td>
                                         <td class="px-6 py-4 text-center">
-                                            <button onclick="viewLeaveDetails(<?php echo $request['id']; ?>)" 
-                                                    class="bg-primary hover:bg-primary/90 text-white p-2 rounded-lg transition-colors">
-                                                <i class="fas fa-eye text-xs"></i>
-                                            </button>
+                                            <div class="flex items-center justify-center gap-2">
+                                                <button onclick="viewLeaveDetails(<?php echo $request['id']; ?>)" 
+                                                        class="bg-primary hover:bg-primary/90 text-white p-2 rounded-lg transition-colors" title="View Details">
+                                                    <i class="fas fa-eye text-xs"></i>
+                                                </button>
+                                                <?php if ($request['status'] === 'pending'): ?>
+                                                <button onclick="cancelLeaveRequest(<?php echo $request['id']; ?>)" 
+                                                        class="bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg transition-colors" title="Cancel Request">
+                                                    <i class="fas fa-times text-xs"></i>
+                                                </button>
+                                                <?php endif; ?>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -621,12 +633,12 @@ include '../../../../includes/user_header.php';
                         
                         openLeaveDetailsModal();
                     } else {
-                        alert('Error loading leave details: ' + data.message);
+                        showStyledAlert('Error loading leave details: ' + data.message, 'error');
                     }
                 })
                 .catch(error => {
                     console.error('Fetch error:', error);
-                    alert('Error loading leave details: ' + error.message);
+                    showStyledAlert('Error loading leave details: ' + error.message, 'error');
                 });
         }
 
@@ -645,6 +657,8 @@ include '../../../../includes/user_header.php';
                     return 'bg-green-500/20 text-green-400';
                 case 'rejected':
                     return 'bg-red-500/20 text-red-400';
+                case 'cancelled':
+                    return 'bg-gray-500/20 text-gray-400';
                 case 'under_appeal':
                     return 'bg-orange-500/20 text-orange-400';
                 default:
@@ -654,11 +668,66 @@ include '../../../../includes/user_header.php';
 
         function getStatusDisplay(status) {
             const statusMap = {
-                'under_appeal': 'Under Appeal'
+                'under_appeal': 'Under Appeal',
+                'cancelled': 'Cancelled'
             };
             return statusMap[status] || status.charAt(0).toUpperCase() + status.slice(1);
         }
 
+        // Cancel leave request function
+        function cancelLeaveRequest(leaveId) {
+            showStyledConfirm(
+                'Are you sure you want to cancel this leave request? This action cannot be undone.',
+                function(confirmed) {
+                    if (confirmed) {
+                        // Show loading state
+                        const cancelBtn = document.querySelector(`button[onclick="cancelLeaveRequest(${leaveId})"]`);
+                        if (cancelBtn) {
+                            cancelBtn.disabled = true;
+                            cancelBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-xs"></i>';
+                        }
+                        
+                        fetch('/ELMS/app/modules/user/controllers/cancel_leave.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: 'leave_id=' + leaveId
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Show success message and reload page
+                                showStyledAlert('Leave request cancelled successfully!', 'success');
+                                setTimeout(() => window.location.reload(), 1500);
+                            } else {
+                                showStyledAlert('Error: ' + data.message, 'error');
+                                // Restore button
+                                if (cancelBtn) {
+                                    cancelBtn.disabled = false;
+                                    cancelBtn.innerHTML = '<i class="fas fa-times text-xs"></i>';
+                                }
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            showStyledAlert('An error occurred while cancelling the leave request.', 'error');
+                            // Restore button
+                            if (cancelBtn) {
+                                cancelBtn.disabled = false;
+                                cancelBtn.innerHTML = '<i class="fas fa-times text-xs"></i>';
+                            }
+                        });
+                    }
+                },
+                'danger',
+                'Cancel Leave Request',
+                'Yes, Cancel',
+                'No, Keep It'
+            );
+        }
+
     </script>
+    <script src="../../../../assets/js/modal-alert.js"></script>
 
 <?php include '../../../../includes/user_footer.php'; ?> 

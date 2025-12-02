@@ -777,7 +777,7 @@ include '../../../../includes/admin_header.php';
             // Validate input parameters
             if (!employeeId || !employeeName) {
                 console.error('Invalid employee data provided');
-                alert('Error: Invalid employee data. Please try again.');
+                showStyledAlert('Error: Invalid employee data. Please try again.', 'error');
                 return;
             }
             
@@ -792,7 +792,7 @@ include '../../../../includes/admin_header.php';
             
             if (!modal || !employeeIdField || !employeeNameField) {
                 console.error('Modal elements not found');
-                alert('Error: Modal elements not found. Please refresh the page.');
+                showStyledAlert('Error: Modal elements not found. Please refresh the page.', 'error');
                 return;
             }
             
@@ -1034,19 +1034,19 @@ include '../../../../includes/admin_header.php';
                     
                     // Check if form is properly filled
                     if (!employeeId) {
-                        alert('Employee ID is missing. Please close and reopen the modal.');
+                        showStyledAlert('Employee ID is missing. Please close and reopen the modal.', 'error');
                         console.log('Form validation failed: missing employee ID');
                         return false;
                     }
                     
                     if (!alertType) {
-                        alert('Alert type is missing. Please select a template.');
+                        showStyledAlert('Alert type is missing. Please select a template.', 'warning');
                         console.log('Form validation failed: missing alert type');
                         return false;
                     }
                     
                     if (!message.trim()) {
-                        alert('Please enter a message or select a template.');
+                        showStyledAlert('Please enter a message or select a template.', 'warning');
                         console.log('Form validation failed: empty message');
                         return false;
                     }
@@ -1311,6 +1311,7 @@ include '../../../../includes/admin_header.php';
         // Update pending leave count every 30 seconds
         setInterval(fetchPendingLeaveCount, 30000);
     </script>
+    <script src="../../../../assets/js/modal-alert.js"></script>
             </div>
 <?php include '../../../../includes/admin_footer.php'; ?>
 

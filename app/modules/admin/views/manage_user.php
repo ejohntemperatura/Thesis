@@ -807,7 +807,6 @@ include '../../../../includes/admin_header.php';
                             <option value="employee">Employee</option>
                             <option value="manager">Department Head</option>
                             <option value="director">Director Head</option>
-                            <option value="admin">Admin</option>
                         </select>
                     </div>
                     <div>
@@ -1050,13 +1049,14 @@ include '../../../../includes/admin_header.php';
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label for="editRole" class="block text-sm font-semibold text-slate-300 mb-2">Role</label>
-                        <select id="editRole" name="role" required onchange="toggleDepartmentField('edit'); updateRoleDependentFields('edit');" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <option value="employee">Employee</option>
-                            <option value="manager">Department Head</option>
-                            <option value="director">Director Head</option>
-                            <option value="admin">Admin</option>
-                        </select>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">Role</label>
+                        <!-- Hidden input to preserve the role value -->
+                        <input type="hidden" id="editRole" name="role" value="">
+                        <!-- Read-only display of role -->
+                        <div id="editRoleDisplay" class="w-full bg-slate-600 border border-slate-500 rounded-xl px-4 py-3 text-slate-300 cursor-not-allowed">
+                            <span id="editRoleText">-</span>
+                            <span class="text-xs text-slate-400 ml-2">(cannot be changed)</span>
+                        </div>
                     </div>
                     <div>
                         <label for="editDepartment" class="block text-sm font-semibold text-slate-300 mb-2">Department</label>
@@ -1085,24 +1085,32 @@ include '../../../../includes/admin_header.php';
     <script>
         // Toggle department field between dropdown and text input based on role
         function toggleDepartmentField(modalType) {
-            const roleSelect = document.getElementById(modalType + 'Role');
+            const roleElement = document.getElementById(modalType + 'Role');
             const deptSelect = document.getElementById(modalType + 'DepartmentSelect');
             const deptInput = document.getElementById(modalType + 'DepartmentInput');
             
-            if (roleSelect.value === 'manager') {
+            // Get role value - for edit modal it's a hidden input, for add modal it's a select
+            const roleValue = roleElement ? roleElement.value : 'employee';
+            
+            if (roleValue === 'manager') {
                 // Department Head - show text input for new department
                 deptSelect.style.display = 'none';
                 deptSelect.removeAttribute('name');
                 deptInput.style.display = 'block';
                 deptInput.setAttribute('name', 'department');
-                deptInput.value = '';
+                // Don't clear value for edit modal
+                if (modalType === 'add') {
+                    deptInput.value = '';
+                }
             } else {
                 // Other roles - show dropdown
                 deptSelect.style.display = 'block';
                 deptSelect.setAttribute('name', 'department');
                 deptInput.style.display = 'none';
                 deptInput.removeAttribute('name');
-                deptInput.value = '';
+                if (modalType === 'add') {
+                    deptInput.value = '';
+                }
             }
         }
 
@@ -1230,12 +1238,11 @@ include '../../../../includes/admin_header.php';
             if (soloContainer) soloContainer.style.display = isEmployee ? 'inline-flex' : 'none';
         }
         function deleteUser(userId) {
-            if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-                return;
-            }
-            
-            // Find and hide the user row immediately
-            const userRow = document.getElementById(`user-row-${userId}`);
+            showStyledConfirm('Are you sure you want to delete this user? This action cannot be undone.', function(confirmed) {
+                if (!confirmed) return;
+                
+                // Find and hide the user row immediately
+                const userRow = document.getElementById(`user-row-${userId}`);
             if (userRow) {
                 userRow.style.opacity = '0.5';
                 userRow.style.pointerEvents = 'none';
@@ -1305,6 +1312,7 @@ include '../../../../includes/admin_header.php';
                 }
                 showNotification('Error deleting user: ' + error.message, 'error');
             });
+            }, 'danger', 'Delete User', 'Yes, Delete', 'Cancel');
         }
 
         function editUser(id, name, email, contact, position, department, role) {
@@ -1314,6 +1322,15 @@ include '../../../../includes/admin_header.php';
             document.getElementById('editContact').value = contact || '';
             document.getElementById('editPosition').value = position || '';
             document.getElementById('editRole').value = role || 'employee';
+            
+            // Set the role display text (read-only)
+            const roleDisplayText = {
+                'employee': 'Employee',
+                'manager': 'Department Head',
+                'director': 'Director Head',
+                'admin': 'Admin'
+            };
+            document.getElementById('editRoleText').textContent = roleDisplayText[role] || role || 'Employee';
             
             // Open modal first, then set department after departments are loaded
             openEditUserModal();
@@ -1614,5 +1631,6 @@ include '../../../../includes/admin_header.php';
             z-index: 1;
         }
     </style>
+    <script src="../../../../assets/js/modal-alert.js"></script>
     
 <?php include '../../../../includes/admin_footer.php'; ?> 

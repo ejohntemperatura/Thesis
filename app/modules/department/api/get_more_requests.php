@@ -32,7 +32,7 @@ try {
         FROM leave_requests lr 
         JOIN employees e ON lr.employee_id = e.id 
         WHERE (lr.dept_head_approval IS NULL OR lr.dept_head_approval = 'pending')
-        AND lr.status != 'rejected'
+        AND lr.status NOT IN ('rejected', 'cancelled')
         AND e.department = ?
         ORDER BY lr.is_late DESC, lr.created_at DESC 
         LIMIT " . intval($limit) . " OFFSET " . intval($offset)

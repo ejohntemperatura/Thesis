@@ -8,6 +8,32 @@ if (!isset($_SESSION['user_id'])) {
     exit('Unauthorized');
 }
 
+// Define standard work hours for late detection
+define('MORNING_START_TIME', '08:00:00'); // 8:00 AM
+define('AFTERNOON_START_TIME', '13:00:00'); // 1:00 PM
+define('LATE_GRACE_PERIOD_MINUTES', 15); // 15 minutes grace period
+
+/**
+ * Check if a time-in is late
+ */
+function checkIfLate($timeIn, $standardTime) {
+    if (!$timeIn) {
+        return ['is_late' => false, 'minutes_late' => 0];
+    }
+    
+    $timeInObj = new DateTime($timeIn);
+    $standardObj = new DateTime($timeInObj->format('Y-m-d') . ' ' . $standardTime);
+    $standardObj->modify('+' . LATE_GRACE_PERIOD_MINUTES . ' minutes');
+    
+    if ($timeInObj > $standardObj) {
+        $diff = $timeInObj->diff($standardObj);
+        $minutesLate = ($diff->h * 60) + $diff->i;
+        return ['is_late' => true, 'minutes_late' => $minutesLate];
+    }
+    
+    return ['is_late' => false, 'minutes_late' => 0];
+}
+
 // Check if this is an AJAX request for attendance records
 if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     // Get last 30 days of attendance records
@@ -44,13 +70,22 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
             $total_hours += ($afternoon_out - $afternoon_in) / 3600;
         }
         
+        // Check for late arrivals
+        $morningLate = checkIfLate($record['morning_time_in'], MORNING_START_TIME);
+        $afternoonLate = checkIfLate($record['afternoon_time_in'], AFTERNOON_START_TIME);
+        
         $formatted_records[] = [
             'date' => date('M d, Y', strtotime($record['date'])),
             'morning_time_in' => $record['morning_time_in'] ? date('h:i A', strtotime($record['morning_time_in'])) : null,
             'morning_time_out' => $record['morning_time_out'] ? date('h:i A', strtotime($record['morning_time_out'])) : null,
             'afternoon_time_in' => $record['afternoon_time_in'] ? date('h:i A', strtotime($record['afternoon_time_in'])) : null,
             'afternoon_time_out' => $record['afternoon_time_out'] ? date('h:i A', strtotime($record['afternoon_time_out'])) : null,
-            'total_hours' => round($total_hours, 2)
+            'total_hours' => round($total_hours, 2),
+            'morning_late' => $morningLate['is_late'],
+            'morning_minutes_late' => $morningLate['minutes_late'],
+            'afternoon_late' => $afternoonLate['is_late'],
+            'afternoon_minutes_late' => $afternoonLate['minutes_late'],
+            'has_late' => $morningLate['is_late'] || $afternoonLate['is_late']
         ];
     }
     

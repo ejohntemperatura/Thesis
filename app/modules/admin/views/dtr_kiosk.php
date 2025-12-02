@@ -18,11 +18,93 @@ $inputId = '';
 $showTimeIn = false;
 $showTimeOut = false;
 $actionHint = '';
+$lateInfo = null;
+$overtimeInfo = null;
+
+// Define standard work hours
+define('MORNING_START_TIME', '08:00:00'); // 8:00 AM
+define('AFTERNOON_START_TIME', '13:00:00'); // 1:00 PM
+define('LATE_GRACE_PERIOD_MINUTES', 15); // 15 minutes grace period
+define('STANDARD_WORK_HOURS', 8); // 8 hours standard
+
+/**
+ * Check if a time-in is late
+ */
+function checkIfLate($timeIn, $standardTime) {
+    if (!$timeIn) return ['is_late' => false, 'minutes_late' => 0];
+    
+    $timeInObj = new DateTime($timeIn);
+    $standardObj = new DateTime($timeInObj->format('Y-m-d') . ' ' . $standardTime);
+    $standardObj->modify('+' . LATE_GRACE_PERIOD_MINUTES . ' minutes');
+    
+    if ($timeInObj > $standardObj) {
+        $diff = $timeInObj->diff($standardObj);
+        $minutesLate = ($diff->h * 60) + $diff->i;
+        return ['is_late' => true, 'minutes_late' => $minutesLate];
+    }
+    return ['is_late' => false, 'minutes_late' => 0];
+}
+
+/**
+ * Calculate total hours worked and overtime
+ */
+function calculateWorkHours($record) {
+    $totalMinutes = 0;
+    
+    if (!empty($record['morning_time_in']) && !empty($record['morning_time_out'])) {
+        $morningIn = new DateTime($record['morning_time_in']);
+        $morningOut = new DateTime($record['morning_time_out']);
+        $totalMinutes += ($morningOut->getTimestamp() - $morningIn->getTimestamp()) / 60;
+    }
+    
+    if (!empty($record['afternoon_time_in']) && !empty($record['afternoon_time_out'])) {
+        $afternoonIn = new DateTime($record['afternoon_time_in']);
+        $afternoonOut = new DateTime($record['afternoon_time_out']);
+        $totalMinutes += ($afternoonOut->getTimestamp() - $afternoonIn->getTimestamp()) / 60;
+    }
+    
+    $totalHours = $totalMinutes / 60;
+    $overtimeHours = max(0, $totalHours - STANDARD_WORK_HOURS);
+    
+    return [
+        'total_hours' => round($totalHours, 2),
+        'overtime_hours' => round($overtimeHours, 2),
+        'has_overtime' => $overtimeHours > 0
+    ];
+}
+
+/**
+ * Format late text
+ */
+function formatLateText($minutes) {
+    if ($minutes >= 60) {
+        $hours = floor($minutes / 60);
+        $mins = $minutes % 60;
+        return $hours . 'h ' . $mins . 'm late';
+    }
+    return $minutes . ' minutes late';
+}
 
 // Retrieve flash message if present
+$isLate = false;
+$hasOvertime = false;
+$overtimeHours = 0;
+
 if (!empty($_SESSION['kiosk_message'])) {
     $message = $_SESSION['kiosk_message'];
     unset($_SESSION['kiosk_message']);
+}
+if (isset($_SESSION['kiosk_late'])) {
+    $isLate = $_SESSION['kiosk_late'];
+    unset($_SESSION['kiosk_late']);
+}
+if (isset($_SESSION['kiosk_overtime'])) {
+    $hasOvertime = $_SESSION['kiosk_overtime'];
+    unset($_SESSION['kiosk_overtime']);
+}
+if (isset($_SESSION['kiosk_overtime_hours'])) {
+    $overtimeHours = $_SESSION['kiosk_overtime_hours'];
+    unset($_SESSION['kiosk_overtime_hours']);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -86,6 +168,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     if ($action === 'time_in') {
                         if ($current_hour < 12) {
+                            // Check if late for morning
+                            $lateCheck = checkIfLate($formatted_time, MORNING_START_TIME);
+                            $lateMsg = '';
+                            if ($lateCheck['is_late']) {
+                                $lateMsg = ' [LATE: ' . formatLateText($lateCheck['minutes_late']) . ']';
+                            }
+                            
                             if (!$today_record) {
                                 $stmt = $pdo->prepare("INSERT INTO dtr (user_id, date, morning_time_in) VALUES (?, ?, ?)");
                                 $stmt->execute([$employee['id'], $today, $formatted_time]);
@@ -93,11 +182,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $stmt = $pdo->prepare("UPDATE dtr SET morning_time_in = ? WHERE user_id = ? AND date = ?");
                                 $stmt->execute([$formatted_time, $employee['id'], $today]);
                             }
-                            $message = "Morning Time In recorded for {$displayName} at " . $current_time->format('h:i A');
+                            $message = "Morning Time In recorded for {$displayName} at " . $current_time->format('h:i A') . $lateMsg;
                             $_SESSION['kiosk_message'] = $message;
+                            $_SESSION['kiosk_late'] = $lateCheck['is_late'];
                             header('Location: dtr_kiosk.php');
                             exit();
                         } else {
+                            // Check if late for afternoon
+                            $lateCheck = checkIfLate($formatted_time, AFTERNOON_START_TIME);
+                            $lateMsg = '';
+                            if ($lateCheck['is_late']) {
+                                $lateMsg = ' [LATE: ' . formatLateText($lateCheck['minutes_late']) . ']';
+                            }
+                            
                             if (!$today_record) {
                                 $stmt = $pdo->prepare("INSERT INTO dtr (user_id, date, afternoon_time_in) VALUES (?, ?, ?)");
                                 $stmt->execute([$employee['id'], $today, $formatted_time]);
@@ -105,8 +202,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $stmt = $pdo->prepare("UPDATE dtr SET afternoon_time_in = ? WHERE user_id = ? AND date = ?");
                                 $stmt->execute([$formatted_time, $employee['id'], $today]);
                             }
-                            $message = "Afternoon Time In recorded for {$displayName} at " . $current_time->format('h:i A');
+                            $message = "Afternoon Time In recorded for {$displayName} at " . $current_time->format('h:i A') . $lateMsg;
                             $_SESSION['kiosk_message'] = $message;
+                            $_SESSION['kiosk_late'] = $lateCheck['is_late'];
                             header('Location: dtr_kiosk.php');
                             exit();
                         }
@@ -119,10 +217,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             header('Location: dtr_kiosk.php');
                             exit();
                         } elseif ($today_record && !empty($today_record['afternoon_time_in']) && empty($today_record['afternoon_time_out'])) {
+                            // Calculate overtime on final time out
+                            $today_record['afternoon_time_out'] = $formatted_time; // Temporarily set for calculation
+                            $workHours = calculateWorkHours($today_record);
+                            $overtimeMsg = '';
+                            if ($workHours['has_overtime']) {
+                                $overtimeMsg = ' [OVERTIME: ' . $workHours['overtime_hours'] . ' hours - Eligible for CTO]';
+                            }
+                            
                             $stmt = $pdo->prepare("UPDATE dtr SET afternoon_time_out = ? WHERE user_id = ? AND date = ?");
                             $stmt->execute([$formatted_time, $employee['id'], $today]);
-                            $message = "Afternoon Time Out recorded for {$displayName} at " . $current_time->format('h:i A');
+                            $message = "Afternoon Time Out recorded for {$displayName} at " . $current_time->format('h:i A') . " (Total: " . $workHours['total_hours'] . " hrs)" . $overtimeMsg;
                             $_SESSION['kiosk_message'] = $message;
+                            $_SESSION['kiosk_overtime'] = $workHours['has_overtime'];
+                            $_SESSION['kiosk_overtime_hours'] = $workHours['overtime_hours'];
                             header('Location: dtr_kiosk.php');
                             exit();
                         } else {
@@ -160,10 +268,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <?php if (!empty($message)): ?>
-                <div class="bg-green-500/20 border border-green-500/30 text-green-400 px-4 py-3 rounded-xl mb-4">
-                    <i class="fas fa-check-circle mr-2"></i>
-                    <?php echo htmlspecialchars($message); ?>
-                </div>
+                <?php if ($isLate): ?>
+                    <!-- Late Time In Message -->
+                    <div class="bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 px-4 py-4 rounded-xl mb-4">
+                        <div class="flex items-center mb-2">
+                            <i class="fas fa-clock mr-2 text-xl"></i>
+                            <span class="font-semibold text-lg">Late Arrival Recorded</span>
+                        </div>
+                        <p><?php echo htmlspecialchars($message); ?></p>
+                        <p class="text-xs mt-2 text-yellow-300/70">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Standard time: Morning 8:00 AM, Afternoon 1:00 PM (15 min grace period)
+                        </p>
+                    </div>
+                <?php elseif ($hasOvertime): ?>
+                    <!-- Overtime Message -->
+                    <div class="bg-blue-500/20 border border-blue-500/30 text-blue-400 px-4 py-4 rounded-xl mb-4">
+                        <div class="flex items-center mb-2">
+                            <i class="fas fa-star mr-2 text-xl"></i>
+                            <span class="font-semibold text-lg">Overtime Recorded!</span>
+                        </div>
+                        <p><?php echo htmlspecialchars($message); ?></p>
+                        <p class="text-xs mt-2 text-blue-300/70">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            <?php echo $overtimeHours; ?> overtime hours eligible for CTO credits. HR will process this.
+                        </p>
+                    </div>
+                <?php else: ?>
+                    <!-- Normal Success Message -->
+                    <div class="bg-green-500/20 border border-green-500/30 text-green-400 px-4 py-3 rounded-xl mb-4">
+                        <i class="fas fa-check-circle mr-2"></i>
+                        <?php echo htmlspecialchars($message); ?>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
 
             <?php if (!empty($error)): ?>

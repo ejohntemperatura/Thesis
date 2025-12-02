@@ -34,7 +34,7 @@ $stmt = $pdo->prepare("
     WHERE lr.dept_head_approval = 'approved'
     AND lr.admin_approval = 'approved'
     AND (lr.director_approval IS NULL OR lr.director_approval = 'pending')
-    AND lr.status != 'rejected'
+    AND lr.status NOT IN ('rejected', 'cancelled')
 ");
 $stmt->execute();
 $total_pending = $stmt->fetch()['total'];
@@ -47,7 +47,7 @@ $stmt = $pdo->prepare("
     WHERE lr.dept_head_approval = 'approved'
     AND lr.admin_approval = 'approved'
     AND (lr.director_approval IS NULL OR lr.director_approval = 'pending')
-    AND lr.status != 'rejected'
+    AND lr.status NOT IN ('rejected', 'cancelled')
     ORDER BY lr.is_late DESC, lr.created_at DESC 
     LIMIT " . intval($initial_limit)
 );
@@ -667,7 +667,7 @@ $leaveTypes = getLeaveTypes();
 												<button onclick="showApprovalOptions()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors">
 													<i class="fas fa-check mr-2"></i>Approve Request
 												</button>
-												<button onclick="showRejectionOptions()" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors">
+												<button onclick="showRejectionOptions(${requestId})" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors">
 													<i class="fas fa-times mr-2"></i>Reject Request
 												</button>
 											</div>
@@ -678,16 +678,6 @@ $leaveTypes = getLeaveTypes();
 													<i class="fas fa-check mr-2"></i>Confirm Approval
 												</button>
 												<button onclick="hideApprovalOptions()" class="bg-slate-600 hover:bg-slate-500 text-white font-semibold py-3 px-8 rounded-xl transition-colors">
-													<i class="fas fa-arrow-left mr-2"></i>Back
-												</button>
-											</div>
-											
-											<!-- Rejection Action Buttons -->
-											<div id="rejectionActionButtons" style="display: none;">
-												<button onclick="confirmRejection(${requestId})" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors">
-													<i class="fas fa-times mr-2"></i>Confirm Rejection
-												</button>
-												<button onclick="hideRejectionOptions()" class="bg-slate-600 hover:bg-slate-500 text-white font-semibold py-3 px-8 rounded-xl transition-colors">
 													<i class="fas fa-arrow-left mr-2"></i>Back
 												</button>
 											</div>
@@ -709,12 +699,12 @@ $leaveTypes = getLeaveTypes();
 						// Show conditional details based on leave type (use raw type for matching)
 						showConditionalDetails(request.leave_type_raw || request.leave_type);
 					} else {
-						alert('Error loading leave request details');
+						showStyledAlert('Error loading leave request details', 'error');
 					}
 				})
 				.catch(error => {
 					console.error('Error:', error);
-					alert('Error loading leave request details');
+					showStyledAlert('Error loading leave request details', 'error');
 				});
 		}
 		
@@ -734,20 +724,69 @@ $leaveTypes = getLeaveTypes();
 			document.getElementById('approvalActionButtons').style.display = 'none';
 		}
 		
-		// Show Rejection Options (First Step)
-		function showRejectionOptions() {
-			// Hide initial buttons and show rejection options
-			document.getElementById('initialActionButtons').style.display = 'none';
-			document.getElementById('rejectionOptionsSection').style.display = 'block';
-			document.getElementById('rejectionActionButtons').style.display = 'block';
+		// Show Rejection Options - Opens styled rejection modal
+		function showRejectionOptions(requestId) {
+			// Close the details modal first
+			closeDirectorApprovalModal();
+			
+			// Small delay to let the modal close, then show styled rejection modal
+			setTimeout(() => {
+				showRejectionReasonModal('Director Rejection', function(reason) {
+					if (reason) {
+						submitDirectorRejection(requestId, reason);
+					}
+				});
+			}, 100);
 		}
 		
-		// Hide Rejection Options (Back to Initial)
-		function hideRejectionOptions() {
-			// Show initial buttons and hide rejection options
-			document.getElementById('initialActionButtons').style.display = 'block';
-			document.getElementById('rejectionOptionsSection').style.display = 'none';
-			document.getElementById('rejectionActionButtons').style.display = 'none';
+		function submitDirectorRejection(requestId, reason) {
+			// Create and show processing modal
+			const processingModalHtml = `
+				<div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+					<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4">
+						<div class="p-6 text-center">
+							<div class="mb-4">
+								<div class="inline-flex items-center justify-center w-16 h-16 bg-slate-700 rounded-full mb-4">
+									<i class="fas fa-spinner fa-spin text-blue-400 text-2xl"></i>
+								</div>
+								<h3 class="text-lg font-semibold text-white mb-2">Processing Your Rejection</h3>
+								<p class="text-slate-300 mb-4">Please wait while we process the leave request rejection...</p>
+							</div>
+							<div class="flex items-center justify-center space-x-2 text-sm text-slate-400">
+								<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+								<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+								<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+							</div>
+						</div>
+					</div>
+				</div>
+			`;
+			
+			// Remove existing processing modal if any
+			const existingProcessingModal = document.getElementById('processingModal');
+			if (existingProcessingModal) {
+				existingProcessingModal.remove();
+			}
+			
+			// Add processing modal to body
+			document.body.insertAdjacentHTML('beforeend', processingModalHtml);
+			
+			// Submit the form after delay
+			setTimeout(() => {
+				const url = `../controllers/reject_leave.php?id=${requestId}`;
+				const form = document.createElement('form');
+				form.method = 'POST';
+				form.action = url;
+				
+				const reasonInput = document.createElement('input');
+				reasonInput.type = 'hidden';
+				reasonInput.name = 'reason';
+				reasonInput.value = reason;
+				
+				form.appendChild(reasonInput);
+				document.body.appendChild(form);
+				form.submit();
+			}, 500);
 		}
 		
 		// Confirm Approval (Final Step)
@@ -757,133 +796,65 @@ $leaveTypes = getLeaveTypes();
 			const daysRequested = document.getElementById('approvedDays').max;
 			
 			if (!approvedDays || approvedDays < 1 || approvedDays > daysRequested) {
-				alert('Please enter a valid number of days to approve (1-' + daysRequested + ')');
+				showStyledAlert('Please enter a valid number of days to approve (1-' + daysRequested + ')', 'warning');
 				return;
 			}
 			
 			const payStatus = approvalType === 'with_pay' ? 'with pay' : 'without pay';
 			const confirmMessage = `Are you sure you want to approve ${approvedDays} day(s) ${payStatus}?\n\nThis will be the final approval for this leave request.`;
 			
-			if (confirm(confirmMessage)) {
-				// Disable the button to prevent multiple clicks
-				const approveButton = event.target;
-				approveButton.disabled = true;
-				approveButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
-				
-				// Create and show processing modal
-				const processingModalHtml = `
-					<div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 elms-modal-overlay">
-						<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4 elms-modal">
-							<div class="p-6 text-center">
-								<div class="mb-4">
-									<div class="inline-flex items-center justify-center w-16 h-16 bg-slate-700 rounded-full mb-4">
-										<i class="fas fa-spinner fa-spin text-blue-400 text-2xl"></i>
+			// Close the details modal first
+			closeDirectorApprovalModal();
+			
+			// Small delay to let the modal close, then show confirm
+			setTimeout(() => {
+				showStyledConfirm(confirmMessage, function(confirmed) {
+					if (confirmed) {
+						// Create and show processing modal
+					const processingModalHtml = `
+						<div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 elms-modal-overlay">
+							<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4 elms-modal">
+								<div class="p-6 text-center">
+									<div class="mb-4">
+										<div class="inline-flex items-center justify-center w-16 h-16 bg-slate-700 rounded-full mb-4">
+											<i class="fas fa-spinner fa-spin text-blue-400 text-2xl"></i>
+										</div>
+										<h3 class="text-lg font-semibold text-white mb-2">Processing Your Approval</h3>
+										<p class="text-slate-300 mb-4">Please wait while we process the final leave request approval...</p>
 									</div>
-									<h3 class="text-lg font-semibold text-white mb-2">Processing Your Approval</h3>
-									<p class="text-slate-300 mb-4">Please wait while we process the final leave request approval...</p>
-								</div>
-								<div class="flex items-center justify-center space-x-2 text-sm text-slate-400">
-									<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
-									<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-									<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+									<div class="flex items-center justify-center space-x-2 text-sm text-slate-400">
+										<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+										<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+										<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+									</div>
 								</div>
 							</div>
 						</div>
-					</div>
-				`;
-				
-				// Remove existing processing modal if any
-				const existingProcessingModal = document.getElementById('processingModal');
-				if (existingProcessingModal) {
-					existingProcessingModal.remove();
-				}
-				
-				// Add processing modal to body
-				document.body.insertAdjacentHTML('beforeend', processingModalHtml);
-				
-				// Add rendering delay: keep approval modal visible for 1.5 seconds
-				setTimeout(() => {
-					// Hide the approval modal
-					closeDirectorApprovalModal();
+					`;
 					
-					// Redirect to action URL after delay
-					const url = `../controllers/approve_leave.php?id=${requestId}&days=${approvedDays}&pay_status=${approvalType}`;
-					window.location.href = url;
-				}, 1500); // Keep approval modal visible for 1.5 seconds
-			}
+					// Remove existing processing modal if any
+					const existingProcessingModal = document.getElementById('processingModal');
+					if (existingProcessingModal) {
+						existingProcessingModal.remove();
+					}
+					
+					// Add processing modal to body
+					document.body.insertAdjacentHTML('beforeend', processingModalHtml);
+					
+					// Add rendering delay: keep approval modal visible for 1.5 seconds
+					setTimeout(() => {
+						// Hide the approval modal
+						closeDirectorApprovalModal();
+						
+						// Redirect to action URL after delay
+						const url = `../controllers/approve_leave.php?id=${requestId}&days=${approvedDays}&pay_status=${approvalType}`;
+						window.location.href = url;
+					}, 1500); // Keep approval modal visible for 1.5 seconds
+				}
+			}, 'info', 'Final Approval', 'Yes, Approve', 'Cancel');
+			}, 100);
 		}
 		
-		// Confirm Rejection (Final Step)
-		function confirmRejection(requestId) {
-			const rejectionReason = document.getElementById('rejectionReasonText').value.trim();
-			
-			if (!rejectionReason) {
-				alert('Please provide a reason for rejection.');
-				document.getElementById('rejectionReasonText').focus();
-				return;
-			}
-			
-			const confirmMessage = `Are you sure you want to reject this leave request?\n\nReason: ${rejectionReason}`;
-			
-			if (confirm(confirmMessage)) {
-				// Disable the button to prevent multiple clicks
-				const rejectButton = event.target;
-				rejectButton.disabled = true;
-				rejectButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
-				
-				// Create and show processing modal
-				const processingModalHtml = `
-					<div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-						<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4">
-							<div class="p-6 text-center">
-								<div class="mb-4">
-									<div class="inline-flex items-center justify-center w-16 h-16 bg-slate-700 rounded-full mb-4">
-										<i class="fas fa-spinner fa-spin text-blue-400 text-2xl"></i>
-									</div>
-									<h3 class="text-lg font-semibold text-white mb-2">Processing Your Rejection</h3>
-									<p class="text-slate-300 mb-4">Please wait while we process the leave request rejection...</p>
-								</div>
-								<div class="flex items-center justify-center space-x-2 text-sm text-slate-400">
-									<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
-									<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-									<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-								</div>
-							</div>
-						</div>
-					</div>
-				`;
-				
-				// Remove existing processing modal if any
-				const existingProcessingModal = document.getElementById('processingModal');
-				if (existingProcessingModal) {
-					existingProcessingModal.remove();
-				}
-				
-				// Add processing modal to body
-				document.body.insertAdjacentHTML('beforeend', processingModalHtml);
-				
-				// Add rendering delay: keep approval modal visible for 1.5 seconds
-				setTimeout(() => {
-					// Hide the approval modal
-					closeDirectorApprovalModal();
-					
-					// Submit the form after delay
-					const url = `../controllers/reject_leave.php?id=${requestId}`;
-					const form = document.createElement('form');
-					form.method = 'POST';
-					form.action = url;
-					
-					const reasonInput = document.createElement('input');
-					reasonInput.type = 'hidden';
-					reasonInput.name = 'reason';
-					reasonInput.value = rejectionReason;
-					
-					form.appendChild(reasonInput);
-					document.body.appendChild(form);
-					form.submit();
-				}, 1500); // Keep approval modal visible for 1.5 seconds
-			}
-		}
 		
 		
 		// Toggle form sections based on approval type
@@ -1078,5 +1049,6 @@ $leaveTypes = getLeaveTypes();
 		updateClock();
 		setInterval(updateClock, 1000);
 	</script>
+	<script src="../../../../assets/js/modal-alert.js"></script>
 
 <?php include '../../../../includes/director_footer.php'; ?>

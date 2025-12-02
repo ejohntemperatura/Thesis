@@ -28,7 +28,7 @@ try {
         WHERE lr.dept_head_approval = 'approved'
         AND lr.admin_approval = 'approved'
         AND (lr.director_approval IS NULL OR lr.director_approval = 'pending')
-        AND lr.status != 'rejected'
+        AND lr.status NOT IN ('rejected', 'cancelled')
         ORDER BY lr.is_late DESC, lr.created_at DESC 
         LIMIT " . intval($limit) . " OFFSET " . intval($offset)
     );

@@ -10,8 +10,44 @@ class PDFAttendanceGenerator {
     private $pdo;
     private $pdf;
     
+    // Standard work hours for late detection
+    const MORNING_START_TIME = '08:00:00'; // 8:00 AM
+    const AFTERNOON_START_TIME = '13:00:00'; // 1:00 PM
+    const LATE_GRACE_PERIOD_MINUTES = 15; // 15 minutes grace period
+    const STANDARD_WORK_HOURS = 8; // 8 hours standard
+    
     public function __construct($pdo) {
         $this->pdo = $pdo;
+    }
+    
+    /**
+     * Check if a time-in is late
+     */
+    private function checkIfLate($timeIn, $standardTime) {
+        if (!$timeIn) return ['is_late' => false, 'minutes_late' => 0];
+        
+        $timeInObj = new DateTime($timeIn);
+        $standardObj = new DateTime($timeInObj->format('Y-m-d') . ' ' . $standardTime);
+        $standardObj->modify('+' . self::LATE_GRACE_PERIOD_MINUTES . ' minutes');
+        
+        if ($timeInObj > $standardObj) {
+            $diff = $timeInObj->diff($standardObj);
+            $minutesLate = ($diff->h * 60) + $diff->i;
+            return ['is_late' => true, 'minutes_late' => $minutesLate];
+        }
+        return ['is_late' => false, 'minutes_late' => 0];
+    }
+    
+    /**
+     * Format late text
+     */
+    private function formatLateText($minutes) {
+        if ($minutes >= 60) {
+            $hours = floor($minutes / 60);
+            $mins = $minutes % 60;
+            return $hours . 'h ' . $mins . 'm';
+        }
+        return $minutes . 'm';
     }
     
     /**
@@ -174,6 +210,23 @@ class PDFAttendanceGenerator {
         $totalHours = array_sum(array_column($attendanceData, 'total_hours'));
         $avgHoursPerDay = $totalRecords > 0 ? $totalHours / $totalRecords : 0;
         
+        // Calculate late and overtime counts
+        $lateCount = 0;
+        $overtimeCount = 0;
+        $totalOvertimeHours = 0;
+        
+        foreach ($attendanceData as $record) {
+            $morningLate = $this->checkIfLate($record['morning_time_in'], self::MORNING_START_TIME);
+            $afternoonLate = $this->checkIfLate($record['afternoon_time_in'], self::AFTERNOON_START_TIME);
+            if ($morningLate['is_late'] || $afternoonLate['is_late']) {
+                $lateCount++;
+            }
+            if ($record['total_hours'] > self::STANDARD_WORK_HOURS) {
+                $overtimeCount++;
+                $totalOvertimeHours += ($record['total_hours'] - self::STANDARD_WORK_HOURS);
+            }
+        }
+        
         $this->pdf->SetFont('helvetica', 'B', 14);
         $this->pdf->SetFillColor(16, 185, 129);
         $this->pdf->SetTextColor(255, 255, 255);
@@ -195,6 +248,24 @@ class PDFAttendanceGenerator {
         
         $this->pdf->Cell(60, 8, 'Average Hours per Day', 1, 0, 'L', true);
         $this->pdf->Cell(30, 8, number_format($avgHoursPerDay, 2), 1, 0, 'C');
+        $this->pdf->Ln();
+        
+        // Late arrivals
+        $this->pdf->SetFillColor(254, 226, 226); // Light red
+        $this->pdf->Cell(60, 8, 'Late Arrivals', 1, 0, 'L', true);
+        $this->pdf->Cell(30, 8, $lateCount . ' days', 1, 0, 'C');
+        $this->pdf->Ln();
+        
+        // Overtime days
+        $this->pdf->SetFillColor(219, 234, 254); // Light blue
+        $this->pdf->Cell(60, 8, 'Overtime Days', 1, 0, 'L', true);
+        $this->pdf->Cell(30, 8, $overtimeCount . ' days', 1, 0, 'C');
+        $this->pdf->Ln();
+        
+        // Total overtime hours
+        $this->pdf->SetFillColor(207, 250, 254); // Light cyan
+        $this->pdf->Cell(60, 8, 'Total Overtime Hours (CTO Eligible)', 1, 0, 'L', true);
+        $this->pdf->Cell(30, 8, number_format($totalOvertimeHours, 2) . ' hrs', 1, 0, 'C');
         $this->pdf->Ln(15);
     }
     
@@ -229,22 +300,45 @@ class PDFAttendanceGenerator {
             $this->pdf->Ln(2);
             
             // Table header
-            $this->pdf->SetFont('helvetica', 'B', 7);
+            $this->pdf->SetFont('helvetica', 'B', 6);
             $this->pdf->SetFillColor(200, 200, 200);
             $this->pdf->SetTextColor(0, 0, 0);
-            $this->pdf->Cell(30, 8, 'Employee', 1, 0, 'C', true);
-            $this->pdf->Cell(18, 8, 'Date', 1, 0, 'C', true);
-            $this->pdf->Cell(18, 8, 'Morning In', 1, 0, 'C', true);
-            $this->pdf->Cell(18, 8, 'Morning Out', 1, 0, 'C', true);
-            $this->pdf->Cell(18, 8, 'Afternoon In', 1, 0, 'C', true);
-            $this->pdf->Cell(18, 8, 'Afternoon Out', 1, 0, 'C', true);
-            $this->pdf->Cell(12, 8, 'Total Hrs', 1, 0, 'C', true);
-            $this->pdf->Cell(28, 8, 'Status', 1, 0, 'C', true);
+            $this->pdf->Cell(25, 8, 'Employee', 1, 0, 'C', true);
+            $this->pdf->Cell(16, 8, 'Date', 1, 0, 'C', true);
+            $this->pdf->Cell(16, 8, 'AM In', 1, 0, 'C', true);
+            $this->pdf->Cell(16, 8, 'AM Out', 1, 0, 'C', true);
+            $this->pdf->Cell(16, 8, 'PM In', 1, 0, 'C', true);
+            $this->pdf->Cell(16, 8, 'PM Out', 1, 0, 'C', true);
+            $this->pdf->Cell(12, 8, 'Hours', 1, 0, 'C', true);
+            $this->pdf->Cell(22, 8, 'Status', 1, 0, 'C', true);
+            $this->pdf->Cell(21, 8, 'Remarks', 1, 0, 'C', true);
             $this->pdf->Ln();
             
             // Table data for this department
-            $this->pdf->SetFont('helvetica', '', 7);
+            $this->pdf->SetFont('helvetica', '', 6);
             foreach ($records as $record) {
+                // Check for late arrivals
+                $morningLate = $this->checkIfLate($record['morning_time_in'], self::MORNING_START_TIME);
+                $afternoonLate = $this->checkIfLate($record['afternoon_time_in'], self::AFTERNOON_START_TIME);
+                $hasLate = $morningLate['is_late'] || $afternoonLate['is_late'];
+                
+                // Check for overtime
+                $hasOvertime = $record['total_hours'] > self::STANDARD_WORK_HOURS;
+                $overtimeHours = $hasOvertime ? round($record['total_hours'] - self::STANDARD_WORK_HOURS, 1) : 0;
+                
+                // Build remarks
+                $remarks = [];
+                if ($hasLate) {
+                    $remarks[] = 'LATE';
+                }
+                if ($hasOvertime) {
+                    $remarks[] = 'OT +' . $overtimeHours . 'h';
+                }
+                if (empty($remarks) && $record['status'] === 'Complete') {
+                    $remarks[] = 'OK';
+                }
+                $remarksText = implode(', ', $remarks);
+                
                 // Format times in 12-hour format with AM/PM
                 $morningIn = $record['morning_time_in'] ? date('g:i A', strtotime($record['morning_time_in'])) : '-';
                 $morningOut = $record['morning_time_out'] ? date('g:i A', strtotime($record['morning_time_out'])) : '-';
@@ -254,19 +348,29 @@ class PDFAttendanceGenerator {
                 // Shorten status text to fit
                 $status = $record['status'];
                 if ($status == 'Half Day (Morning)') {
-                    $status = 'Half Day (AM)';
+                    $status = 'Half (AM)';
                 } elseif ($status == 'Half Day (Afternoon)') {
-                    $status = 'Half Day (PM)';
+                    $status = 'Half (PM)';
                 }
                 
-                $this->pdf->Cell(30, 8, substr($record['employee_name'], 0, 15), 1, 0, 'L');
-                $this->pdf->Cell(18, 8, date('m/d/Y', strtotime($record['date'])), 1, 0, 'C');
-                $this->pdf->Cell(18, 8, $morningIn, 1, 0, 'C');
-                $this->pdf->Cell(18, 8, $morningOut, 1, 0, 'C');
-                $this->pdf->Cell(18, 8, $afternoonIn, 1, 0, 'C');
-                $this->pdf->Cell(18, 8, $afternoonOut, 1, 0, 'C');
-                $this->pdf->Cell(12, 8, number_format($record['total_hours'], 1), 1, 0, 'C');
-                $this->pdf->Cell(28, 8, $status, 1, 0, 'C');
+                // Set row background color based on remarks
+                if ($hasLate) {
+                    $this->pdf->SetFillColor(254, 226, 226); // Light red for late
+                } elseif ($hasOvertime) {
+                    $this->pdf->SetFillColor(219, 234, 254); // Light blue for overtime
+                } else {
+                    $this->pdf->SetFillColor(255, 255, 255); // White for normal
+                }
+                
+                $this->pdf->Cell(25, 7, substr($record['employee_name'], 0, 12), 1, 0, 'L', true);
+                $this->pdf->Cell(16, 7, date('m/d/y', strtotime($record['date'])), 1, 0, 'C', true);
+                $this->pdf->Cell(16, 7, $morningIn, 1, 0, 'C', true);
+                $this->pdf->Cell(16, 7, $morningOut, 1, 0, 'C', true);
+                $this->pdf->Cell(16, 7, $afternoonIn, 1, 0, 'C', true);
+                $this->pdf->Cell(16, 7, $afternoonOut, 1, 0, 'C', true);
+                $this->pdf->Cell(12, 7, number_format($record['total_hours'], 1), 1, 0, 'C', true);
+                $this->pdf->Cell(22, 7, $status, 1, 0, 'C', true);
+                $this->pdf->Cell(21, 7, $remarksText, 1, 0, 'C', true);
                 $this->pdf->Ln();
             }
             

@@ -53,7 +53,8 @@ $leaveTypes = getLeaveTypes();
 $stmt = $pdo->prepare("
     SELECT lr.*, e.name as employee_name, e.service_credit_balance AS sc_balance,
            CASE 
-               WHEN lr.dept_head_approval = 'rejected' OR lr.director_approval = 'rejected' THEN 'rejected'
+               WHEN lr.status = 'cancelled' THEN 'cancelled'
+               WHEN lr.status = 'rejected' OR lr.dept_head_approval = 'rejected' OR lr.director_approval = 'rejected' THEN 'rejected'
                WHEN lr.dept_head_approval = 'approved' AND lr.director_approval = 'approved' THEN 'approved'
                ELSE 'pending'
            END as final_approval_status
@@ -544,8 +545,15 @@ $leave_requests = $stmt->fetchAll();
                                     <td class="px-3 md:px-6 py-4">
                                         <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide <?php 
                                             $final_status = $request['final_approval_status'] ?? $request['status'];
-                                            echo $final_status == 'approved' ? 'bg-green-500/20 text-green-400' : 
-                                                ($final_status == 'pending' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'); 
+                                            if ($final_status == 'approved') {
+                                                echo 'bg-green-500/20 text-green-400';
+                                            } elseif ($final_status == 'pending') {
+                                                echo 'bg-yellow-500/20 text-yellow-400';
+                                            } elseif ($final_status == 'cancelled') {
+                                                echo 'bg-slate-500/20 text-slate-400';
+                                            } else {
+                                                echo 'bg-red-500/20 text-red-400';
+                                            }
                                         ?>">
                                             <?php echo ucfirst($final_status); ?>
                                         </span>
@@ -965,9 +973,14 @@ $leave_requests = $stmt->fetchAll();
                                         <div class="text-center">
                                             <label class="text-sm font-medium text-slate-400 mb-2 block">Department Head</label>
                                             <div class="mb-2">
-                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(leave.dept_head_approval || 'pending')} border">
-                                                    ${(leave.dept_head_approval || 'pending').charAt(0).toUpperCase() + (leave.dept_head_approval || 'pending').slice(1)}
-                                                </span>
+                                                ${(() => {
+                                                    let deptStatus = leave.dept_head_approval || 'pending';
+                                                    if (leave.status === 'cancelled') deptStatus = 'cancelled';
+                                                    else if (leave.status === 'rejected' && deptStatus === 'pending') deptStatus = 'rejected';
+                                                    const cls = getStatusBadgeClass(deptStatus);
+                                                    const txt = deptStatus.charAt(0).toUpperCase() + deptStatus.slice(1);
+                                                    return `<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${cls} border">${txt}</span>`;
+                                                })()}
                                             </div>
                                             ${leave.dept_head_name ? `<p class="text-xs text-slate-400">by ${leave.dept_head_name}</p>` : ''}
                                             ${leave.dept_head_approved_at ? `<p class="text-xs text-slate-400">${new Date(leave.dept_head_approved_at).toLocaleDateString()}</p>` : ''}
@@ -978,10 +991,12 @@ $leave_requests = $stmt->fetchAll();
                                             <label class="text-sm font-medium text-slate-400 mb-2 block">HR</label>
                                             <div class="mb-2">
                                                 ${(() => {
-                                                    const hrStatus = (leave.dept_head_approval === 'rejected') ? 'rejected' : (leave.admin_approval || 'pending');
+                                                    let hrStatus = leave.admin_approval || 'pending';
+                                                    if (leave.status === 'cancelled') hrStatus = 'cancelled';
+                                                    else if (leave.dept_head_approval === 'rejected') hrStatus = 'rejected';
                                                     const cls = getStatusBadgeClass(hrStatus);
                                                     const txt = hrStatus.charAt(0).toUpperCase() + hrStatus.slice(1);
-                                                    return `<span class=\"inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${cls} border\">${txt}</span>`;
+                                                    return `<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${cls} border">${txt}</span>`;
                                                 })()}
                                             </div>
                                             ${leave.admin_name ? `<p class="text-xs text-slate-400">by ${leave.admin_name}</p>` : ''}
@@ -994,11 +1009,12 @@ $leave_requests = $stmt->fetchAll();
                                             <div class="mb-2">
                                                 ${(() => {
                                                     let dirStatus = leave.director_approval || 'pending';
-                                                    if (leave.dept_head_approval === 'rejected') dirStatus = 'rejected';
-                                                    else if (leave.admin_approval !== 'approved') dirStatus = 'pending';
+                                                    if (leave.status === 'cancelled') dirStatus = 'cancelled';
+                                                    else if (leave.dept_head_approval === 'rejected') dirStatus = 'rejected';
+                                                    else if (leave.admin_approval === 'rejected') dirStatus = 'rejected';
                                                     const cls = getStatusBadgeClass(dirStatus);
                                                     const txt = dirStatus.charAt(0).toUpperCase() + dirStatus.slice(1);
-                                                    return `<span class=\"inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${cls} border\">${txt}</span>`;
+                                                    return `<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${cls} border">${txt}</span>`;
                                                 })()}
                                             </div>
                                             ${leave.director_name ? `<p class="text-xs text-slate-400">by ${leave.director_name}</p>` : ''}
@@ -1202,5 +1218,6 @@ $leave_requests = $stmt->fetchAll();
         // Update pending leave count every 30 seconds
         setInterval(fetchPendingLeaveCount, 30000);
     </script>
+    <script src="../../../../assets/js/modal-alert.js"></script>
 </body>
 </html> 

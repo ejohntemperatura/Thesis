@@ -781,7 +781,11 @@ window.openNotificationModal = function(alertId, alertType, message, createdAt, 
     window.currentNotificationModal = modalOverlay;
     } catch (error) {
         console.error('Error opening notification modal:', error);
-        alert('Error opening notification: ' + error.message);
+        if (typeof showStyledAlert === 'function') {
+            showStyledAlert('Error opening notification: ' + error.message, 'error');
+        } else {
+            console.error('Error opening notification: ' + error.message);
+        }
     }
 }
 

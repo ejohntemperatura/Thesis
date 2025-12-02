@@ -90,7 +90,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (!isValid) {
                 e.preventDefault();
-                alert('Please fill in all required fields.');
+                if (typeof showStyledAlert === 'function') {
+                    showStyledAlert('Please fill in all required fields.', 'warning');
+                } else {
+                    alert('Please fill in all required fields.');
+                }
             }
         });
     });

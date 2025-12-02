@@ -241,10 +241,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if (!email || !password) {
                 e.preventDefault();
-                alert('Please fill in all fields.');
+                showStyledAlert('Please fill in all fields.', 'warning');
                 return;
             }
         });
     </script>
+    <script src="../../assets/js/modal-alert.js"></script>
 </body>
 </html> 

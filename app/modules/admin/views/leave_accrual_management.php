@@ -152,11 +152,21 @@ include '../../../../includes/admin_header.php';
                 <strong>Note:</strong> This will process monthly accrual for all eligible employees. Employees who have already received accrual this month will be skipped automatically.
             </p>
         </div>
-        <form method="POST" onsubmit="return confirm('Are you sure you want to trigger monthly accrual for all eligible employees?');">
-            <button type="submit" name="trigger_accrual" class="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl flex items-center">
+        <form method="POST" id="accrualForm">
+            <button type="button" onclick="confirmTriggerAccrual()" class="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl flex items-center">
                 <i class="fas fa-play mr-2"></i>Trigger Monthly Accrual Now
             </button>
+            <input type="hidden" name="trigger_accrual" value="1">
         </form>
+        <script>
+        function confirmTriggerAccrual() {
+            showStyledConfirm('Are you sure you want to trigger monthly accrual for all eligible employees?', function(confirmed) {
+                if (confirmed) {
+                    document.getElementById('accrualForm').submit();
+                }
+            }, 'warning', 'Trigger Monthly Accrual', 'Yes, Trigger', 'Cancel');
+        }
+        </script>
     </div>
 </div>
 

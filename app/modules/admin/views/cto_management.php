@@ -369,7 +369,7 @@ include '../../../../includes/admin_header.php';
             if (requiredGender && employeeGender !== requiredGender) {
                 const employeeName = selectedEmployee.getAttribute('data-name');
                 const leaveTypeName = selectedLeaveType.getAttribute('data-name');
-                alert(`Warning: ${leaveTypeName} is restricted to ${requiredGender} employees only. ${employeeName} is ${employeeGender}.`);
+                showStyledAlert(`Warning: ${leaveTypeName} is restricted to ${requiredGender} employees only. ${employeeName} is ${employeeGender}.`, 'warning');
             }
         }
         
@@ -378,10 +378,11 @@ include '../../../../includes/admin_header.php';
             const credits = parseFloat(document.getElementById('credits_input').value);
             if (credits <= 0) {
                 e.preventDefault();
-                alert('Credits to add must be greater than 0');
+                showStyledAlert('Credits to add must be greater than 0', 'warning');
                 return false;
             }
         });
     </script>
+    <script src="../../../../assets/js/modal-alert.js"></script>
     
 <?php include '../../../../includes/admin_footer.php'; ?>

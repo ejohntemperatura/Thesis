@@ -106,7 +106,7 @@ include '../../../../includes/department_header.php';
 								FROM leave_requests lr 
 								JOIN employees e ON lr.employee_id = e.id 
 								WHERE (lr.dept_head_approval IS NULL OR lr.dept_head_approval = 'pending')
-								AND lr.status != 'rejected'
+								AND lr.status NOT IN ('rejected', 'cancelled')
 								AND e.department = ?
 							");
 							$stmt->execute([$dept_head_department]);
@@ -120,7 +120,7 @@ include '../../../../includes/department_header.php';
 								FROM leave_requests lr 
 								JOIN employees e ON lr.employee_id = e.id 
 								WHERE (lr.dept_head_approval IS NULL OR lr.dept_head_approval = 'pending')
-								AND lr.status != 'rejected'
+								AND lr.status NOT IN ('rejected', 'cancelled')
 								AND e.department = ?
 								ORDER BY lr.is_late DESC, lr.created_at DESC 
 								LIMIT " . intval($initial_limit)
@@ -654,20 +654,13 @@ include '../../../../includes/department_header.php';
 												<i class="fas fa-times mr-2"></i>Cancel
 											</button>
 											
-											<!-- Initial Action Buttons -->
+											<!-- Action Buttons -->
 											<div id="initialActionButtons">
 												<button onclick="approveRequest(${requestId})" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors">
 													<i class="fas fa-check mr-2"></i>Approve Request
 												</button>
-												<button onclick="showRejectionOptions()" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors">
+												<button onclick="showRejectionOptions(${requestId})" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors">
 													<i class="fas fa-times mr-2"></i>Reject Request
-												</button>
-											</div>
-											
-											<!-- Rejection Action Button -->
-											<div id="rejectionActionButton" style="display: none;">
-												<button onclick="rejectRequest(${requestId})" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors">
-													<i class="fas fa-times mr-2"></i>Submit Rejection
 												</button>
 											</div>
 										</div>
@@ -700,12 +693,12 @@ include '../../../../includes/department_header.php';
 						}, 100);
 					} else {
 						console.error('API Error:', data);
-						alert('Error loading leave request details: ' + (data.message || 'Unknown error'));
+						showStyledAlert('Error loading leave request details: ' + (data.message || 'Unknown error'), 'error');
 					}
 				})
 				.catch(error => {
 					console.error('Fetch Error:', error);
-					alert('Error loading leave request details: ' + error.message);
+					showStyledAlert('Error loading leave request details: ' + error.message, 'error');
 				});
 		}
 
@@ -716,155 +709,150 @@ include '../../../../includes/department_header.php';
 			}
 		}
 
-		function showRejectionOptions() {
-			document.getElementById('rejectionOptionsSection').style.display = 'block';
-			document.getElementById('initialActionButtons').style.display = 'none';
-			document.getElementById('rejectionActionButton').style.display = 'inline-block';
+		function showRejectionOptions(requestId) {
+			// Close the details modal first
+			closeDepartmentApprovalModal();
+			
+			// Small delay to let the modal close, then show styled rejection modal
+			setTimeout(() => {
+				showRejectionReasonModal('Department Head Rejection', function(reason) {
+					if (reason) {
+						submitDeptRejection(requestId, reason);
+					}
+				});
+			}, 100);
+		}
+		
+		function submitDeptRejection(requestId, reason) {
+			// Create and show processing modal
+			const processingModalHtml = `
+				<div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+					<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4">
+						<div class="p-6 text-center">
+							<div class="mb-4">
+								<div class="inline-flex items-center justify-center w-16 h-16 bg-slate-700 rounded-full mb-4">
+									<i class="fas fa-spinner fa-spin text-blue-400 text-2xl"></i>
+								</div>
+								<h3 class="text-lg font-semibold text-white mb-2">Processing Your Rejection</h3>
+								<p class="text-slate-300 mb-4">Please wait while we process the leave request rejection...</p>
+							</div>
+							<div class="flex items-center justify-center space-x-2 text-sm text-slate-400">
+								<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+								<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+								<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+							</div>
+						</div>
+					</div>
+				</div>
+			`;
+			
+			// Remove existing processing modal if any
+			const existingProcessingModal = document.getElementById('processingModal');
+			if (existingProcessingModal) {
+				existingProcessingModal.remove();
+			}
+			
+			// Add processing modal to body
+			document.body.insertAdjacentHTML('beforeend', processingModalHtml);
+			
+			// Submit the form after delay
+			setTimeout(() => {
+				const form = document.createElement('form');
+				form.method = 'POST';
+				form.action = 'approve_leave.php';
+				
+				const requestIdInput = document.createElement('input');
+				requestIdInput.type = 'hidden';
+				requestIdInput.name = 'request_id';
+				requestIdInput.value = requestId;
+				
+				const actionInput = document.createElement('input');
+				actionInput.type = 'hidden';
+				actionInput.name = 'action';
+				actionInput.value = 'reject';
+				
+				const reasonInput = document.createElement('input');
+				reasonInput.type = 'hidden';
+				reasonInput.name = 'reason';
+				reasonInput.value = reason;
+				
+				form.appendChild(requestIdInput);
+				form.appendChild(actionInput);
+				form.appendChild(reasonInput);
+				document.body.appendChild(form);
+				form.submit();
+			}, 500);
 		}
 
 		function approveRequest(requestId) {
-			if (confirm('Are you sure you want to approve this leave request?')) {
-				// Disable the button to prevent multiple clicks
-				const approveButton = event.target;
-				approveButton.disabled = true;
-				approveButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
-				
-				// Create and show processing modal
-				const processingModalHtml = `
-					<div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 elms-modal-overlay">
-						<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4 elms-modal">
-							<div class="p-6 text-center">
-								<div class="mb-4">
-									<div class="inline-flex items-center justify-center w-16 h-16 bg-slate-700 rounded-full mb-4">
-										<i class="fas fa-spinner fa-spin text-blue-400 text-2xl"></i>
+			// Close the details modal first
+			closeDepartmentApprovalModal();
+			
+			// Small delay to let the modal close, then show confirm
+			setTimeout(() => {
+				showStyledConfirm('Are you sure you want to approve this leave request?', function(confirmed) {
+					if (confirmed) {
+						// Create and show processing modal
+					const processingModalHtml = `
+						<div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 elms-modal-overlay">
+							<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4 elms-modal">
+								<div class="p-6 text-center">
+									<div class="mb-4">
+										<div class="inline-flex items-center justify-center w-16 h-16 bg-slate-700 rounded-full mb-4">
+											<i class="fas fa-spinner fa-spin text-blue-400 text-2xl"></i>
+										</div>
+										<h3 class="text-lg font-semibold text-white mb-2">Processing Your Approval</h3>
+										<p class="text-slate-300 mb-4">Please wait while we process the leave request approval...</p>
 									</div>
-									<h3 class="text-lg font-semibold text-white mb-2">Processing Your Approval</h3>
-									<p class="text-slate-300 mb-4">Please wait while we process the leave request approval...</p>
-								</div>
-								<div class="flex items-center justify-center space-x-2 text-sm text-slate-400">
-									<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
-									<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-									<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+									<div class="flex items-center justify-center space-x-2 text-sm text-slate-400">
+										<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+										<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+										<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+									</div>
 								</div>
 							</div>
 						</div>
-					</div>
-				`;
-				
-				// Remove existing processing modal if any
-				const existingProcessingModal = document.getElementById('processingModal');
-				if (existingProcessingModal) {
-					existingProcessingModal.remove();
+					`;
+					
+					// Remove existing processing modal if any
+					const existingProcessingModal = document.getElementById('processingModal');
+					if (existingProcessingModal) {
+						existingProcessingModal.remove();
+					}
+					
+					// Add processing modal to body
+					document.body.insertAdjacentHTML('beforeend', processingModalHtml);
+					
+					// Add rendering delay: keep approval modal visible for 1.5 seconds
+					setTimeout(() => {
+						// Hide the approval modal
+						closeDepartmentApprovalModal();
+						
+						// Submit the form after delay
+						const form = document.createElement('form');
+						form.method = 'POST';
+						form.action = 'approve_leave.php';
+						
+						const requestIdInput = document.createElement('input');
+						requestIdInput.type = 'hidden';
+						requestIdInput.name = 'request_id';
+						requestIdInput.value = requestId;
+						
+						const actionInput = document.createElement('input');
+						actionInput.type = 'hidden';
+						actionInput.name = 'action';
+						actionInput.value = 'approve';
+						
+						form.appendChild(requestIdInput);
+						form.appendChild(actionInput);
+						document.body.appendChild(form);
+						form.submit();
+					}, 1500); // Keep approval modal visible for 1.5 seconds
 				}
-				
-				// Add processing modal to body
-				document.body.insertAdjacentHTML('beforeend', processingModalHtml);
-				
-				// Add rendering delay: keep approval modal visible for 1.5 seconds
-				setTimeout(() => {
-					// Hide the approval modal
-					closeDepartmentApprovalModal();
-					
-					// Submit the form after delay
-					const form = document.createElement('form');
-					form.method = 'POST';
-					form.action = 'approve_leave.php';
-					
-					const requestIdInput = document.createElement('input');
-					requestIdInput.type = 'hidden';
-					requestIdInput.name = 'request_id';
-					requestIdInput.value = requestId;
-					
-					const actionInput = document.createElement('input');
-					actionInput.type = 'hidden';
-					actionInput.name = 'action';
-					actionInput.value = 'approve';
-					
-					form.appendChild(requestIdInput);
-					form.appendChild(actionInput);
-					document.body.appendChild(form);
-					form.submit();
-				}, 1500); // Keep approval modal visible for 1.5 seconds
-			}
+			}, 'info', 'Approve Leave Request', 'Yes, Approve', 'Cancel');
+			}, 100);
 		}
 
-		function rejectRequest(requestId) {
-			const reason = document.getElementById('rejectionReasonText').value.trim();
-			if (!reason) {
-				alert('Please provide a reason for rejection');
-				return;
-			}
-			
-			if (confirm('Are you sure you want to reject this leave request?')) {
-				// Disable the button to prevent multiple clicks
-				const rejectButton = event.target;
-				rejectButton.disabled = true;
-				rejectButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
-				
-				// Create and show processing modal
-				const processingModalHtml = `
-					<div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-						<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4">
-							<div class="p-6 text-center">
-								<div class="mb-4">
-									<div class="inline-flex items-center justify-center w-16 h-16 bg-slate-700 rounded-full mb-4">
-										<i class="fas fa-spinner fa-spin text-blue-400 text-2xl"></i>
-									</div>
-									<h3 class="text-lg font-semibold text-white mb-2">Processing Your Rejection</h3>
-									<p class="text-slate-300 mb-4">Please wait while we process the leave request rejection...</p>
-								</div>
-								<div class="flex items-center justify-center space-x-2 text-sm text-slate-400">
-									<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
-									<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-									<div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-								</div>
-							</div>
-						</div>
-					</div>
-				`;
-				
-				// Remove existing processing modal if any
-				const existingProcessingModal = document.getElementById('processingModal');
-				if (existingProcessingModal) {
-					existingProcessingModal.remove();
-				}
-				
-				// Add processing modal to body
-				document.body.insertAdjacentHTML('beforeend', processingModalHtml);
-				
-				// Add rendering delay: keep approval modal visible for 1.5 seconds
-				setTimeout(() => {
-					// Hide the approval modal
-					closeDepartmentApprovalModal();
-					
-					// Submit the form after delay
-					const form = document.createElement('form');
-					form.method = 'POST';
-					form.action = 'approve_leave.php';
-					
-					const requestIdInput = document.createElement('input');
-					requestIdInput.type = 'hidden';
-					requestIdInput.name = 'request_id';
-					requestIdInput.value = requestId;
-					
-					const actionInput = document.createElement('input');
-					actionInput.type = 'hidden';
-					actionInput.name = 'action';
-					actionInput.value = 'reject';
-					
-					const reasonInput = document.createElement('input');
-					reasonInput.type = 'hidden';
-					reasonInput.name = 'reason';
-					reasonInput.value = reason;
-					
-					form.appendChild(requestIdInput);
-					form.appendChild(actionInput);
-					form.appendChild(reasonInput);
-					document.body.appendChild(form);
-					form.submit();
-				}, 1500); // Keep approval modal visible for 1.5 seconds
-			}
-		}
 		
 		// Function to show conditional details based on leave type
 		function showConditionalDetails(leaveType) {
@@ -1050,5 +1038,6 @@ include '../../../../includes/department_header.php';
 		updateClock();
 		setInterval(updateClock, 1000);
 	</script>
+	<script src="../../../../assets/js/modal-alert.js"></script>
 
 <?php include '../../../../includes/department_footer.php'; ?>
