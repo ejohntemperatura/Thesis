@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once '../../../../config/database.php';
+require_once '../../../../app/core/services/EmailService.php';
 
 // Ensure user is HR/Admin
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
@@ -38,7 +39,41 @@ try {
     $stmt = $pdo->prepare("UPDATE leave_requests SET admin_approval = 'rejected', admin_approved_by = ?, admin_approved_at = NOW(), admin_approval_notes = ?, status = 'rejected', rejected_by = ?, rejected_at = NOW() WHERE id = ?");
     $stmt->execute([$_SESSION['user_id'], $reason, $_SESSION['user_id'], $request_id]);
 
+    // Fetch employee details for email notification
+    $empStmt = $pdo->prepare("SELECT e.name AS employee_name, e.email AS employee_email FROM leave_requests lr JOIN employees e ON lr.employee_id = e.id WHERE lr.id = ?");
+    $empStmt->execute([$request_id]);
+    $emp = $empStmt->fetch(PDO::FETCH_ASSOC);
+
+    // Fetch rejector (HR) name
+    $rejectorStmt = $pdo->prepare("SELECT name FROM employees WHERE id = ?");
+    $rejectorStmt->execute([$_SESSION['user_id']]);
+    $rejectorName = $rejectorStmt->fetchColumn();
+
     $pdo->commit();
+
+    // Send email notification to employee about rejection
+    if ($emp && filter_var($emp['employee_email'], FILTER_VALIDATE_EMAIL)) {
+        try {
+            $emailService = new EmailService();
+            $emailService->sendLeaveStatusNotification(
+                $emp['employee_email'],
+                $emp['employee_name'],
+                'rejected',
+                date('M d, Y', strtotime($request['start_date'])),
+                date('M d, Y', strtotime($request['end_date'])),
+                $request['leave_type'] ?? null,
+                $rejectorName ?: 'HR',
+                'admin',
+                null,
+                $request['original_leave_type'] ?? null,
+                $reason
+            );
+        } catch (Exception $ex) {
+            // Log but do not block flow
+            error_log('HR rejection email failed: ' . $ex->getMessage());
+        }
+    }
+
     $_SESSION['success'] = 'Leave request rejected by HR.';
 } catch (Exception $e) {
     $pdo->rollBack();

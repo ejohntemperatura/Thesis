@@ -33,7 +33,7 @@ $normalizeLeaveType = function($type) {
         $t = 'service_credit';
     }
     // Singularize simple trailing s if known type missing
-    $known = ['vacation','sick','special_privilege','maternity','paternity','solo_parent','vawc','special_women','rehabilitation','study','terminal','cto','service_credit','without_pay'];
+    $known = ['vacation','sick','special_privilege','maternity','paternity','solo_parent','vawc','special_women','rehabilitation','study','terminal','cto','service_credit','without_pay','special_emergency','adoption','mandatory'];
     if (!in_array($t,$known,true) && substr($t,-1) === 's') {
         $s = rtrim($t,'s');
         if (in_array($s,$known,true)) { $t = $s; }
@@ -41,20 +41,32 @@ $normalizeLeaveType = function($type) {
     return $t;
 };
 $leave_type = $normalizeLeaveType($leave_type);
-// Ensure DB enum supports new leave types like service_credit to avoid blank labels
+// Ensure DB enum supports new leave types to avoid blank labels
 try {
     $colStmt = $pdo->query("SHOW COLUMNS FROM leave_requests LIKE 'leave_type'");
     $col = $colStmt->fetch(PDO::FETCH_ASSOC);
     if ($col && isset($col['Type'])) {
         $typeDef = $col['Type']; // e.g., enum('vacation','sick',...)
-        if (stripos($typeDef, "'service_credit'") === false) {
-            // Extract existing enum values and append service_credit safely
-            if (preg_match("/enum\((.*)\)/i", $typeDef, $m)) {
-                $vals = $m[1];
-                $newVals = $vals . ",'service_credit'";
-                $alterSql = "ALTER TABLE leave_requests MODIFY leave_type enum(" . $newVals . ") NOT NULL";
-                $pdo->exec($alterSql);
+        $needsUpdate = false;
+        $newTypes = [];
+        
+        // List of leave types that may need to be added to the enum
+        $requiredTypes = ['service_credit', 'special_emergency', 'adoption', 'mandatory'];
+        
+        foreach ($requiredTypes as $reqType) {
+            if (stripos($typeDef, "'" . $reqType . "'") === false) {
+                $newTypes[] = $reqType;
+                $needsUpdate = true;
             }
+        }
+        
+        if ($needsUpdate && preg_match("/enum\((.*)\)/i", $typeDef, $m)) {
+            $vals = $m[1];
+            foreach ($newTypes as $newType) {
+                $vals .= ",'" . $newType . "'";
+            }
+            $alterSql = "ALTER TABLE leave_requests MODIFY leave_type enum(" . $vals . ") NOT NULL";
+            $pdo->exec($alterSql);
         }
     }
 } catch (Exception $e) {

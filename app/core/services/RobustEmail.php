@@ -171,15 +171,22 @@ class RobustEmail {
     
     /**
      * Send email verification to new user
+     * @param string $userEmail User's email address
+     * @param string $userName User's name
+     * @param string $verificationToken Verification token
+     * @param int|null $employeeId Employee ID (only shown for 'employee' role)
+     * @param string $role User's role (employee, manager, director, admin)
      */
-    public function sendVerificationEmail($userEmail, $userName, $verificationToken, $employeeId = null) {
+    public function sendVerificationEmail($userEmail, $userName, $verificationToken, $employeeId = null, $role = 'employee') {
         try {
             // Build verification link
             $baseUrl = $this->getBaseUrl();
             $verificationLink = $baseUrl . '/auth/views/verify_email.php?token=' . $verificationToken;
             
             $subject = 'Verify Your Email - ELMS System';
-            $body = $this->getVerificationEmailTemplate($userName, $verificationLink, $employeeId);
+            // Only pass employeeId for 'employee' role
+            $showEmployeeId = ($role === 'employee') ? $employeeId : null;
+            $body = $this->getVerificationEmailTemplate($userName, $verificationLink, $showEmployeeId);
             
             return $this->sendEmail($userEmail, $subject, $body, true);
             
@@ -191,11 +198,18 @@ class RobustEmail {
     
     /**
      * Send welcome email after verification
+     * @param string $userEmail User's email address
+     * @param string $userName User's name
+     * @param string $temporaryPassword Temporary password (not used anymore, kept for compatibility)
+     * @param int|null $employeeId Employee ID (only shown for 'employee' role)
+     * @param string $role User's role (employee, manager, director, admin)
      */
-    public function sendWelcomeEmail($userEmail, $userName, $temporaryPassword, $employeeId = null) {
+    public function sendWelcomeEmail($userEmail, $userName, $temporaryPassword, $employeeId = null, $role = 'employee') {
         try {
             $subject = 'Welcome to ELMS System - Account Verified';
-            $body = $this->getWelcomeEmailTemplate($userName, $temporaryPassword, $employeeId);
+            // Only pass employeeId for 'employee' role
+            $showEmployeeId = ($role === 'employee') ? $employeeId : null;
+            $body = $this->getWelcomeEmailTemplate($userName, $temporaryPassword, $showEmployeeId);
             
             return $this->sendEmail($userEmail, $subject, $body, true);
             

@@ -116,6 +116,45 @@ function getLeaveTypes() {
         'commutable' => false,
         'requires_medical_certificate' => true
     ],
+    'special_emergency' => [
+        'name' => 'Special Emergency Leave (Calamity)',
+        'icon' => 'fas fa-house-damage',
+        'color' => 'bg-amber-600',
+        'requires_credits' => true,
+        'credit_field' => 'special_emergency_leave_balance',
+        'description' => 'Up to 5 days for employees affected by natural calamities or disasters',
+        'annual_credits' => 5,
+        'cumulative' => false,
+        'commutable' => false,
+        'requires_documentation' => true,
+        'always_show' => true  // Always show in dropdown since it's for emergencies
+    ],
+    'adoption' => [
+        'name' => 'Adoption Leave',
+        'icon' => 'fas fa-hands-holding-child',
+        'color' => 'bg-teal-500',
+        'requires_credits' => true,
+        'credit_field' => 'adoption_leave_balance',
+        'description' => '60 days leave for employees who legally adopt a child below 7 years old',
+        'annual_credits' => 60,
+        'cumulative' => false,
+        'commutable' => false,
+        'requires_documentation' => true,
+        'always_show' => true
+    ],
+    'mandatory' => [
+        'name' => 'Mandatory/Force Leave',
+        'icon' => 'fas fa-calendar-xmark',
+        'color' => 'bg-slate-600',
+        'requires_credits' => true,
+        'credit_field' => 'mandatory_leave_balance',
+        'description' => '5 days mandatory leave per year (deducted from VL credits) as per CSC rules',
+        'annual_credits' => 5,
+        'cumulative' => false,
+        'commutable' => false,
+        'deduct_from_vacation' => true,
+        'always_show' => true
+    ],
     'study' => [
         'name' => 'Study Leave',
         'name_with_note' => 'Study Leave (Without Pay)',

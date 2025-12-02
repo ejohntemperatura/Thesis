@@ -145,7 +145,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     require_once '../../../../app/core/services/RobustEmail.php';
                     $emailService = new RobustEmail($pdo);
                     
-                    if ($emailService->sendVerificationEmail($email, $name, $verificationToken, $userId)) {
+                    // Only show Employee ID in email for 'employee' role
+                    if ($emailService->sendVerificationEmail($email, $name, $verificationToken, $userId, $role)) {
                         $_SESSION['success'] = "User added successfully! A verification email has been sent to {$email}";
                     } else {
                         $_SESSION['success'] = "User added successfully! However, there was an issue sending the verification email. Please contact the user directly.";
@@ -186,11 +187,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $role = $_POST['role'] ?? 'employee';
                 $gender = isset($_POST['gender']) && in_array($_POST['gender'], ['male','female']) ? $_POST['gender'] : 'male';
                 $isSoloParent = isset($_POST['is_solo_parent']) ? 1 : 0;
-                // Fused VL/SL/SLP eligibility in Edit
-                $eligibleCombined = isset($_POST['eligible_vl_sl']) ? 1 : 0;
-                $vacationNew = $eligibleCombined ? 15 : 0;
-                $sickNew = $eligibleCombined ? 10 : 0;
-                $slpNew = $eligibleCombined ? 3 : 0;
+                // VL/SL/SLP eligibility checkbox
+                $eligibleVLSL = isset($_POST['eligible_vl_sl']) ? 1 : 0;
                 $address = trim($_POST['address'] ?? '');
                 $maritalStatus = isset($_POST['marital_status']) && in_array($_POST['marital_status'], ['single','married','widowed','separated']) ? $_POST['marital_status'] : null;
                 
@@ -237,45 +235,108 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $hasServiceCredit = in_array('service_credit_balance', $cols);
                     } catch (Exception $e) {}
 
+                    // Get current employee data to check eligibility status
+                    $currentStmt = $pdo->prepare("SELECT vacation_leave_balance, sick_leave_balance, special_leave_privilege_balance FROM employees WHERE id = ?");
+                    $currentStmt->execute([$id]);
+                    $currentData = $currentStmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    // Determine leave balance updates based on eligibility checkbox
+                    $vacationBal = null;
+                    $sickBal = null;
+                    $slpBal = null;
+                    
+                    if ($role === 'employee') {
+                        $currentVac = floatval($currentData['vacation_leave_balance'] ?? 0);
+                        $currentSick = floatval($currentData['sick_leave_balance'] ?? 0);
+                        $currentSlp = floatval($currentData['special_leave_privilege_balance'] ?? 0);
+                        $wasEligible = ($currentVac > 0 || $currentSick > 0 || $currentSlp > 0);
+                        
+                        if ($eligibleVLSL && !$wasEligible) {
+                            // Enabling eligibility - set initial balances
+                            $vacationBal = 1.25;
+                            $sickBal = 1.25;
+                            $slpBal = 3;
+                        } elseif (!$eligibleVLSL && $wasEligible) {
+                            // Disabling eligibility - set balances to 0
+                            $vacationBal = 0;
+                            $sickBal = 0;
+                            $slpBal = 0;
+                        }
+                        // If eligibility status unchanged, leave balances as-is (managed by accrual system)
+                    }
+
                     if ($role === 'employee') {
                         // Build dynamic SQL to include service_credit_balance when available
                         if ($hasServiceCredit) {
-                            // Additive update for both CTO and service credits
-                            $stmt = $pdo->prepare("
-                                UPDATE employees 
-                                SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
-                                    is_solo_parent = ?, vacation_leave_balance = ?, sick_leave_balance = ?, special_leave_privilege_balance = ?, 
-                                    cto_balance = cto_balance + ?, service_credit_balance = service_credit_balance + ?
-                                WHERE id = ?
-                            ");
-                            $stmt->execute([
-                                $name, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
-                                $isSoloParent, 
-                                $vacationNew,
-                                $sickNew,
-                                $slpNew,
-                                ($ctoBal !== null ? $ctoBal : 0),
-                                ($serviceBal !== null ? $serviceBal : 0),
-                                $id
-                            ]);
+                            if ($vacationBal !== null) {
+                                // Update with leave balances
+                                $stmt = $pdo->prepare("
+                                    UPDATE employees 
+                                    SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
+                                        is_solo_parent = ?, 
+                                        vacation_leave_balance = ?, sick_leave_balance = ?, special_leave_privilege_balance = ?,
+                                        cto_balance = cto_balance + ?, service_credit_balance = service_credit_balance + ?
+                                    WHERE id = ?
+                                ");
+                                $stmt->execute([
+                                    $name, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
+                                    $isSoloParent, 
+                                    $vacationBal, $sickBal, $slpBal,
+                                    ($ctoBal !== null ? $ctoBal : 0),
+                                    ($serviceBal !== null ? $serviceBal : 0),
+                                    $id
+                                ]);
+                            } else {
+                                // Additive update for CTO and service credits only (leave balances unchanged)
+                                $stmt = $pdo->prepare("
+                                    UPDATE employees 
+                                    SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
+                                        is_solo_parent = ?, 
+                                        cto_balance = cto_balance + ?, service_credit_balance = service_credit_balance + ?
+                                    WHERE id = ?
+                                ");
+                                $stmt->execute([
+                                    $name, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
+                                    $isSoloParent, 
+                                    ($ctoBal !== null ? $ctoBal : 0),
+                                    ($serviceBal !== null ? $serviceBal : 0),
+                                    $id
+                                ]);
+                            }
                         } else {
-                            // Additive update for CTO only (no service_credit_balance column)
-                            $stmt = $pdo->prepare("
-                                UPDATE employees 
-                                SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
-                                    is_solo_parent = ?, vacation_leave_balance = ?, sick_leave_balance = ?, special_leave_privilege_balance = ?, 
-                                    cto_balance = cto_balance + ?
-                                WHERE id = ?
-                            ");
-                            $stmt->execute([
-                                $name, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
-                                $isSoloParent, 
-                                $vacationNew,
-                                $sickNew,
-                                $slpNew,
-                                ($ctoBal !== null ? $ctoBal : 0),
-                                $id
-                            ]);
+                            if ($vacationBal !== null) {
+                                // Update with leave balances (no service_credit_balance column)
+                                $stmt = $pdo->prepare("
+                                    UPDATE employees 
+                                    SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
+                                        is_solo_parent = ?, 
+                                        vacation_leave_balance = ?, sick_leave_balance = ?, special_leave_privilege_balance = ?,
+                                        cto_balance = cto_balance + ?
+                                    WHERE id = ?
+                                ");
+                                $stmt->execute([
+                                    $name, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
+                                    $isSoloParent, 
+                                    $vacationBal, $sickBal, $slpBal,
+                                    ($ctoBal !== null ? $ctoBal : 0),
+                                    $id
+                                ]);
+                            } else {
+                                // Additive update for CTO only (no service_credit_balance column)
+                                $stmt = $pdo->prepare("
+                                    UPDATE employees 
+                                    SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
+                                        is_solo_parent = ?, 
+                                        cto_balance = cto_balance + ?
+                                    WHERE id = ?
+                                ");
+                                $stmt->execute([
+                                    $name, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
+                                    $isSoloParent, 
+                                    ($ctoBal !== null ? $ctoBal : 0),
+                                    $id
+                                ]);
+                            }
                         }
                     } else {
                         // Do not alter VL/SL for non-employee roles

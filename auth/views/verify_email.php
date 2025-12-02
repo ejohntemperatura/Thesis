@@ -104,9 +104,10 @@ try {
         // Commit transaction
         $pdo->commit();
         
-        // Send welcome email
+        // Send welcome email (only show Employee ID for 'employee' role)
         $emailService = new RobustEmail($pdo);
-        $emailService->sendWelcomeEmail($user['email'], $user['name'], '', $user['id']);
+        $userRole = $user['role'] ?? 'employee';
+        $emailService->sendWelcomeEmail($user['email'], $user['name'], '', $user['id'], $userRole);
         
         $success_message = "Email verified successfully! Your account is now active. You can now log in with your email and password.";
         $user_name = $user['name'];

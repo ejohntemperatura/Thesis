@@ -209,8 +209,9 @@ include '../../../../includes/user_header.php';
                                     // Solo parent visibility
                                     if ($type === 'solo_parent' && (int)($employee['is_solo_parent'] ?? 0) !== 1) continue;
                                     // Credit availability: if requires credits, only show when employee has > 0 balance
+                                    // Exception: always_show flag bypasses credit check (for emergency leaves)
                                     $show = true;
-                                    if (!empty($config['requires_credits'])) {
+                                    if (!empty($config['requires_credits']) && empty($config['always_show'])) {
                                         $creditField = $config['credit_field'] ?? null;
                                         if ($creditField && isset($employee[$creditField])) {
                                             $show = ((float)$employee[$creditField]) > 0;
@@ -442,8 +443,9 @@ include '../../../../includes/user_header.php';
                                     // Solo parent visibility
                                     if ($type === 'solo_parent' && (int)($employee['is_solo_parent'] ?? 0) !== 1) continue;
                                     // Credit availability: if requires credits, only show when employee has > 0 balance
+                                    // Exception: always_show flag bypasses credit check (for emergency leaves)
                                     $showLate = true;
-                                    if (!empty($config['requires_credits'])) {
+                                    if (!empty($config['requires_credits']) && empty($config['always_show'])) {
                                         $creditField = $config['credit_field'] ?? null;
                                         if ($creditField && isset($employee[$creditField])) {
                                             $showLate = ((float)$employee[$creditField]) > 0;
