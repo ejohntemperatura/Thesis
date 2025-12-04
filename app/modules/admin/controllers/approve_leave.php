@@ -70,7 +70,10 @@ try {
                 'admin',
                 $request['approved_days'] ?? null,
                 $request['original_leave_type'] ?? null,
-                null
+                null,
+                $request['selected_dates'] ?? null,
+                $request['working_days_applied'] ?? null,
+                $request['other_purpose'] ?? null
             );
         } catch (Exception $ex) {
             // Log but do not block flow

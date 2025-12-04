@@ -91,7 +91,11 @@ if (false) { // Disabled bulk actions
                         null,
                         null,
                         null,
-                        $request['original_leave_type'] ?? null
+                        $request['original_leave_type'] ?? null,
+                        null,
+                        $request['selected_dates'] ?? null,
+                        $request['working_days_applied'] ?? null,
+                        $request['other_purpose'] ?? null
                     );
                 }
                 
@@ -414,10 +418,10 @@ include '../../../../includes/admin_header.php';
                                                 <td class="py-4 px-4">
                                                     <span class="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-primary/20 text-primary border border-primary/30">
                                                         <?php 
-                                                            $disp = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes);
+                                                            $disp = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes, $request['other_purpose'] ?? null);
                                                             if (!isset($disp) || trim($disp) === '') {
                                                                 $base = $request['original_leave_type'] ?? ($request['leave_type'] ?? '');
-                                                                $disp = getLeaveTypeDisplayName($base, null, $leaveTypes);
+                                                                $disp = getLeaveTypeDisplayName($base, null, $leaveTypes, $request['other_purpose'] ?? null);
                                                                 if (!isset($disp) || trim($disp) === '') {
                                                                     // Try to infer based on available fields
                                                                     if (!empty($request['study_type'])) {
@@ -442,43 +446,54 @@ include '../../../../includes/admin_header.php';
                                                     </span>
                                                 </td>
                                                 <td class="py-4 px-4 text-slate-300">
-                                                    <div class="flex flex-wrap gap-1">
-                                                        <?php 
-                                                        $allDates = [];
-                                                        if (!empty($request['selected_dates'])) {
-                                                            $allDates = explode(',', $request['selected_dates']);
-                                                        } else {
-                                                            // Generate date range for older records
-                                                            $start = new DateTime($request['start_date']);
-                                                            $end = new DateTime($request['end_date']);
-                                                            $current = clone $start;
-                                                            while ($current <= $end) {
-                                                                $dayOfWeek = (int)$current->format('N');
-                                                                if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
-                                                                    $allDates[] = $current->format('Y-m-d');
+                                                    <?php if ($request['leave_type'] === 'other'): ?>
+                                                        <!-- For Terminal Leave / Monetization: Show only working days -->
+                                                        <div class="flex flex-wrap gap-1 items-center">
+                                                            <span class="bg-green-500/20 text-green-400 px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-green-500/30">
+                                                                <?php echo $request['working_days_applied'] ?? $request['days_requested']; ?> working day(s)
+                                                            </span>
+                                                            <span class="text-xs text-slate-400">Leave credits</span>
+                                                        </div>
+                                                    <?php else: ?>
+                                                        <!-- For Regular Leave: Show calendar dates -->
+                                                        <div class="flex flex-wrap gap-1">
+                                                            <?php 
+                                                            $allDates = [];
+                                                            if (!empty($request['selected_dates'])) {
+                                                                $allDates = explode(',', $request['selected_dates']);
+                                                            } else {
+                                                                // Generate date range for older records
+                                                                $start = new DateTime($request['start_date']);
+                                                                $end = new DateTime($request['end_date']);
+                                                                $current = clone $start;
+                                                                while ($current <= $end) {
+                                                                    $dayOfWeek = (int)$current->format('N');
+                                                                    if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
+                                                                        $allDates[] = $current->format('Y-m-d');
+                                                                    }
+                                                                    $current->modify('+1 day');
                                                                 }
-                                                                $current->modify('+1 day');
                                                             }
-                                                        }
-                                                        
-                                                        // Show only first 3 dates, then "+X more"
-                                                        $displayLimit = 3;
-                                                        $totalDates = count($allDates);
-                                                        $datesToShow = array_slice($allDates, 0, $displayLimit);
-                                                        
-                                                        foreach ($datesToShow as $date): ?>
-                                                            <span class="bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-blue-500/30">
-                                                                <?php echo date('M d, Y', strtotime($date)); ?>
-                                                            </span>
-                                                        <?php endforeach;
-                                                        
-                                                        if ($totalDates > $displayLimit): ?>
-                                                            <span class="bg-slate-600/50 text-slate-300 px-2 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-slate-500/30">
-                                                                +<?php echo ($totalDates - $displayLimit); ?> more
-                                                            </span>
-                                                        <?php endif;
-                                                        ?>
-                                                    </div>
+                                                            
+                                                            // Show only first 3 dates, then "+X more"
+                                                            $displayLimit = 3;
+                                                            $totalDates = count($allDates);
+                                                            $datesToShow = array_slice($allDates, 0, $displayLimit);
+                                                            
+                                                            foreach ($datesToShow as $date): ?>
+                                                                <span class="bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-blue-500/30">
+                                                                    <?php echo date('M d, Y', strtotime($date)); ?>
+                                                                </span>
+                                                            <?php endforeach;
+                                                            
+                                                            if ($totalDates > $displayLimit): ?>
+                                                                <span class="bg-slate-600/50 text-slate-300 px-2 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-slate-500/30">
+                                                                    +<?php echo ($totalDates - $displayLimit); ?> more
+                                                                </span>
+                                                            <?php endif;
+                                                            ?>
+                                                        </div>
+                                                    <?php endif; ?>
                                                 </td>
                                                 <td class="py-4 px-4">
                                                     <span class="inline-flex items-center justify-center w-8 h-8 bg-slate-700 rounded-full text-sm font-semibold text-white">
@@ -690,9 +705,18 @@ include '../../../../includes/admin_header.php';
         window.leaveTypes = <?php echo json_encode($leaveTypes); ?>;
         
         // Helper function to get leave type display name in JavaScript
-        function getLeaveTypeDisplayNameJS(leaveType, originalLeaveType = null) {
+        function getLeaveTypeDisplayNameJS(leaveType, originalLeaveType = null, otherPurpose = null) {
             const leaveTypes = window.leaveTypes;
             if (!leaveTypes) return leaveType;
+            
+            // Handle "other" leave type (Terminal Leave / Monetization)
+            if (leaveType === 'other' && otherPurpose) {
+                if (otherPurpose === 'terminal_leave') {
+                    return 'Terminal Leave';
+                } else if (otherPurpose === 'monetization') {
+                    return 'Monetization of Leave Credits';
+                }
+            }
             
             // Check if leave is without pay
             let isWithoutPay = false;
@@ -751,7 +775,7 @@ include '../../../../includes/admin_header.php';
         
         // Robust resolver for modal/details: prefers helper, then infers from fields and service credit balance
         function resolveLeaveTypeLabel(req) {
-            const lbl = getLeaveTypeDisplayNameJS(req.leave_type, req.original_leave_type);
+            const lbl = getLeaveTypeDisplayNameJS(req.leave_type, req.original_leave_type, req.other_purpose);
             if (lbl && String(lbl).trim() !== '') return lbl;
             if (req.study_type) return 'Study Leave (Without Pay)';
             if (req.medical_condition || req.illness_specify) return 'Sick Leave (SL)';
@@ -1027,60 +1051,70 @@ include '../../../../includes/admin_header.php';
                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30">${leaveTypeLabel}</span>
                                 </div>
                             </div>
-                            <div>
-                                <label class="text-sm font-medium text-slate-400">Duration</label>
-                                <p class="text-white">${days} day${days !== 1 ? 's' : ''}</p>
-                            </div>
-                            <div class="md:col-span-2">
-                                <label class="text-sm font-medium text-slate-400 mb-2 block">Selected Leave Days</label>
-                                <div class="bg-slate-700/50 p-3 rounded-lg">
-                                    <div class="flex flex-wrap gap-2">
-                                        ${(() => {
-                                            if (leaveRequest.selected_dates && leaveRequest.selected_dates.trim() !== '') {
-                                                return leaveRequest.selected_dates.split(',').map(date => `
-                                                    <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-semibold border border-blue-500/30">
-                                                        ${new Date(date + 'T00:00:00').toLocaleDateString('en-US', { 
-                                                            month: 'short', 
-                                                            day: 'numeric',
-                                                            year: 'numeric'
-                                                        })}
-                                                    </span>
-                                                `).join('');
-                                            } else {
-                                                // Generate weekday dates from start to end
-                                                const start = new Date(leaveRequest.start_date);
-                                                const end = new Date(leaveRequest.end_date);
-                                                const dates = [];
-                                                let current = new Date(start);
-                                                while (current <= end) {
-                                                    const dayOfWeek = current.getDay();
-                                                    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-                                                        dates.push(`
-                                                            <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-semibold border border-blue-500/30">
-                                                                ${current.toLocaleDateString('en-US', { 
-                                                                    month: 'short', 
-                                                                    day: 'numeric',
-                                                                    year: 'numeric'
-                                                                })}
-                                                            </span>
-                                                        `);
+                            ${(leaveRequest.leave_type_raw === 'other' || leaveRequest.leave_type === 'other') ? `
+                                <!-- For Terminal Leave / Monetization: Show only working days applied -->
+                                <div class="md:col-span-2">
+                                    <label class="text-sm font-medium text-slate-400">Leave Credits to Convert</label>
+                                    <p class="text-white text-lg font-semibold">${leaveRequest.working_days_applied || days} working day${(leaveRequest.working_days_applied || days) !== 1 ? 's' : ''}</p>
+                                    <p class="text-slate-400 text-sm mt-1">This represents leave credits to be converted to cash, not calendar dates.</p>
+                                </div>
+                            ` : `
+                                <!-- For Regular Leave: Show calendar dates -->
+                                <div>
+                                    <label class="text-sm font-medium text-slate-400">Duration</label>
+                                    <p class="text-white">${days} day${days !== 1 ? 's' : ''}</p>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="text-sm font-medium text-slate-400 mb-2 block">Selected Leave Days</label>
+                                    <div class="bg-slate-700/50 p-3 rounded-lg">
+                                        <div class="flex flex-wrap gap-2">
+                                            ${(() => {
+                                                if (leaveRequest.selected_dates && leaveRequest.selected_dates.trim() !== '') {
+                                                    return leaveRequest.selected_dates.split(',').map(date => `
+                                                        <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-semibold border border-blue-500/30">
+                                                            ${new Date(date + 'T00:00:00').toLocaleDateString('en-US', { 
+                                                                month: 'short', 
+                                                                day: 'numeric',
+                                                                year: 'numeric'
+                                                            })}
+                                                        </span>
+                                                    `).join('');
+                                                } else {
+                                                    // Generate weekday dates from start to end
+                                                    const start = new Date(leaveRequest.start_date);
+                                                    const end = new Date(leaveRequest.end_date);
+                                                    const dates = [];
+                                                    let current = new Date(start);
+                                                    while (current <= end) {
+                                                        const dayOfWeek = current.getDay();
+                                                        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                                                            dates.push(`
+                                                                <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-semibold border border-blue-500/30">
+                                                                    ${current.toLocaleDateString('en-US', { 
+                                                                        month: 'short', 
+                                                                        day: 'numeric',
+                                                                        year: 'numeric'
+                                                                    })}
+                                                                </span>
+                                                            `);
+                                                        }
+                                                        current.setDate(current.getDate() + 1);
                                                     }
-                                                    current.setDate(current.getDate() + 1);
+                                                    return dates.join('');
                                                 }
-                                                return dates.join('');
-                                            }
-                                        })()}
+                                            })()}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                            <div style="display:none;">
-                                <label class="text-sm font-medium text-slate-400">Start Date</label>
-                                <p class="text-white">${startDate}</p>
-                            </div>
-                            <div style="display:none;">
-                                <label class="text-sm font-medium text-slate-400">End Date</label>
-                                <p class="text-white">${endDate}</p>
-                            </div>
+                                <div style="display:none;">
+                                    <label class="text-sm font-medium text-slate-400">Start Date</label>
+                                    <p class="text-white">${startDate}</p>
+                                </div>
+                                <div style="display:none;">
+                                    <label class="text-sm font-medium text-slate-400">End Date</label>
+                                    <p class="text-white">${endDate}</p>
+                                </div>
+                            `}
                             <div class="md:col-span-2">
                                 <label class="text-sm font-medium text-slate-400">Reason</label>
                                 <p class="text-white bg-slate-800/50 rounded-lg p-3 mt-1">${leaveRequest.reason || 'No reason provided'}</p>
@@ -1625,6 +1659,12 @@ include '../../../../includes/admin_header.php';
             const modal = document.getElementById('requestDetailsModal');
             const content = document.getElementById('requestDetailsContent');
             if (!modal || !content) return;
+            
+            // Debug: Log leave type info
+            console.log('Leave Type:', leaveRequest.leave_type);
+            console.log('Leave Type Raw:', leaveRequest.leave_type_raw);
+            console.log('Is Other?', leaveRequest.leave_type_raw === 'other' || leaveRequest.leave_type === 'other');
+            
             // Build the same sections as displayLeaveRequestDetails
             const startDate = new Date(leaveRequest.start_date).toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
             const endDate = new Date(leaveRequest.end_date).toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
@@ -1644,50 +1684,60 @@ include '../../../../includes/admin_header.php';
                     <div class="bg-slate-700/30 rounded-xl p-6 border border-slate-600/30">
                         <h4 class="text-lg font-semibold text-white mb-4 flex items-center"><i class="fas fa-calendar-alt text-primary mr-3"></i>Leave Details</h4>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div><label class="text-sm font-medium text-slate-400">Leave Type</label><p class="text-white">${leaveRequest.leave_type}</p></div>
+                            <div><label class="text-sm font-medium text-slate-400">Leave Type</label><p class="text-white">${leaveRequest.leave_type_display || leaveRequest.leave_type}</p></div>
                             <div><label class="text-sm font-medium text-slate-400">Duration</label><p class="text-white">${days} day${days!==1?'s':''}</p></div>
-                            <div class="md:col-span-2">
-                                <label class="text-sm font-medium text-slate-400 mb-2 block">Selected Leave Days</label>
-                                <div class="bg-slate-700/50 p-3 rounded-lg">
-                                    <div class="flex flex-wrap gap-2">
-                                        ${(() => {
-                                            if (leaveRequest.selected_dates && leaveRequest.selected_dates.trim() !== '') {
-                                                return leaveRequest.selected_dates.split(',').map(date => `
-                                                    <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-semibold border border-blue-500/30">
-                                                        ${new Date(date + 'T00:00:00').toLocaleDateString('en-US', { 
-                                                            month: 'short', 
-                                                            day: 'numeric',
-                                                            year: 'numeric'
-                                                        })}
-                                                    </span>
-                                                `).join('');
-                                            } else {
-                                                // Generate weekday dates from start to end
-                                                const start = new Date(leaveRequest.start_date);
-                                                const end = new Date(leaveRequest.end_date);
-                                                const dates = [];
-                                                let current = new Date(start);
-                                                while (current <= end) {
-                                                    const dayOfWeek = current.getDay();
-                                                    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-                                                        dates.push(`
-                                                            <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-semibold border border-blue-500/30">
-                                                                ${current.toLocaleDateString('en-US', { 
-                                                                    month: 'short', 
-                                                                    day: 'numeric',
-                                                                    year: 'numeric'
-                                                                })}
-                                                            </span>
-                                                        `);
-                                                    }
-                                                    current.setDate(current.getDate() + 1);
-                                                }
-                                                return dates.join('');
-                                            }
-                                        })()}
+                            ${(leaveRequest.leave_type_raw === 'other' || leaveRequest.leave_type === 'other') ? `
+                                <div class="md:col-span-2">
+                                    <label class="text-sm font-medium text-slate-400 mb-2 block">Leave Credits to Convert</label>
+                                    <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+                                        <p class="text-green-400 text-2xl font-bold">${leaveRequest.working_days_applied || leaveRequest.days_requested || 0} working day(s)</p>
+                                        <p class="text-slate-400 text-sm mt-2">This represents leave credits to be converted to cash, not calendar dates.</p>
                                     </div>
                                 </div>
-                            </div>
+                            ` : `
+                                <div class="md:col-span-2">
+                                    <label class="text-sm font-medium text-slate-400 mb-2 block">Selected Leave Days</label>
+                                    <div class="bg-slate-700/50 p-3 rounded-lg">
+                                        <div class="flex flex-wrap gap-2">
+                                            ${(() => {
+                                                if (leaveRequest.selected_dates && leaveRequest.selected_dates.trim() !== '') {
+                                                    return leaveRequest.selected_dates.split(',').map(date => `
+                                                        <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-semibold border border-blue-500/30">
+                                                            ${new Date(date + 'T00:00:00').toLocaleDateString('en-US', { 
+                                                                month: 'short', 
+                                                                day: 'numeric',
+                                                                year: 'numeric'
+                                                            })}
+                                                        </span>
+                                                    `).join('');
+                                                } else {
+                                                    // Generate weekday dates from start to end
+                                                    const start = new Date(leaveRequest.start_date);
+                                                    const end = new Date(leaveRequest.end_date);
+                                                    const dates = [];
+                                                    let current = new Date(start);
+                                                    while (current <= end) {
+                                                        const dayOfWeek = current.getDay();
+                                                        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                                                            dates.push(`
+                                                                <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-semibold border border-blue-500/30">
+                                                                    ${current.toLocaleDateString('en-US', { 
+                                                                        month: 'short', 
+                                                                        day: 'numeric',
+                                                                        year: 'numeric'
+                                                                    })}
+                                                                </span>
+                                                            `);
+                                                        }
+                                                        current.setDate(current.getDate() + 1);
+                                                    }
+                                                    return dates.join('');
+                                                }
+                                            })()}
+                                        </div>
+                                    </div>
+                                </div>
+                            `}
                             <div class="md:col-span-2"><label class="text-sm font-medium text-slate-400">Reason</label><p class="text-white bg-slate-800/50 rounded-lg p-3 mt-1">${leaveRequest.reason || 'No reason provided'}</p></div>
                         </div>
                     </div>

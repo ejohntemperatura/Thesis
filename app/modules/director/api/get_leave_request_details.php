@@ -74,11 +74,11 @@ try {
     $leaveRequest['leave_type_raw'] = $leaveRequest['original_leave_type'] ?? $leaveRequest['leave_type'];
     
     // Format leave type display using helper function
-    $mapped = getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null, $leaveTypes);
+    $mapped = getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null, $leaveTypes, $leaveRequest['other_purpose'] ?? null);
     $display = trim((string)$mapped);
     if ($display === '') {
         $base = $leaveRequest['leave_type_raw'] ?? '';
-        $display = trim((string)getLeaveTypeDisplayName($base, null, $leaveTypes));
+        $display = trim((string)getLeaveTypeDisplayName($base, null, $leaveTypes, $leaveRequest['other_purpose'] ?? null));
         if ($display === '') {
             if (!empty($leaveRequest['study_type'])) {
                 $display = 'Study Leave (Without Pay)';

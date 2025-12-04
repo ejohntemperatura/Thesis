@@ -89,7 +89,7 @@ try {
             <td class="py-4 px-4 text-slate-300">' . htmlspecialchars($request['department']) . '</td>
             <td class="py-4 px-4">
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-primary/20 text-primary border border-primary/30">
-                    ' . getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes) . '
+                    ' . getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes, $request['other_purpose'] ?? null) . '
                 </span>
             </td>
             <td class="py-4 px-4 text-slate-300">' . date('M d, Y', strtotime($request['start_date'])) . '</td>

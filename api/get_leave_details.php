@@ -59,7 +59,7 @@ try {
     // Compute raw vs display leave type
     $leaveTypes = getLeaveTypes();
     $request['leave_type_raw'] = $request['original_leave_type'] ?? $request['leave_type'];
-    $request['leave_type_display'] = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes);
+    $request['leave_type_display'] = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes, $request['other_purpose'] ?? null);
 
     // Add leave-specific information
     $request['leave_requirements'] = getLeaveRequirements($request['leave_type_raw']);

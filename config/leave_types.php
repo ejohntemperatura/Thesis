@@ -110,7 +110,8 @@ function getLeaveTypes() {
         'annual_credits' => 0,
         'cumulative' => false,
         'commutable' => false,
-        'gender_restricted' => 'female'
+        'gender_restricted' => 'female',
+        'always_show' => true  // Always show for female employees regardless of balance
     ],
     'rehabilitation' => [
         'name' => 'Rehabilitation Leave',
@@ -181,18 +182,7 @@ function getLeaveTypes() {
         'commutable' => false,
         'without_pay' => true
     ],
-    'terminal' => [
-        'name' => 'Terminal Leave',
-        'icon' => 'fas fa-sign-out-alt',
-        'color' => 'bg-gray-600',
-        'requires_credits' => true,
-        'credit_field' => 'terminal_leave_balance',
-        'description' => 'Accumulated Vacation and Sick Leave credits convertible to cash upon separation',
-        'annual_credits' => 0,
-        'cumulative' => true,
-        'commutable' => true,
-        'cash_convertible' => true
-    ],
+
     'cto' => [
         'name' => 'Compensatory Time Off (CTO)',
         'icon' => 'fas fa-clock',
@@ -277,15 +267,47 @@ function isLeaveWithoutPay($leave_type, $original_leave_type = null, $leaveTypes
 }
 
 /**
+ * Get Other Purpose options (Terminal Leave and Monetization)
+ * These are not regular leave types but special purposes
+ */
+function getOtherPurposeOptions() {
+    return [
+        'terminal_leave' => [
+            'name' => 'Terminal Leave',
+            'formal_name' => 'Terminal Leave',
+            'description' => 'Accumulated Vacation and Sick Leave credits convertible to cash upon separation',
+            'icon' => 'fas fa-sign-out-alt',
+            'color' => 'bg-gray-600'
+        ],
+        'monetization' => [
+            'name' => 'Monetization of Leave Credits',
+            'formal_name' => 'Monetization of Leave Credits',
+            'description' => 'Conversion of accumulated leave credits to cash',
+            'icon' => 'fas fa-money-bill-wave',
+            'color' => 'bg-green-600'
+        ]
+    ];
+}
+
+/**
  * Helper function to get the display name for a leave type with appropriate without pay indicator
  * @param string $leave_type The current leave type
  * @param string $original_leave_type The original leave type (if converted)
  * @param array $leaveTypes The leave types configuration
+ * @param string $other_purpose The other purpose (for "other" leave type)
  * @return string The display name with or without pay indicator
  */
-function getLeaveTypeDisplayName($leave_type, $original_leave_type = null, $leaveTypes = null) {
+function getLeaveTypeDisplayName($leave_type, $original_leave_type = null, $leaveTypes = null, $other_purpose = null) {
     if (!$leaveTypes) {
         $leaveTypes = getLeaveTypes();
+    }
+    
+    // Handle "other" leave type (Terminal Leave / Monetization)
+    if ($leave_type === 'other' && !empty($other_purpose)) {
+        $otherPurposes = getOtherPurposeOptions();
+        if (isset($otherPurposes[$other_purpose])) {
+            return $otherPurposes[$other_purpose]['formal_name'];
+        }
     }
     
     $isWithoutPay = isLeaveWithoutPay($leave_type, $original_leave_type, $leaveTypes);

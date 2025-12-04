@@ -77,7 +77,11 @@ try {
                 $dept_head['name'] ?? 'Department Head',
                 'manager',
                 null,
-                $request['original_leave_type'] ?? null
+                $request['original_leave_type'] ?? null,
+                null,
+                $request['selected_dates'] ?? null,
+                $request['working_days_applied'] ?? null,
+                $request['other_purpose'] ?? null
             );
         } catch (Exception $e) {
             error_log("Email notification failed: " . $e->getMessage());
@@ -133,7 +137,10 @@ try {
                 'manager',
                 null,
                 $request['original_leave_type'] ?? null,
-                $reason
+                $reason,
+                $request['selected_dates'] ?? null,
+                $request['working_days_applied'] ?? null,
+                $request['other_purpose'] ?? null
             );
         } catch (Exception $e) {
             error_log("Email notification failed: " . $e->getMessage());

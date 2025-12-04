@@ -76,7 +76,15 @@ if ($action === 'approve') {
         ($role === 'director' ? 'approved' : 'pending'),
         $leave_request['start_date'],
         $leave_request['end_date'],
-        $leave_request['leave_type']
+        $leave_request['leave_type'],
+        null,
+        null,
+        null,
+        $leave_request['original_leave_type'] ?? null,
+        null,
+        $leave_request['selected_dates'] ?? null,
+        $leave_request['working_days_applied'] ?? null,
+        $leave_request['other_purpose'] ?? null
     );
     
 } elseif ($action === 'reject') {
@@ -115,7 +123,15 @@ if ($action === 'approve') {
         'rejected',
         $leave_request['start_date'],
         $leave_request['end_date'],
-        $leave_request['leave_type']
+        $leave_request['leave_type'],
+        null,
+        null,
+        null,
+        $leave_request['original_leave_type'] ?? null,
+        null,
+        $leave_request['selected_dates'] ?? null,
+        $leave_request['working_days_applied'] ?? null,
+        $leave_request['other_purpose'] ?? null
     );
 }
 

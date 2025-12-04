@@ -66,7 +66,10 @@ try {
                 'admin',
                 null,
                 $request['original_leave_type'] ?? null,
-                $reason
+                $reason,
+                $request['selected_dates'] ?? null,
+                $request['working_days_applied'] ?? null,
+                $request['other_purpose'] ?? null
             );
         } catch (Exception $ex) {
             // Log but do not block flow

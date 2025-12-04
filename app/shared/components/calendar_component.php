@@ -26,6 +26,7 @@ if (in_array($role, ['manager'])) {
 }
 
 // Get APPROVED leave requests only - with proper approved days
+// Exclude 'other' type (Terminal Leave/Monetization) as they don't represent actual absence days
 $sql = "
     SELECT 
         lr.*, 
@@ -41,6 +42,7 @@ $sql = "
     FROM leave_requests lr 
     JOIN employees e ON lr.employee_id = e.id 
     WHERE lr.status = 'approved'
+    AND lr.leave_type != 'other'
 ";
 
 $params = [];
@@ -393,10 +395,11 @@ document.addEventListener('DOMContentLoaded', function() {
         moreLinkText: function(num) {
             return '+ ' + num + ' more';
         },
+        eventOrder: 'id', // Order events by ID to keep same leave request together
         events: [
             <?php foreach ($leave_requests as $request): 
                 // Get proper display name using the function
-                $leaveDisplayName = getLeaveTypeDisplayName($request['leave_type'] ?? '', $request['original_leave_type'] ?? null, $leaveTypes);
+                $leaveDisplayName = getLeaveTypeDisplayName($request['leave_type'] ?? '', $request['original_leave_type'] ?? null, $leaveTypes, $request['other_purpose'] ?? null);
 
                 // If still blank, infer from fields (same logic used in dashboards)
                 if (!isset($leaveDisplayName) || trim((string)$leaveDisplayName) === '') {
@@ -490,7 +493,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 foreach ($weekdayGroups as $index => $group):
                     $groupEnd = new DateTime($group['end']);
                     $groupEnd->modify('+1 day');
-                    // Use individual day count if available, otherwise use total
+                    // Use individual day count for title display
                     $displayDays = isset($group['days']) ? $group['days'] : $request['actual_days_approved'];
             ?>
             {
@@ -506,7 +509,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     employee_name: '<?php echo addslashes($request['employee_name']); ?>',
                     department: '<?php echo addslashes($request['department']); ?>',
                     position: '<?php echo addslashes($request['position']); ?>',
-                    days_approved: <?php echo $displayDays; ?>,
+                    days_approved: <?php echo $request['actual_days_approved']; ?>,
                     pay_status: '<?php echo $request['pay_status'] ?? 'N/A'; ?>',
                     display_name: '<?php echo addslashes($leaveDisplayName); ?>'
                 }

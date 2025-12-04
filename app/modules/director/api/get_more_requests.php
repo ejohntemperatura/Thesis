@@ -56,7 +56,7 @@ try {
             <td class="py-4 px-4">
                 <div class="flex flex-col gap-2">
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-primary/20 text-primary border border-primary/30">
-                        ' . getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes) . '
+                        ' . getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes, $request['other_purpose'] ?? null) . '
                     </span>';
         
         if ($request['is_late'] == 1) {

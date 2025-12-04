@@ -95,10 +95,10 @@ include '../../../../includes/user_header.php';
                                             <div class="flex flex-col gap-2">
                                                 <span class="bg-primary/20 text-primary px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide">
                                                     <?php 
-                                                        $disp = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes);
+                                                        $disp = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes, $request['other_purpose'] ?? null);
                                                         if (!isset($disp) || trim($disp) === '') {
                                                             $base = $request['original_leave_type'] ?? ($request['leave_type'] ?? '');
-                                                            $disp = getLeaveTypeDisplayName($base, null, $leaveTypes);
+                                                            $disp = getLeaveTypeDisplayName($base, null, $leaveTypes, $request['other_purpose'] ?? null);
                                                             if (!isset($disp) || trim($disp) === '') {
                                                                 if (!empty($request['study_type'])) {
                                                                     $disp = 'Study Leave (Without Pay)';
@@ -129,32 +129,43 @@ include '../../../../includes/user_header.php';
                                             </div>
                                         </td>
                                         <td class="px-6 py-4 text-slate-300 text-sm">
-                                            <div class="flex flex-wrap gap-1">
-                                                <?php 
-                                                if (!empty($request['selected_dates_array'])) {
-                                                    // Show selected dates as badges
-                                                    foreach ($request['selected_dates_array'] as $date): ?>
-                                                        <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-blue-500/30">
-                                                            <?php echo date('M d, Y', strtotime($date)); ?>
-                                                        </span>
-                                                    <?php endforeach;
-                                                } else {
-                                                    // Generate date range as badges for older records
-                                                    $start = new DateTime($request['start_date']);
-                                                    $end = new DateTime($request['end_date']);
-                                                    $current = clone $start;
-                                                    while ($current <= $end) {
-                                                        $dayOfWeek = (int)$current->format('N');
-                                                        if ($dayOfWeek >= 1 && $dayOfWeek <= 5): ?>
+                                            <?php if ($request['leave_type'] === 'other'): ?>
+                                                <!-- For Terminal Leave / Monetization: Show only working days -->
+                                                <div class="flex flex-wrap gap-1 items-center">
+                                                    <span class="bg-green-500/20 text-green-400 px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-green-500/30">
+                                                        <?php echo $request['working_days_applied'] ?? $request['days_requested']; ?> working day(s)
+                                                    </span>
+                                                    <span class="text-xs text-slate-400">Leave credits</span>
+                                                </div>
+                                            <?php else: ?>
+                                                <!-- For Regular Leave: Show calendar dates -->
+                                                <div class="flex flex-wrap gap-1">
+                                                    <?php 
+                                                    if (!empty($request['selected_dates_array'])) {
+                                                        // Show selected dates as badges
+                                                        foreach ($request['selected_dates_array'] as $date): ?>
                                                             <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-blue-500/30">
-                                                                <?php echo $current->format('M d, Y'); ?>
+                                                                <?php echo date('M d, Y', strtotime($date)); ?>
                                                             </span>
-                                                        <?php endif;
-                                                        $current->modify('+1 day');
+                                                        <?php endforeach;
+                                                    } else {
+                                                        // Generate date range as badges for older records
+                                                        $start = new DateTime($request['start_date']);
+                                                        $end = new DateTime($request['end_date']);
+                                                        $current = clone $start;
+                                                        while ($current <= $end) {
+                                                            $dayOfWeek = (int)$current->format('N');
+                                                            if ($dayOfWeek >= 1 && $dayOfWeek <= 5): ?>
+                                                                <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-blue-500/30">
+                                                                    <?php echo $current->format('M d, Y'); ?>
+                                                                </span>
+                                                            <?php endif;
+                                                            $current->modify('+1 day');
+                                                        }
                                                     }
-                                                }
-                                                ?>
-                                            </div>
+                                                    ?>
+                                                </div>
+                                            <?php endif; ?>
                                         </td>
                                         <td class="px-6 py-4 text-slate-300 text-sm max-w-xs truncate" title="<?php echo htmlspecialchars($request['reason']); ?>">
                                             <?php echo htmlspecialchars($request['reason']); ?>
@@ -426,10 +437,17 @@ include '../../../../includes/user_header.php';
                                 <div>
                                     <h6 class="text-slate-400 mb-2 font-semibold">Leave Type</h6>
                                     <p class="mb-3">
-                                        <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide">${resolveLeaveTypeLabel(leave)}</span>
+                                        <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide">${leave.leave_type_display || resolveLeaveTypeLabel(leave)}</span>
                                     </p>
                                     
-                                    ${leave.selected_dates_array && leave.selected_dates_array.length > 0 ? `
+                                    ${leave.leave_type === 'other' ? `
+                                        <!-- For Terminal Leave / Monetization: Show only working days -->
+                                        <h6 class="text-slate-400 mb-2 font-semibold">Leave Credits to Convert</h6>
+                                        <div class="mb-3 bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+                                            <p class="text-green-400 text-2xl font-bold">${leave.working_days_applied || leave.days_requested || 'N/A'} working day(s)</p>
+                                            <p class="text-slate-400 text-sm mt-2">This represents leave credits to be converted to cash, not calendar dates.</p>
+                                        </div>
+                                    ` : leave.selected_dates_array && leave.selected_dates_array.length > 0 ? `
                                         <h6 class="text-slate-400 mb-2 font-semibold">Selected Leave Days</h6>
                                         <div class="mb-3 bg-slate-700/50 p-3 rounded-lg">
                                             <div class="flex flex-wrap gap-2">
@@ -444,6 +462,8 @@ include '../../../../includes/user_header.php';
                                                 `).join('')}
                                             </div>
                                         </div>
+                                        <h6 class="text-slate-400 mb-2 font-semibold">Days Requested</h6>
+                                        <p class="mb-3 text-white">${leave.days_requested || leave.days || 'N/A'} day(s)</p>
                                     ` : `
                                         <h6 class="text-slate-400 mb-2 font-semibold">Start Date</h6>
                                         <p class="mb-3 text-white">${new Date(leave.start_date).toLocaleDateString('en-US', { 
@@ -458,10 +478,10 @@ include '../../../../includes/user_header.php';
                                             month: 'long', 
                                             day: 'numeric' 
                                         })}</p>
+                                        
+                                        <h6 class="text-slate-400 mb-2 font-semibold">Days Requested</h6>
+                                        <p class="mb-3 text-white">${leave.days_requested || leave.days || 'N/A'} day(s)</p>
                                     `}
-                                    
-                                    <h6 class="text-slate-400 mb-2 font-semibold">Days Requested</h6>
-                                    <p class="mb-3 text-white">${leave.days_requested || leave.days || 'N/A'} day(s)</p>
                                     
                                     ${leave.approved_days && leave.approved_days > 0 ? `
                                         <h6 class="text-slate-400 mb-2 font-semibold">Days Approved</h6>

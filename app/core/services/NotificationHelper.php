@@ -335,6 +335,9 @@ class NotificationHelper {
         // Use days_requested from database (excludes weekends)
         $days = $leaveRequest['days_requested'] ?? 0;
         
+        // Generate date display based on leave type
+        $dateDisplay = $this->generateDateDisplay($leaveRequest);
+        
         return "
         <!DOCTYPE html>
         <html>
@@ -383,10 +386,8 @@ class NotificationHelper {
                         <p><strong>Employee:</strong> {$leaveRequest['employee_name']}</p>
                         <p><strong>Position:</strong> {$leaveRequest['position']}</p>
                         <p><strong>Department:</strong> {$leaveRequest['department']}</p>
-                        <p><strong>Leave Type:</strong> " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null) . "</p>
-                        <p><strong>Start Date:</strong> {$startDate}</p>
-                        <p><strong>End Date:</strong> {$endDate}</p>
-                        <p><strong>Duration:</strong> {$days} day(s)</p>
+                        <p><strong>Leave Type:</strong> " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null, $leaveRequest['other_purpose'] ?? null) . "</p>
+                        {$dateDisplay}
                         <p><strong>Reason:</strong> {$leaveRequest['reason']}</p>
                     </div>
                     
@@ -414,10 +415,7 @@ class NotificationHelper {
      * Generate plain text email for department head notification
      */
     private function generateDepartmentHeadNotificationPlain($leaveRequest, $deptHead) {
-        $startDate = date('M d, Y', strtotime($leaveRequest['start_date']));
-        $endDate = date('M d, Y', strtotime($leaveRequest['end_date']));
-        // Use days_requested from database (excludes weekends)
-        $days = $leaveRequest['days_requested'] ?? 0;
+        $dateDisplayPlain = $this->generateDateDisplayPlain($leaveRequest);
         
         return "
 NEW LEAVE REQUEST - ACTION REQUIRED
@@ -431,10 +429,8 @@ LEAVE REQUEST DETAILS:
 Employee: {$leaveRequest['employee_name']}
 Position: {$leaveRequest['position']}
 Department: {$leaveRequest['department']}
-Leave Type: " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null) . "
-Start Date: {$startDate}
-End Date: {$endDate}
-Duration: {$days} day(s)
+Leave Type: " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null, $leaveRequest['other_purpose'] ?? null) . "
+{$dateDisplayPlain}
 Reason: {$leaveRequest['reason']}
 
 ACTION REQUIRED: Please review and approve or reject this leave request.
@@ -450,9 +446,7 @@ Please do not reply to this email.
      * Generate HTML for HR notification on new leave submission
      */
     private function generateHRNewLeaveHTML($leaveRequest, $hr) {
-        $startDate = date('M d, Y', strtotime($leaveRequest['start_date']));
-        $endDate = date('M d, Y', strtotime($leaveRequest['end_date']));
-        $days = $leaveRequest['days_requested'] ?? 0;
+        $dateDisplay = $this->generateDateDisplay($leaveRequest);
         return "
         <!DOCTYPE html>
         <html>
@@ -482,10 +476,8 @@ Please do not reply to this email.
                         <p><strong>Employee:</strong> {$leaveRequest['employee_name']}</p>
                         <p><strong>Position:</strong> {$leaveRequest['position']}</p>
                         <p><strong>Department:</strong> {$leaveRequest['department']}</p>
-                        <p><strong>Leave Type:</strong> " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null) . "</p>
-                        <p><strong>Start Date:</strong> {$startDate}</p>
-                        <p><strong>End Date:</strong> {$endDate}</p>
-                        <p><strong>Duration:</strong> {$days} day(s)</p>
+                        <p><strong>Leave Type:</strong> " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null, $leaveRequest['other_purpose'] ?? null) . "</p>
+                        {$dateDisplay}
                         <p><strong>Reason:</strong> {$leaveRequest['reason']}</p>
                     </div>
                     <div style='text-align: center; margin: 20px 0;'>
@@ -507,9 +499,7 @@ Please do not reply to this email.
      * Generate plain text for HR notification on new leave submission
      */
     private function generateHRNewLeavePlain($leaveRequest, $hr) {
-        $startDate = date('M d, Y', strtotime($leaveRequest['start_date']));
-        $endDate = date('M d, Y', strtotime($leaveRequest['end_date']));
-        $days = $leaveRequest['days_requested'] ?? 0;
+        $dateDisplayPlain = $this->generateDateDisplayPlain($leaveRequest);
         return "
 NEW LEAVE APPLICATION SUBMITTED
 ELMS - Employee Leave Management System
@@ -522,10 +512,8 @@ LEAVE REQUEST DETAILS:
 Employee: {$leaveRequest['employee_name']}
 Position: {$leaveRequest['position']}
 Department: {$leaveRequest['department']}
-Leave Type: " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null) . "
-Start Date: {$startDate}
-End Date: {$endDate}
-Duration: {$days} day(s)
+Leave Type: " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null, $leaveRequest['other_purpose'] ?? null) . "
+{$dateDisplayPlain}
 Reason: {$leaveRequest['reason']}
 
 To view the HR queue, visit: " . $this->getBaseUrl() . "/app/modules/admin/views/leave_management.php
@@ -539,9 +527,7 @@ Please do not reply to this email.
      * Generate HTML for HR notification after dept head approval
      */
     private function generateHRAfterDeptApprovedHTML($leaveRequest, $hr) {
-        $startDate = date('M d, Y', strtotime($leaveRequest['start_date']));
-        $endDate = date('M d, Y', strtotime($leaveRequest['end_date']));
-        $days = $leaveRequest['approved_days'] ?? $leaveRequest['days_requested'] ?? 0;
+        $dateDisplay = $this->generateDateDisplay($leaveRequest);
         return "
         <!DOCTYPE html>
         <html>
@@ -572,10 +558,8 @@ Please do not reply to this email.
                         <p><strong>Position:</strong> {$leaveRequest['position']}</p>
                         <p><strong>Department:</strong> {$leaveRequest['department']}</p>
                         <p><strong>Department Head:</strong> {$leaveRequest['dept_head_name']}</p>
-                        <p><strong>Leave Type:</strong> " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null) . "</p>
-                        <p><strong>Start Date:</strong> {$startDate}</p>
-                        <p><strong>End Date:</strong> {$endDate}</p>
-                        <p><strong>Duration:</strong> {$days} day(s)</p>
+                        <p><strong>Leave Type:</strong> " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null, $leaveRequest['other_purpose'] ?? null) . "</p>
+                        {$dateDisplay}
                         <p><strong>Reason:</strong> {$leaveRequest['reason']}</p>
                     </div>
                     <div style='text-align: center; margin: 20px 0;'>
@@ -597,9 +581,7 @@ Please do not reply to this email.
      * Generate plain text for HR notification after dept head approval
      */
     private function generateHRAfterDeptApprovedPlain($leaveRequest, $hr) {
-        $startDate = date('M d, Y', strtotime($leaveRequest['start_date']));
-        $endDate = date('M d, Y', strtotime($leaveRequest['end_date']));
-        $days = $leaveRequest['approved_days'] ?? $leaveRequest['days_requested'] ?? 0;
+        $dateDisplayPlain = $this->generateDateDisplayPlain($leaveRequest);
         return "
 DEPARTMENT HEAD APPROVED - HR REVIEW NEEDED
 ELMS - Employee Leave Management System
@@ -613,10 +595,8 @@ Employee: {$leaveRequest['employee_name']}
 Position: {$leaveRequest['position']}
 Department: {$leaveRequest['department']}
 Department Head: {$leaveRequest['dept_head_name']}
-Leave Type: " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null) . "
-Start Date: {$startDate}
-End Date: {$endDate}
-Duration: {$days} day(s)
+Leave Type: " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null, $leaveRequest['other_purpose'] ?? null) . "
+{$dateDisplayPlain}
 Reason: {$leaveRequest['reason']}
 
 To review, visit: " . $this->getBaseUrl() . "/app/modules/admin/views/leave_management.php
@@ -630,10 +610,7 @@ Please do not reply to this email.
      * Generate HTML email for director notification
      */
     private function generateDirectorNotificationHTML($leaveRequest, $director) {
-        $startDate = date('M d, Y', strtotime($leaveRequest['start_date']));
-        $endDate = date('M d, Y', strtotime($leaveRequest['end_date']));
-        // Use approved_days if available (from dept head), otherwise days_requested (excludes weekends)
-        $days = $leaveRequest['approved_days'] ?? $leaveRequest['days_requested'] ?? 0;
+        $dateDisplay = $this->generateDateDisplay($leaveRequest);
         
         return "
         <!DOCTYPE html>
@@ -678,10 +655,8 @@ Please do not reply to this email.
                         <p><strong>HR Approved By:</strong> {$leaveRequest['hr_name']}</p>
                         <p><strong>Department Head:</strong> {$leaveRequest['dept_head_name']}</p>
                         <p><strong>HR Reviewed By:</strong> {$leaveRequest['hr_name']}</p>
-                        <p><strong>Leave Type:</strong> " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null) . "</p>
-                        <p><strong>Start Date:</strong> {$startDate}</p>
-                        <p><strong>End Date:</strong> {$endDate}</p>
-                        <p><strong>Duration:</strong> {$days} day(s)</p>
+                        <p><strong>Leave Type:</strong> " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null, $leaveRequest['other_purpose'] ?? null) . "</p>
+                        {$dateDisplay}
                         <p><strong>Reason:</strong> {$leaveRequest['reason']}</p>
                     </div>
                     
@@ -709,10 +684,7 @@ Please do not reply to this email.
      * Generate plain text email for director notification
      */
     private function generateDirectorNotificationPlain($leaveRequest, $director) {
-        $startDate = date('M d, Y', strtotime($leaveRequest['start_date']));
-        $endDate = date('M d, Y', strtotime($leaveRequest['end_date']));
-        // Use approved_days if available (from dept head), otherwise days_requested (excludes weekends)
-        $days = $leaveRequest['approved_days'] ?? $leaveRequest['days_requested'] ?? 0;
+        $dateDisplayPlain = $this->generateDateDisplayPlain($leaveRequest);
         
         return "
 LEAVE REQUEST APPROVED BY HR - ACTION REQUIRED
@@ -728,10 +700,8 @@ Position: {$leaveRequest['position']}
 Department: {$leaveRequest['department']}
 Department Head: {$leaveRequest['dept_head_name']}
 HR Reviewed By: {$leaveRequest['hr_name']}
-Leave Type: " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null) . "
-Start Date: {$startDate}
-End Date: {$endDate}
-Duration: {$days} day(s)
+Leave Type: " . $this->getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null, $leaveRequest['other_purpose'] ?? null) . "
+{$dateDisplayPlain}
 Reason: {$leaveRequest['reason']}
 
 ACTION REQUIRED: Please review and provide final approval for this leave request.
@@ -746,9 +716,74 @@ Please do not reply to this email.
     /**
      * Get leave type display name using the proper formatting
      */
-    private function getLeaveTypeDisplayName($leave_type, $original_leave_type = null) {
+    private function getLeaveTypeDisplayName($leave_type, $original_leave_type = null, $other_purpose = null) {
         require_once __DIR__ . '/../../../config/leave_types.php';
-        return getLeaveTypeDisplayName($leave_type, $original_leave_type);
+        $leaveTypes = getLeaveTypes();
+        return getLeaveTypeDisplayName($leave_type, $original_leave_type, $leaveTypes, $other_purpose);
+    }
+    
+    /**
+     * Generate date display HTML based on leave type
+     */
+    private function generateDateDisplay($leaveRequest) {
+        if ($leaveRequest['leave_type'] === 'other') {
+            // For Terminal Leave/Monetization: Show working days only
+            $days = $leaveRequest['working_days_applied'] ?? $leaveRequest['days_requested'] ?? 0;
+            return "<p><strong>Leave Credits to Convert:</strong> <span style='color: #10b981; font-weight: bold;'>{$days} working day(s)</span></p>
+                    <p style='color: #6b7280; font-size: 14px;'><em>This represents leave credits to be converted to cash, not calendar dates.</em></p>";
+        } else {
+            // For Regular Leave: Show selected dates if available
+            if (!empty($leaveRequest['selected_dates'])) {
+                $datesArray = explode(',', $leaveRequest['selected_dates']);
+                $html = "<p><strong>Selected Leave Days:</strong></p><div style='display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0;'>";
+                foreach ($datesArray as $date) {
+                    $formattedDate = date('M d, Y', strtotime($date));
+                    $html .= "<span style='background: #dbeafe; color: #1e40af; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; display: inline-block; margin: 4px;'>{$formattedDate}</span>";
+                }
+                $html .= "</div>";
+                $daysCount = count($datesArray);
+                $html .= "<p><strong>Total Days:</strong> {$daysCount} day(s)</p>";
+                return $html;
+            } else {
+                // Fallback to date range for older records
+                $startDate = date('M d, Y', strtotime($leaveRequest['start_date']));
+                $endDate = date('M d, Y', strtotime($leaveRequest['end_date']));
+                $days = $leaveRequest['days_requested'] ?? 0;
+                return "<p><strong>Start Date:</strong> {$startDate}</p>
+                        <p><strong>End Date:</strong> {$endDate}</p>
+                        <p><strong>Duration:</strong> {$days} day(s)</p>";
+            }
+        }
+    }
+    
+    /**
+     * Generate date display plain text based on leave type
+     */
+    private function generateDateDisplayPlain($leaveRequest) {
+        if ($leaveRequest['leave_type'] === 'other') {
+            // For Terminal Leave/Monetization: Show working days only
+            $days = $leaveRequest['working_days_applied'] ?? $leaveRequest['days_requested'] ?? 0;
+            return "Leave Credits to Convert: {$days} working day(s)\n(This represents leave credits to be converted to cash, not calendar dates.)";
+        } else {
+            // For Regular Leave: Show selected dates if available
+            if (!empty($leaveRequest['selected_dates'])) {
+                $datesArray = explode(',', $leaveRequest['selected_dates']);
+                $text = "Selected Leave Days:\n";
+                foreach ($datesArray as $date) {
+                    $formattedDate = date('M d, Y', strtotime($date));
+                    $text .= "  • {$formattedDate}\n";
+                }
+                $daysCount = count($datesArray);
+                $text .= "Total Days: {$daysCount} day(s)";
+                return $text;
+            } else {
+                // Fallback to date range for older records
+                $startDate = date('M d, Y', strtotime($leaveRequest['start_date']));
+                $endDate = date('M d, Y', strtotime($leaveRequest['end_date']));
+                $days = $leaveRequest['days_requested'] ?? 0;
+                return "Start Date: {$startDate}\nEnd Date: {$endDate}\nDuration: {$days} day(s)";
+            }
+        }
     }
     
     /**

@@ -31,6 +31,7 @@ include '../../../../includes/user_header.php';
 <!-- Use shared calendar component -->
                 <?php 
                 // Create a custom calendar component for users (only approved leaves)
+                // Exclude 'other' type (Terminal Leave/Monetization) as they don't represent actual absence days
                 $stmt = $pdo->prepare("
                     SELECT 
                         lr.*,
@@ -44,6 +45,7 @@ include '../../../../includes/user_header.php';
                     JOIN employees e ON e.id = lr.employee_id
                     WHERE lr.employee_id = ? 
                     AND lr.status = 'approved'
+                    AND lr.leave_type != 'other'
                     ORDER BY lr.start_date ASC
                 ");
                 $stmt->execute([$_SESSION['user_id']]);
@@ -386,7 +388,7 @@ include '../../../../includes/user_header.php';
             events: [
                 <?php foreach ($leave_requests as $request): 
                     // Display name with robust fallback (align with shared/dashboard logic)
-                    $leaveDisplayName = getLeaveTypeDisplayName($request['leave_type'] ?? '', $request['original_leave_type'] ?? null, $leaveTypes);
+                    $leaveDisplayName = getLeaveTypeDisplayName($request['leave_type'] ?? '', $request['original_leave_type'] ?? null, $leaveTypes, $request['other_purpose'] ?? null);
                     if (!isset($leaveDisplayName) || trim((string)$leaveDisplayName) === '') {
                         if (!empty($request['study_type'])) {
                             $leaveDisplayName = 'Study Leave (Without Pay)';

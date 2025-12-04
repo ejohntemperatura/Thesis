@@ -104,7 +104,7 @@ try {
     $leaveRequest['leave_type_raw'] = $leaveRequest['original_leave_type'] ?? $leaveRequest['leave_type'];
     
     // Format leave type display using helper function
-    $leaveRequest['leave_type'] = getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null, $leaveTypes);
+    $leaveRequest['leave_type'] = getLeaveTypeDisplayName($leaveRequest['leave_type'], $leaveRequest['original_leave_type'] ?? null, $leaveTypes, $leaveRequest['other_purpose'] ?? null);
     
     // Format location type for display
     if ($leaveRequest['location_type']) {

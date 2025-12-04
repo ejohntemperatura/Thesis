@@ -121,14 +121,17 @@ class EmailService {
         ?string $approverRole = null,
         ?int $approvedDays = null,
         ?string $originalLeaveType = null,
-        ?string $rejectionReason = null
+        ?string $rejectionReason = null,
+        ?string $selectedDates = null,
+        ?int $workingDaysApplied = null,
+        ?string $otherPurpose = null
     ): bool {
         try {
             $this->mailer->clearAllRecipients();
             $this->mailer->addAddress($userEmail, $userName);
             
             // Determine email content based on status
-            $emailContent = $this->generateEmailContent($status, $userName, $startDate, $endDate, $leaveType, $approverName, $approverRole, $approvedDays, $originalLeaveType, $rejectionReason);
+            $emailContent = $this->generateEmailContent($status, $userName, $startDate, $endDate, $leaveType, $approverName, $approverRole, $approvedDays, $originalLeaveType, $rejectionReason, $selectedDates, $workingDaysApplied, $otherPurpose);
             
             $this->mailer->Subject = $emailContent['subject'];
             $this->mailer->Body = $emailContent['html'];
@@ -156,17 +159,22 @@ class EmailService {
         ?string $approverRole,
         ?int $approvedDays = null,
         ?string $originalLeaveType = null,
-        ?string $rejectionReason = null
+        ?string $rejectionReason = null,
+        ?string $selectedDates = null,
+        ?int $workingDaysApplied = null,
+        ?string $otherPurpose = null
     ): array {
         $statusColor = $this->getStatusColor($status);
         $statusText = $this->getStatusText($status);
         $approverInfo = $this->getApproverInfo($approverName, $approverRole);
         
         // Resolve Leave Type display name robustly so it's always shown
-        $displayType = trim((string)$this->getLeaveTypeDisplayName($leaveType ?? '', $originalLeaveType ?? null));
+        require_once __DIR__ . '/../../../config/leave_types.php';
+        $leaveTypes = getLeaveTypes();
+        $displayType = trim((string)getLeaveTypeDisplayName($leaveType ?? '', $originalLeaveType ?? null, $leaveTypes, $otherPurpose));
         if ($displayType === '') {
             if (!empty($originalLeaveType)) {
-                $displayType = trim((string)$this->getLeaveTypeDisplayName($originalLeaveType, null));
+                $displayType = trim((string)getLeaveTypeDisplayName($originalLeaveType, null, $leaveTypes, $otherPurpose));
             }
         }
         if ($displayType === '') {
@@ -174,7 +182,44 @@ class EmailService {
         }
         $typeText = "<p><strong>Leave Type:</strong> {$displayType}</p>";
         $approverText = $approverInfo ? "<p><strong>Approved by:</strong> {$approverInfo}</p>" : '';
-        $daysText = $approvedDays ? "<p><strong>Days Approved:</strong> {$approvedDays} day(s)</p>" : '';
+        
+        // Determine date display based on leave type
+        $dateText = '';
+        $dateTextPlain = '';
+        if ($leaveType === 'other') {
+            // For Terminal Leave/Monetization: Show working days only
+            $days = $workingDaysApplied ?? $approvedDays ?? 0;
+            $dateText = "<p><strong>Leave Credits to Convert:</strong> <span style='color: #10b981; font-weight: bold;'>{$days} working day(s)</span></p>";
+            $dateText .= "<p style='color: #6b7280; font-size: 14px;'><em>This represents leave credits to be converted to cash, not calendar dates.</em></p>";
+            $dateTextPlain = "Leave Credits to Convert: {$days} working day(s)\n(This represents leave credits to be converted to cash, not calendar dates.)";
+        } else {
+            // For Regular Leave: Show selected dates
+            if (!empty($selectedDates)) {
+                $datesArray = explode(',', $selectedDates);
+                $dateText = "<p><strong>Selected Leave Days:</strong></p><div style='display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0;'>";
+                $dateTextPlain = "Selected Leave Days:\n";
+                foreach ($datesArray as $date) {
+                    $formattedDate = date('M d, Y', strtotime($date));
+                    $dateText .= "<span style='background: #dbeafe; color: #1e40af; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; display: inline-block; margin: 4px;'>{$formattedDate}</span>";
+                    $dateTextPlain .= "  • {$formattedDate}\n";
+                }
+                $dateText .= "</div>";
+                $daysCount = count($datesArray);
+                $dateText .= "<p><strong>Total Days:</strong> {$daysCount} day(s)</p>";
+                $dateTextPlain .= "Total Days: {$daysCount} day(s)";
+            } else {
+                // Fallback to date range for older records
+                $dateText = "<p><strong>Start Date:</strong> {$startDate}</p>";
+                $dateText .= "<p><strong>End Date:</strong> {$endDate}</p>";
+                if ($approvedDays) {
+                    $dateText .= "<p><strong>Days Approved:</strong> {$approvedDays} day(s)</p>";
+                }
+                $dateTextPlain = "Start Date: {$startDate}\nEnd Date: {$endDate}";
+                if ($approvedDays) {
+                    $dateTextPlain .= "\nDays Approved: {$approvedDays} day(s)";
+                }
+            }
+        }
         
         $subject = $this->getEmailSubject($status);
         
@@ -304,9 +349,7 @@ class EmailService {
                     <div class='details'>
                         <h3>Leave Request Details</h3>
                         {$typeText}
-                        <p><strong>Start Date:</strong> {$startDate}</p>
-                        <p><strong>End Date:</strong> {$endDate}</p>
-                        {$daysText}
+                        {$dateText}
                         {$approverText}
                         <p><strong>Date Processed:</strong> " . date('F j, Y \a\t g:i A') . "</p>
                     </div>
@@ -329,9 +372,7 @@ class EmailService {
             . ($status === 'rejected' && $rejectionReason ? "\nReason: {$rejectionReason}\n" : '') . "\n"
             . "LEAVE REQUEST DETAILS:\n"
             . ("Leave Type: " . $displayType . "\n")
-            . "Start Date: {$startDate}\n"
-            . "End Date: {$endDate}\n"
-            . ($approvedDays ? "Days Approved: {$approvedDays} day(s)\n" : '')
+            . $dateTextPlain . "\n"
             . ($approverInfo ? "Approved by: {$approverInfo}\n" : '')
             . "Date Processed: " . date('F j, Y \a\t g:i A') . "\n\n"
             . "If you have any questions, please contact your supervisor or HR.\n\n"

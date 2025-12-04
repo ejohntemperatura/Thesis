@@ -423,12 +423,29 @@ include '../../../../includes/user_header.php';
                                 ?>
                                     <option value="<?php echo $type; ?>"><?php echo htmlspecialchars($formalName); ?></option>
                                 <?php endforeach; ?>
+                                <option value="other">Other (Terminal Leave / Monetization)</option>
+                            </select>
+                        </div>
+
+                        <!-- Other Purpose Dropdown -->
+                        <div id="modalOtherPurposeField" class="hidden">
+                            <label for="modal_other_purpose" class="block text-sm font-semibold text-slate-300 mb-2">
+                                <i class="fas fa-list-alt mr-2"></i>Other Purpose
+                            </label>
+                            <select id="modal_other_purpose" name="other_purpose" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">Select Purpose</option>
+                                <?php 
+                                $otherPurposes = getOtherPurposeOptions();
+                                foreach ($otherPurposes as $purposeKey => $purposeConfig): 
+                                ?>
+                                    <option value="<?php echo $purposeKey; ?>"><?php echo htmlspecialchars($purposeConfig['formal_name']); ?></option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                     </div>
 
-                    <!-- Calendar Date Picker -->
-                    <div>
+                    <!-- Calendar Date Picker (Hidden for Other Purpose) -->
+                    <div id="modalCalendarPicker">
                         <label class="block text-sm font-semibold text-slate-300 mb-2">
                             <i class="fas fa-calendar-alt mr-2"></i>Select Leave Days
                         </label>
@@ -442,10 +459,22 @@ include '../../../../includes/user_header.php';
                             </button>
                             <div id="leaveCalendarPicker" class="leave-calendar-picker"></div>
                         </div>
-                        <input type="hidden" id="modal_start_date" name="start_date" required>
-                        <input type="hidden" id="modal_end_date" name="end_date" required>
+                        <input type="hidden" id="modal_start_date" name="start_date">
+                        <input type="hidden" id="modal_end_date" name="end_date">
                         <input type="hidden" id="modal_selected_dates" name="selected_dates">
                         <input type="hidden" id="modal_days_count" name="days_count">
+                    </div>
+
+                    <!-- Working Days Input (For Other Purpose Only) -->
+                    <div id="modalWorkingDaysField" class="hidden">
+                        <label for="modal_working_days" class="block text-sm font-semibold text-slate-300 mb-2">
+                            <i class="fas fa-calculator mr-2"></i>Number of Working Days Applied For
+                        </label>
+                        <input type="number" id="modal_working_days" name="working_days_applied" min="1" step="1" placeholder="Enter number of working days" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <p class="text-xs text-slate-400 mt-2">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Enter the total number of working days you are applying for
+                        </p>
                     </div>
                     
                     <!-- Maternity/Paternity Supporting Document (Required) - Regular Application -->
@@ -565,6 +594,29 @@ include '../../../../includes/user_header.php';
                                     </select>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Commutation Field -->
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">
+                            <i class="fas fa-money-bill-wave mr-2"></i>Commutation
+                        </label>
+                        <div class="bg-slate-700/30 rounded-xl p-4 border border-slate-600/50">
+                            <div class="space-y-3">
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="radio" name="commutation" value="not_requested" checked class="w-4 h-4 text-blue-600 bg-slate-700 border-slate-600 focus:ring-blue-500 focus:ring-2">
+                                    <span class="text-white">Not Requested</span>
+                                </label>
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="radio" name="commutation" value="requested" class="w-4 h-4 text-blue-600 bg-slate-700 border-slate-600 focus:ring-blue-500 focus:ring-2">
+                                    <span class="text-white">Requested</span>
+                                </label>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-3">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                Commutation refers to the monetization of leave credits
+                            </p>
                         </div>
                     </div>
 
@@ -808,6 +860,29 @@ include '../../../../includes/user_header.php';
                                     </select>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Commutation Field -->
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">
+                            <i class="fas fa-money-bill-wave mr-2"></i>Commutation
+                        </label>
+                        <div class="bg-slate-700/30 rounded-xl p-4 border border-slate-600/50">
+                            <div class="space-y-3">
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="radio" name="commutation" value="not_requested" checked class="w-4 h-4 text-blue-600 bg-slate-700 border-slate-600 focus:ring-blue-500 focus:ring-2">
+                                    <span class="text-white">Not Requested</span>
+                                </label>
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="radio" name="commutation" value="requested" class="w-4 h-4 text-blue-600 bg-slate-700 border-slate-600 focus:ring-blue-500 focus:ring-2">
+                                    <span class="text-white">Requested</span>
+                                </label>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-3">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                Commutation refers to the monetization of leave credits
+                            </p>
                         </div>
                     </div>
 
@@ -1086,10 +1161,10 @@ include '../../../../includes/user_header.php';
                                                 <h3 class="text-lg font-semibold text-white">
                                                     <?php 
                                                     // Use the getLeaveTypeDisplayName function for consistent display with fallback
-                                                    $__label = getLeaveTypeDisplayName($request['leave_type'] ?? '', $request['original_leave_type'] ?? null, $leaveTypes);
+                                                    $__label = getLeaveTypeDisplayName($request['leave_type'] ?? '', $request['original_leave_type'] ?? null, $leaveTypes, $request['other_purpose'] ?? null);
                                                     if (!isset($__label) || trim($__label) === '') {
                                                         $base = $request['original_leave_type'] ?? ($request['leave_type'] ?? '');
-                                                        $__label = getLeaveTypeDisplayName($base, null, $leaveTypes);
+                                                        $__label = getLeaveTypeDisplayName($base, null, $leaveTypes, $request['other_purpose'] ?? null);
                                                         if (!isset($__label) || trim($__label) === '') {
                                                             if (!empty($request['study_type'])) {
                                                                 $__label = 'Study Leave (Without Pay)';
@@ -1111,36 +1186,44 @@ include '../../../../includes/user_header.php';
                                                     echo $__label;
                                                     ?>
                                                 </h3>
-                                                <p class="text-slate-400 text-sm">
-                                                    <?php echo date('M j, Y', strtotime($request['start_date'])); ?> - 
-                                                    <?php 
-                                                    // Calculate correct end date based on approved days (excluding weekends)
-                                                    if ($request['status'] === 'approved' && $request['actual_days_approved'] > 0) {
-                                                        $start = new DateTime($request['start_date']);
-                                                        $daysToCount = $request['actual_days_approved'];
-                                                        $weekdaysCounted = 0;
-                                                        $current = clone $start;
-                                                        
-                                                        $dayOfWeek = (int)$current->format('N');
-                                                        if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
-                                                            $weekdaysCounted++;
-                                                        }
-                                                        
-                                                        while ($weekdaysCounted < $daysToCount) {
-                                                            $current->modify('+1 day');
+                                                <?php if ($request['leave_type'] === 'other'): ?>
+                                                    <!-- For Terminal Leave / Monetization: Show only working days -->
+                                                    <p class="text-slate-400 text-sm">
+                                                        <span class="text-blue-400 font-semibold"><?php echo $request['working_days_applied'] ?? $request['days_requested']; ?> working day(s)</span> to convert to cash
+                                                    </p>
+                                                <?php else: ?>
+                                                    <!-- For Regular Leave: Show date range -->
+                                                    <p class="text-slate-400 text-sm">
+                                                        <?php echo date('M j, Y', strtotime($request['start_date'])); ?> - 
+                                                        <?php 
+                                                        // Calculate correct end date based on approved days (excluding weekends)
+                                                        if ($request['status'] === 'approved' && $request['actual_days_approved'] > 0) {
+                                                            $start = new DateTime($request['start_date']);
+                                                            $daysToCount = $request['actual_days_approved'];
+                                                            $weekdaysCounted = 0;
+                                                            $current = clone $start;
+                                                            
                                                             $dayOfWeek = (int)$current->format('N');
                                                             if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
                                                                 $weekdaysCounted++;
                                                             }
+                                                            
+                                                            while ($weekdaysCounted < $daysToCount) {
+                                                                $current->modify('+1 day');
+                                                                $dayOfWeek = (int)$current->format('N');
+                                                                if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
+                                                                    $weekdaysCounted++;
+                                                                }
+                                                            }
+                                                            
+                                                            echo date('M j, Y', $current->getTimestamp());
+                                                        } else {
+                                                            echo date('M j, Y', strtotime($request['end_date']));
                                                         }
-                                                        
-                                                        echo date('M j, Y', $current->getTimestamp());
-                                                    } else {
-                                                        echo date('M j, Y', strtotime($request['end_date']));
-                                                    }
-                                                    ?>
-                                                    (<?php echo $request['days_requested']; ?> days requested)
-                                                </p>
+                                                        ?>
+                                                        (<?php echo $request['days_requested']; ?> days requested)
+                                                    </p>
+                                                <?php endif; ?>
                                                 <?php if ($request['status'] === 'approved' && $request['actual_days_approved'] != $request['days_requested']): ?>
                                                 <p class="text-green-400 text-sm font-medium">
                                                     <i class="fas fa-check-circle mr-1"></i>
@@ -1359,6 +1442,12 @@ include '../../../../includes/user_header.php';
             const studyFields = document.getElementById('modalStudyFields');
             const matPatFields = document.getElementById('modalMatPatFields');
             const matPatInput = document.getElementById('modal_matpat_file');
+            const otherPurposeField = document.getElementById('modalOtherPurposeField');
+            const calendarPicker = document.getElementById('modalCalendarPicker');
+            const workingDaysField = document.getElementById('modalWorkingDaysField');
+            const startDateInput = document.getElementById('modal_start_date');
+            const endDateInput = document.getElementById('modal_end_date');
+            const workingDaysInput = document.getElementById('modal_working_days');
             
             // Hide all conditional fields first using opacity instead of hidden
             if (vacationFields) {
@@ -1386,6 +1475,39 @@ include '../../../../includes/user_header.php';
                 matPatFields.style.display = 'none';
             }
             if (matPatInput) matPatInput.required = false;
+            
+            // Handle "other" leave type (Terminal Leave / Monetization)
+            if (leaveType === 'other') {
+                // Show other purpose dropdown
+                if (otherPurposeField) {
+                    otherPurposeField.classList.remove('hidden');
+                    document.getElementById('modal_other_purpose').required = true;
+                }
+                // Hide calendar picker, show working days input
+                if (calendarPicker) calendarPicker.classList.add('hidden');
+                if (workingDaysField) {
+                    workingDaysField.classList.remove('hidden');
+                    if (workingDaysInput) workingDaysInput.required = true;
+                }
+                // Make date fields not required for "other"
+                if (startDateInput) startDateInput.required = false;
+                if (endDateInput) endDateInput.required = false;
+            } else {
+                // Hide other purpose field for regular leave types
+                if (otherPurposeField) {
+                    otherPurposeField.classList.add('hidden');
+                    document.getElementById('modal_other_purpose').required = false;
+                }
+                // Show calendar picker, hide working days input
+                if (calendarPicker) calendarPicker.classList.remove('hidden');
+                if (workingDaysField) {
+                    workingDaysField.classList.add('hidden');
+                    if (workingDaysInput) workingDaysInput.required = false;
+                }
+                // Make date fields required for regular leave types
+                if (startDateInput) startDateInput.required = true;
+                if (endDateInput) endDateInput.required = true;
+            }
             
             // Show relevant fields based on leave type
             if (leaveType === 'vacation' || leaveType === 'special_privilege') {
@@ -2421,7 +2543,7 @@ include '../../../../includes/user_header.php';
                     
                     foreach ($user_leave_requests as $request): 
                         // Use the getLeaveTypeDisplayName function for consistent display
-                        $leaveDisplayName = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes);
+                        $leaveDisplayName = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes, $request['other_purpose'] ?? null);
                     ?>
                     {
                         <?php

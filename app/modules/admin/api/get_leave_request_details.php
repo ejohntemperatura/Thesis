@@ -104,12 +104,12 @@ try {
     $leaveTypes = getLeaveTypes();
     // Preserve raw type for client-side inference and map display separately
     $leave_request['leave_type_raw'] = $leave_request['original_leave_type'] ?? $leave_request['leave_type'];
-    $leave_request['leave_type'] = getLeaveTypeDisplayName($leave_request['leave_type'], $leave_request['original_leave_type'] ?? null, $leaveTypes);
+    $leave_request['leave_type'] = getLeaveTypeDisplayName($leave_request['leave_type'], $leave_request['original_leave_type'] ?? null, $leaveTypes, $leave_request['other_purpose'] ?? null);
     // Precompute a robust display label
     $display = trim((string)$leave_request['leave_type']);
     if ($display === '') {
         $base = $leave_request['original_leave_type'] ?? ($leave_request['leave_type_raw'] ?? '');
-        $display = trim((string)getLeaveTypeDisplayName($base, null, $leaveTypes));
+        $display = trim((string)getLeaveTypeDisplayName($base, null, $leaveTypes, $leave_request['other_purpose'] ?? null));
         if ($display === '') {
             if (!empty($leave_request['study_type'])) {
                 $display = 'Study Leave (Without Pay)';
