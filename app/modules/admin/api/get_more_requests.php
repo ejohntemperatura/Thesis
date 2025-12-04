@@ -88,21 +88,64 @@ try {
             </td>
             <td class="py-4 px-4 text-slate-300">' . htmlspecialchars($request['department']) . '</td>
             <td class="py-4 px-4">
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-primary/20 text-primary border border-primary/30">
+                <span class="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-primary/20 text-primary border border-primary/30">
                     ' . getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes, $request['other_purpose'] ?? null) . '
                 </span>
             </td>
-            <td class="py-4 px-4 text-slate-300">' . date('M d, Y', strtotime($request['start_date'])) . '</td>
             <td class="py-4 px-4 text-slate-300">
-                ' . (($request['status'] === 'approved' && $request['approved_days'] && $request['approved_days'] != $request['days_requested']) ? 
-                    date('M d, Y', strtotime($request['start_date'] . ' +' . ($request['approved_days'] - 1) . ' days')) : 
-                    date('M d, Y', strtotime($request['end_date']))) . '
+                ' . (function() use ($request) {
+                    if ($request['leave_type'] === 'other') {
+                        // For Terminal Leave / Monetization: Show only working days
+                        return '<div class="flex flex-wrap gap-1 items-center">
+                            <span class="bg-green-500/20 text-green-400 px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-green-500/30">
+                                ' . ($request['working_days_applied'] ?? $request['days_requested']) . ' working day(s)
+                            </span>
+                            <span class="text-xs text-slate-400">Leave credits</span>
+                        </div>';
+                    } else {
+                        // For Regular Leave: Show calendar dates
+                        $allDates = [];
+                        if (!empty($request['selected_dates'])) {
+                            $allDates = explode(',', $request['selected_dates']);
+                        } else {
+                            // Generate date range for older records
+                            $start = new DateTime($request['start_date']);
+                            $end = new DateTime($request['end_date']);
+                            $current = clone $start;
+                            while ($current <= $end) {
+                                $dayOfWeek = (int)$current->format('N');
+                                if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
+                                    $allDates[] = $current->format('Y-m-d');
+                                }
+                                $current->modify('+1 day');
+                            }
+                        }
+                        
+                        // Show only first 3 dates, then "+X more"
+                        $displayLimit = 3;
+                        $html = '<div class="flex flex-wrap gap-1">';
+                        for ($i = 0; $i < min($displayLimit, count($allDates)); $i++) {
+                            $dateObj = new DateTime($allDates[$i]);
+                            $html .= '<span class="bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-blue-500/30">' 
+                                . $dateObj->format('M d, Y') . '</span>';
+                        }
+                        if (count($allDates) > $displayLimit) {
+                            $remaining = count($allDates) - $displayLimit;
+                            $html .= '<button type="button" onclick="showAllDates(' . $request['id'] . ', \'' . htmlspecialchars(implode(',', $allDates)) . '\')" 
+                                class="bg-slate-600/50 hover:bg-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs font-semibold transition-colors border border-slate-600">
+                                +' . $remaining . ' more
+                            </button>';
+                        }
+                        $html .= '</div>';
+                        return $html;
+                    }
+                })() . '
             </td>
             <td class="py-4 px-4">
-                <span class="inline-flex items-center justify-center w-8 h-8 bg-slate-700 rounded-full text-sm font-semibold text-white">
+                <span class="inline-flex items-center justify-center w-10 h-10 bg-green-500/20 rounded-full text-sm font-bold text-green-400 border-2 border-green-500/30">
                     ' . (($request['status'] === 'approved' && $request['approved_days'] && $request['approved_days'] > 0) ? 
                         $request['approved_days'] : 
-                        (new DateTime($request['start_date']))->diff(new DateTime($request['end_date']))->days + 1) . '
+                        $request['days_requested']) . '
                 </span>
             </td>
             <td class="py-4 px-4">
@@ -157,7 +200,10 @@ try {
                         $any_rejected = ($dept_status === 'rejected' || $director_status === 'rejected' || $admin_status === 'rejected');
                         $hr_can_act = (($_SESSION['role'] ?? '') === 'admin') && $dept_approved && ($director_status === 'pending' || $director_status === null) && $admin_status !== 'approved';
                         if ($both_approved) {
-                            return '<a href="print_leave_request.php?id=' . $request['id'] . '" target="_blank" class="self-start w-auto max-w-max inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors"><i class="fas fa-print"></i><span>Print</span></a>';
+                            return '<div class="flex items-center gap-2">'
+                                . '<button type="button" class="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-slate-600 hover:bg-slate-500 text-white text-xs font-medium transition-colors" onclick="viewRequestDetails(' . $request['id'] . ')" title="View details"><i class="fas fa-eye"></i><span>View</span></button>'
+                                . '<a href="print_leave_request.php?id=' . $request['id'] . '" target="_blank" class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors"><i class="fas fa-print"></i><span>Print</span></a>'
+                                . '</div>';
                         } elseif ($any_rejected) {
                             return '<div class="text-center"><span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">Rejected</span></div>';
                         } elseif ($hr_can_act) {

@@ -23,7 +23,7 @@ if (!$stmt->fetch()) {
 $leave_type = $_POST['leave_type'];
 $start_date = $_POST['start_date'];
 $end_date = $_POST['end_date'];
-$reason = $_POST['reason'];
+$reason = $_POST['reason'] ?? ''; // Make reason optional for late leave
 $late_justification = $_POST['late_justification'];
 
 // Gender eligibility: VAWC and Special Leave Benefits for Women are female-only

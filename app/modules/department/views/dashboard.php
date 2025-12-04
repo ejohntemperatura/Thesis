@@ -116,7 +116,7 @@ include '../../../../includes/department_header.php';
 							// Initially show only 5 requests - filtered by department
 							$initial_limit = 5;
 							$stmt = $pdo->prepare("
-								SELECT lr.*, e.name as employee_name, e.position, e.department, e.service_credit_balance AS sc_balance
+								SELECT lr.*, lr.late_justification, e.name as employee_name, e.position, e.department, e.service_credit_balance AS sc_balance
 								FROM leave_requests lr 
 								JOIN employees e ON lr.employee_id = e.id 
 								WHERE (lr.dept_head_approval IS NULL OR lr.dept_head_approval = 'pending')
@@ -242,8 +242,12 @@ include '../../../../includes/department_header.php';
 													echo $request['days_requested'] ?? 0;
 													?>
 												</td>
-												<td class="px-6 py-4 text-slate-300 text-sm max-w-xs truncate" title="<?php echo htmlspecialchars($request['reason']); ?>">
-													<?php echo strlen($request['reason']) > 30 ? substr(htmlspecialchars($request['reason']), 0, 30) . '...' : htmlspecialchars($request['reason']); ?>
+												<td class="px-6 py-4 text-slate-300 text-sm max-w-xs truncate" title="<?php echo htmlspecialchars($request['is_late'] == 1 ? ($request['late_justification'] ?? '') : ($request['reason'] ?? '')); ?>">
+													<?php 
+													// For late leave applications, show late_justification instead of reason
+													$displayText = $request['is_late'] == 1 ? ($request['late_justification'] ?? '') : ($request['reason'] ?? '');
+													echo strlen($displayText) > 30 ? substr(htmlspecialchars($displayText), 0, 30) . '...' : htmlspecialchars($displayText); 
+													?>
 												</td>
 												<td class="px-6 py-4">
 													<div class="flex items-center gap-2">

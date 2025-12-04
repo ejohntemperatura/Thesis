@@ -31,7 +31,7 @@ include '../../../../includes/user_header.php';
 <!-- Use shared calendar component -->
                 <?php 
                 // Create a custom calendar component for users (only approved leaves)
-                // Exclude 'other' type (Terminal Leave/Monetization) as they don't represent actual absence days
+                // EXCLUDE 'other' type (Terminal Leave/Monetization) as they don't represent actual absence days
                 $stmt = $pdo->prepare("
                     SELECT 
                         lr.*,
@@ -425,49 +425,66 @@ include '../../../../includes/user_header.php';
                     }
                     $colorClass = 'leave-' . ($typeForColor ?: 'vacation');
                     
-                    // Collect all weekday dates and group consecutive weekdays
-                    $start = new DateTime($request['start_date']);
-                    $daysToCount = $request['actual_days_approved'];
-                    $weekdaysCounted = 0;
-                    $current = clone $start;
+                    // Check if specific dates are selected
                     $weekdayGroups = [];
-                    $currentGroup = null;
+                    $useSelectedDates = false;
                     
-                    while ($weekdaysCounted < $daysToCount) {
-                        $dayOfWeek = (int)$current->format('N');
-                        
-                        if ($dayOfWeek >= 1 && $dayOfWeek <= 5) { // Weekday
-                            if ($currentGroup === null) {
-                                $currentGroup = ['start' => $current->format('Y-m-d'), 'end' => $current->format('Y-m-d')];
-                            } else {
-                                $currentGroup['end'] = $current->format('Y-m-d');
+                    if (!empty($request['selected_dates'])) {
+                        // Use selected dates - create individual events for each date
+                        $useSelectedDates = true;
+                        $selectedDates = explode(',', $request['selected_dates']);
+                        foreach ($selectedDates as $date) {
+                            $date = trim($date);
+                            if (!empty($date)) {
+                                $weekdayGroups[] = ['start' => $date, 'end' => $date, 'days' => 1];
                             }
-                            $weekdaysCounted++;
-                        } else { // Weekend
-                            if ($currentGroup !== null) {
-                                $weekdayGroups[] = $currentGroup;
-                                $currentGroup = null;
+                        }
+                    } else {
+                        // Fallback: Collect all weekday dates and group consecutive weekdays
+                        $start = new DateTime($request['start_date']);
+                        $daysToCount = $request['actual_days_approved'];
+                        $weekdaysCounted = 0;
+                        $current = clone $start;
+                        $currentGroup = null;
+                        
+                        while ($weekdaysCounted < $daysToCount) {
+                            $dayOfWeek = (int)$current->format('N');
+                            
+                            if ($dayOfWeek >= 1 && $dayOfWeek <= 5) { // Weekday
+                                if ($currentGroup === null) {
+                                    $currentGroup = ['start' => $current->format('Y-m-d'), 'end' => $current->format('Y-m-d')];
+                                } else {
+                                    $currentGroup['end'] = $current->format('Y-m-d');
+                                }
+                                $weekdaysCounted++;
+                            } else { // Weekend
+                                if ($currentGroup !== null) {
+                                    $weekdayGroups[] = $currentGroup;
+                                    $currentGroup = null;
+                                }
+                            }
+                            
+                            if ($weekdaysCounted < $daysToCount) {
+                                $current->modify('+1 day');
                             }
                         }
                         
-                        if ($weekdaysCounted < $daysToCount) {
-                            $current->modify('+1 day');
+                        // Add the last group
+                        if ($currentGroup !== null) {
+                            $weekdayGroups[] = $currentGroup;
                         }
-                    }
-                    
-                    // Add the last group
-                    if ($currentGroup !== null) {
-                        $weekdayGroups[] = $currentGroup;
                     }
                     
                     // Create separate events for each weekday group
                     foreach ($weekdayGroups as $index => $group):
                         $groupEnd = new DateTime($group['end']);
                         $groupEnd->modify('+1 day');
+                        // Use individual day count for title display
+                        $displayDays = isset($group['days']) ? $group['days'] : $request['actual_days_approved'];
                 ?>
                 {
                     id: '<?php echo $request['id'] . '_' . $index; ?>',
-                    title: '<?php echo addslashes($leaveDisplayName); ?> (<?php echo $request['actual_days_approved']; ?> day<?php echo $request['actual_days_approved'] != 1 ? 's' : ''; ?>)',
+                    title: '<?php echo addslashes($leaveDisplayName); ?> (<?php echo $displayDays; ?> day<?php echo $displayDays != 1 ? 's' : ''; ?>)',
                     start: '<?php echo $group['start']; ?>',
                     end: '<?php echo $groupEnd->format('Y-m-d'); ?>',
                     allDay: true,

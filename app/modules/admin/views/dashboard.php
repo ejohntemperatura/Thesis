@@ -51,7 +51,7 @@ $leaveTypes = getLeaveTypes();
 
 // Fetch recent leave requests
 $stmt = $pdo->prepare("
-    SELECT lr.*, e.name as employee_name, e.service_credit_balance AS sc_balance,
+    SELECT lr.*, lr.late_justification, e.name as employee_name, e.service_credit_balance AS sc_balance,
            CASE 
                WHEN lr.status = 'cancelled' THEN 'cancelled'
                WHEN lr.status = 'rejected' OR lr.dept_head_approval = 'rejected' OR lr.director_approval = 'rejected' THEN 'rejected'

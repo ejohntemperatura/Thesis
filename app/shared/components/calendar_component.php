@@ -26,7 +26,7 @@ if (in_array($role, ['manager'])) {
 }
 
 // Get APPROVED leave requests only - with proper approved days
-// Exclude 'other' type (Terminal Leave/Monetization) as they don't represent actual absence days
+// EXCLUDE 'other' type (Terminal Leave/Monetization) as they don't represent actual absence days
 $sql = "
     SELECT 
         lr.*, 

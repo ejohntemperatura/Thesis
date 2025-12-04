@@ -608,13 +608,23 @@ try {
                     <td style="width: 50%; font-weight: bold; padding: 4px;">
                         6.C NUMBER OF WORKING DAYS APPLIED FOR
                         <div style="font-size: 11pt; font-weight: bold; text-align: center; margin-top: 4px; border: 1px solid #000; padding: 4px;">
-                            <?php echo $leaveRequest['days_requested'] ?? 'N/A'; ?>
+                            <?php 
+                            // For Terminal Leave and Monetization, use working_days_applied if available
+                            if (($leaveRequest['leave_type'] ?? '') === 'other' && !empty($leaveRequest['working_days_applied'])) {
+                                echo $leaveRequest['working_days_applied'];
+                            } else {
+                                echo $leaveRequest['days_requested'] ?? 'N/A';
+                            }
+                            ?>
                         </div>
                         <div style="font-weight: bold; margin-top: 6px; font-size: 7pt;">INCLUSIVE DATES:</div>
                         <div style="margin-top: 2px; padding: 4px; border: 1px solid #000; min-height: 25px; font-size: 7pt;">
                             <?php 
-                            // Display inclusive dates
-                            if (!empty($leaveRequest['selected_dates'])) {
+                            // For Terminal Leave and Monetization, do not display dates
+                            if (in_array($selectedLeaveType, ['terminal', 'terminal_leave', 'monetization']) || 
+                                ($leaveRequest['leave_type'] ?? '') === 'other') {
+                                echo 'N/A (Leave credits conversion)';
+                            } elseif (!empty($leaveRequest['selected_dates'])) {
                                 // If specific dates are selected, display them
                                 $dates = explode(',', $leaveRequest['selected_dates']);
                                 $formatted_dates = array_map(function($date) {
@@ -658,9 +668,9 @@ try {
             <div class="section-header" style="text-align: center;">7. DETAILS OF ACTION ON APPLICATION</div>
             <table style="margin: 0;">
                 <tr>
-                    <td style="width: 50%; vertical-align: top; padding: 4px;">
-                        <div style="font-weight: bold; margin-bottom: 4px;">7.A CERTIFICATION OF LEAVE CREDITS</div>
-                        <div style="text-align: center; margin-bottom: 8px; font-size: 7pt;">As of __________________</div>
+                    <td style="width: 50%; vertical-align: top; padding: 2px;">
+                        <div style="font-weight: bold; margin-bottom: 2px;">7.A CERTIFICATION OF LEAVE CREDITS</div>
+                        <div style="text-align: center; margin-bottom: 4px; font-size: 7pt;">As of __________________</div>
                         <table style="width: 100%;">
                             <tr>
                                 <th style="text-align: left; font-style: italic; padding: 2px;"></th>
@@ -715,17 +725,17 @@ try {
                                 </td>
                             </tr>
                         </table>
-                        <div style="margin-top: 30px; text-align: center; border-top: 1px solid #000; padding-top: 10px;">
+                        <div style="margin-top: 15px; text-align: center; border-top: 1px solid #000; padding-top: 5px;">
                             <?php if ($leaveRequest['admin_approval'] === 'approved' || ($leaveRequest['status'] === 'approved' && empty($leaveRequest['admin_approval']))): ?>
                                 <div class="approval-text">APPROVED</div>
                             <?php endif; ?>
-                            <div class="signature-line" style="margin-top: 5px;"></div>
-                            <div style="font-weight: bold; font-size: 9pt; margin-top: 2px;">CRISTY XILDE R. AMANCIO, RPm</div>
+                            <div class="signature-line" style="margin-top: 3px;"></div>
+                            <div style="font-weight: bold; font-size: 9pt; margin-top: 1px;">CRISTY XILDE R. AMANCIO, RPm</div>
                             <div style="font-size: 7pt;">AO-IV/HRMO II</div>
                         </div>
                     </td>
-                    <td style="width: 50%; vertical-align: top; padding: 4px;">
-                        <div style="font-weight: bold; margin-bottom: 4px;">7.B RECOMMENDATION</div>
+                    <td style="width: 50%; vertical-align: top; padding: 2px;">
+                        <div style="font-weight: bold; margin-bottom: 2px;">7.B RECOMMENDATION</div>
                         <div class="checkbox-item">
                             <div class="checkbox <?php echo ($leaveRequest['status'] === 'approved' || $leaveRequest['admin_approval'] === 'approved') ? 'checked' : ''; ?>"></div>
                             <span>For approval</span>
@@ -734,7 +744,7 @@ try {
                             <div class="checkbox <?php echo ($leaveRequest['status'] === 'rejected' || $leaveRequest['admin_approval'] === 'rejected') ? 'checked' : ''; ?>"></div>
                             <span>For disapproval due to:</span>
                         </div>
-                        <div style="margin: 4px 0; padding-left: 14px; min-height: 25px; border-bottom: 1px solid #000;">
+                        <div style="margin: 2px 0; padding-left: 14px; min-height: 20px; border-bottom: 1px solid #000;">
                             <?php 
                             if ($leaveRequest['status'] === 'rejected' || $leaveRequest['admin_approval'] === 'rejected') {
                                 echo htmlspecialchars($leaveRequest['admin_rejection_reason'] ?? 
@@ -742,11 +752,11 @@ try {
                             }
                             ?>
                         </div>
-                        <div style="margin-top: 15px; text-align: center;">
+                        <div style="margin-top: 8px; text-align: center;">
                             <?php if ($leaveRequest['admin_approval'] === 'approved' || ($leaveRequest['status'] === 'approved' && empty($leaveRequest['admin_approval']))): ?>
                                 <div class="approval-text">APPROVED</div>
                             <?php endif; ?>
-                            <div class="signature-line" style="margin-top: 5px;"></div>
+                            <div class="signature-line" style="margin-top: 3px;"></div>
                             <div class="signature-label">(Immediate Head)</div>
                         </div>
                     </td>
@@ -758,13 +768,16 @@ try {
         <div class="form-section" style="margin-top: 1px;">
             <table style="margin: 0;">
                 <tr>
-                    <td style="width: 50%; padding: 4px; vertical-align: top;">
-                        <div style="font-weight: bold; margin-bottom: 4px;">7.C APPROVED FOR:</div>
-                        <div style="display: flex; gap: 10px; margin: 4px 0;">
+                    <td style="width: 50%; padding: 2px; vertical-align: top;">
+                        <div style="font-weight: bold; margin-bottom: 2px;">7.C APPROVED FOR:</div>
+                        <div style="display: flex; gap: 10px; margin: 2px 0;">
                             <div style="flex: 1;">
                                 <div class="field-value" style="text-align: center; font-weight: bold;">
                                     <?php 
-                                    if ($leaveRequest['status'] === 'approved') {
+                                    // Show days with pay only if NOT without_pay leave type
+                                    if ($leaveRequest['status'] === 'approved' && 
+                                        ($leaveRequest['leave_type'] ?? '') !== 'without_pay' &&
+                                        ($leaveRequest['pay_status'] ?? '') !== 'without_pay') {
                                         echo $leaveRequest['approved_days'] ?? $leaveRequest['days_requested'] ?? '';
                                     }
                                     ?>
@@ -772,7 +785,16 @@ try {
                                 <div style="text-align: center; font-size: 6pt; margin-top: 1px;">days with pay</div>
                             </div>
                             <div style="flex: 1;">
-                                <div class="field-value" style="text-align: center; font-weight: bold;"></div>
+                                <div class="field-value" style="text-align: center; font-weight: bold;">
+                                    <?php 
+                                    // Show days without pay if leave_type is without_pay OR pay_status is without_pay
+                                    if ($leaveRequest['status'] === 'approved' && 
+                                        (($leaveRequest['leave_type'] ?? '') === 'without_pay' ||
+                                         ($leaveRequest['pay_status'] ?? '') === 'without_pay')) {
+                                        echo $leaveRequest['approved_days'] ?? $leaveRequest['days_requested'] ?? '';
+                                    }
+                                    ?>
+                                </div>
                                 <div style="text-align: center; font-size: 6pt; margin-top: 1px;">days without pay</div>
                             </div>
                             <div style="flex: 1;">
@@ -781,9 +803,9 @@ try {
                             </div>
                         </div>
                     </td>
-                    <td style="width: 50%; padding: 4px; vertical-align: top;">
-                        <div style="font-weight: bold; margin-bottom: 4px;">7.D DISAPPROVED DUE TO:</div>
-                        <div style="min-height: 25px; border-bottom: 1px solid #000; margin: 4px 0;">
+                    <td style="width: 50%; padding: 2px; vertical-align: top;">
+                        <div style="font-weight: bold; margin-bottom: 2px;">7.D DISAPPROVED DUE TO:</div>
+                        <div style="min-height: 20px; border-bottom: 1px solid #000; margin: 2px 0;">
                             <?php 
                             if ($leaveRequest['status'] === 'rejected') {
                                 echo htmlspecialchars($leaveRequest['director_rejection_reason'] ?? 
@@ -795,12 +817,12 @@ try {
                     </td>
                 </tr>
                 <tr>
-                    <td colspan="2" style="padding: 10px 4px; text-align: center; border-top: 1px solid #000;">
+                    <td colspan="2" style="padding: 5px 2px; text-align: center; border-top: 1px solid #000;">
                         <?php if ($leaveRequest['director_approval'] === 'approved' || ($leaveRequest['status'] === 'approved' && empty($leaveRequest['director_approval']))): ?>
                             <div class="approval-text">APPROVED</div>
                         <?php endif; ?>
-                        <div class="signature-line" style="margin-top: 10px; width: 400px; margin-left: auto; margin-right: auto;"></div>
-                        <div style="font-weight: bold; font-size: 9pt; margin-top: 2px;">MA. CARLA Y. ABAQUITA, Dev.Ed. D., RChE</div>
+                        <div class="signature-line" style="margin-top: 5px; width: 400px; margin-left: auto; margin-right: auto;"></div>
+                        <div style="font-weight: bold; font-size: 9pt; margin-top: 1px;">MA. CARLA Y. ABAQUITA, Dev.Ed. D., RChE</div>
                         <div style="font-size: 7pt;">Campus Director</div>
                     </td>
                 </tr>

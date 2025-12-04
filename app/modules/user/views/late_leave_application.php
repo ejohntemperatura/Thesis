@@ -26,8 +26,13 @@ if (!$stmt->fetch()) {
 $leave_type = $_POST['leave_type'];
 $start_date = $_POST['start_date'];
 $end_date = $_POST['end_date'];
-$reason = $_POST['reason'];
-$late_justification = $_POST['late_justification'];
+$late_justification = $_POST['late_justification'] ?? '';
+// Reason field is no longer required - only late_justification is used
+$reason = null;
+
+// Get selected dates and days count from form (same as regular leave application)
+$selected_dates = $_POST['selected_dates'] ?? '';
+$days_count = isset($_POST['days_count']) ? (int)$_POST['days_count'] : 0;
 
 // Get conditional fields based on leave type
 $location_type = $_POST['location_type'] ?? null;
@@ -78,52 +83,56 @@ if ($leave_type === 'sick' && isset($_FILES['medical_certificate']) && $_FILES['
     }
 }
 
-// Calculate number of days (inclusive) excluding weekends
+// Calculate number of days using selected_dates (same logic as regular leave application)
+// Debug: Log received values
+error_log("Late leave submission - selected_dates: '$selected_dates', days_count: $days_count, start: $start_date, end: $end_date");
+
+// If selected_dates is provided, use ONLY those dates
+if (!empty($selected_dates)) {
+    $dates_array = array_filter(explode(',', $selected_dates)); // Remove empty values
+    $days_count = count($dates_array);
+    error_log("Calculated days from selected_dates: $days_count dates: " . implode(', ', $dates_array));
+    
+    // Update start_date and end_date to match the actual selected dates
+    if ($days_count > 0) {
+        sort($dates_array); // Sort dates chronologically
+        $start_date = $dates_array[0]; // First selected date
+        $end_date = $dates_array[$days_count - 1]; // Last selected date
+        error_log("Updated date range based on selected dates: $start_date to $end_date");
+    }
+}
+
+// Calculate number of days from selected dates or fallback to range calculation
 $start = new DateTime($start_date);
 $end = new DateTime($end_date);
+
 if ($end < $start) {
     $_SESSION['error'] = "End date cannot be before start date.";
     header('Location: dashboard.php');
     exit();
 }
 
-// Calculate days excluding Saturdays and Sundays
-$days = 0;
-$current = clone $start;
-while ($current <= $end) {
-    $dayOfWeek = (int)$current->format('N'); // 1 (Monday) to 7 (Sunday)
-    // Only count weekdays (Monday=1 to Friday=5)
-    if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
-        $days++;
+// Use the days_count from form if provided (from calendar picker with selected dates)
+// Otherwise fallback to calculating from date range
+if ($days_count > 0 && !empty($selected_dates)) {
+    // Use the count from selected dates (specific dates chosen by user)
+    $days = $days_count;
+} else {
+    // Fallback: Calculate days excluding Saturdays and Sundays from the full range
+    $days = 0;
+    $current = clone $start;
+    while ($current <= $end) {
+        $dayOfWeek = (int)$current->format('N'); // 1 (Monday) to 7 (Sunday)
+        // Only count weekdays (Monday=1 to Friday=5)
+        if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
+            $days++;
+        }
+        $current->modify('+1 day');
     }
-    $current->modify('+1 day');
 }
 
-// Check if the leave application is for future dates (should use regular application)
-$today = new DateTime();
-$today->setTime(0, 0, 0); // Reset time to start of day for accurate comparison
-
-if ($start >= $today) {
-    // This is not a late application - redirect to regular application form
-    $_SESSION['regular_application_data'] = [
-        'leave_type' => $leave_type,
-        'start_date' => $start_date,
-        'end_date' => $end_date,
-        'reason' => $reason,
-        'location_type' => $location_type,
-        'location_specify' => $location_specify,
-        'medical_condition' => $medical_condition,
-        'illness_specify' => $illness_specify,
-        'special_women_condition' => $special_women_condition,
-        'study_type' => $study_type,
-        'medical_certificate_path' => $medical_certificate_path,
-        'days' => $days
-    ];
-    
-    $_SESSION['info'] = "You are applying for leave with future dates. Please use the Regular Leave Application form for future leave requests.";
-    header('Location: dashboard.php');
-    exit();
-}
+// Late leave application now allows ANY dates (past, present, or future)
+// The "late" designation simply means it requires justification, not that dates must be in the past
 
 // Check leave credits using the LeaveCreditsManager
 $creditsManager = new LeaveCreditsManager($pdo);
@@ -188,6 +197,8 @@ if (!$creditCheck['sufficient'] && !$proceed_without_pay) {
         'leave_type' => $leave_type,
         'start_date' => $start_date,
         'end_date' => $end_date,
+        'selected_dates' => $selected_dates,
+        'days_count' => $days_count,
         'reason' => $reason,
         'location_type' => $location_type,
         'location_specify' => $location_specify,
@@ -207,6 +218,8 @@ if (!$creditCheck['sufficient'] && !$proceed_without_pay) {
         'leave_type' => $leave_type,
         'start_date' => $start_date,
         'end_date' => $end_date,
+        'selected_dates' => $selected_dates,
+        'days_count' => $days_count,
         'reason' => $reason,
         'location_type' => $location_type,
         'location_specify' => $location_specify,
@@ -260,16 +273,22 @@ try {
         }
     }
 
-    // Insert late leave request with conditional fields and late justification
+    // Insert late leave request with conditional fields, selected_dates, and late justification
     // Check if original_leave_type column exists
     try {
-        $stmt = $pdo->prepare("INSERT INTO leave_requests (employee_id, leave_type, original_leave_type, start_date, end_date, reason, status, days_requested, location_type, location_specify, medical_condition, illness_specify, special_women_condition, study_type, medical_certificate_path, late_justification, is_late, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())");
-        $stmt->execute([$employee_id, $leave_type, $original_leave_type, $start_date, $end_date, $reason, $days, $location_type, $location_specify, $medical_condition, $illness_specify, $special_women_condition, $study_type, $medical_certificate_path, $late_justification]);
+        $stmt = $pdo->prepare("INSERT INTO leave_requests (employee_id, leave_type, original_leave_type, start_date, end_date, selected_dates, reason, status, days_requested, location_type, location_specify, medical_condition, illness_specify, special_women_condition, study_type, medical_certificate_path, late_justification, is_late, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())");
+        $stmt->execute([$employee_id, $leave_type, $original_leave_type, $start_date, $end_date, $selected_dates, $reason, $days, $location_type, $location_specify, $medical_condition, $illness_specify, $special_women_condition, $study_type, $medical_certificate_path, $late_justification]);
     } catch (PDOException $e) {
-        // If original_leave_type column doesn't exist, use the old query
-        if (strpos($e->getMessage(), 'original_leave_type') !== false) {
-            $stmt = $pdo->prepare("INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, reason, status, days_requested, location_type, location_specify, medical_condition, illness_specify, special_women_condition, study_type, medical_certificate_path, late_justification, is_late, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())");
-            $stmt->execute([$employee_id, $leave_type, $start_date, $end_date, $reason, $days, $location_type, $location_specify, $medical_condition, $illness_specify, $special_women_condition, $study_type, $medical_certificate_path, $late_justification]);
+        // If original_leave_type or selected_dates column doesn't exist, use fallback query
+        if (strpos($e->getMessage(), 'original_leave_type') !== false || strpos($e->getMessage(), 'selected_dates') !== false) {
+            try {
+                $stmt = $pdo->prepare("INSERT INTO leave_requests (employee_id, leave_type, original_leave_type, start_date, end_date, reason, status, days_requested, location_type, location_specify, medical_condition, illness_specify, special_women_condition, study_type, medical_certificate_path, late_justification, is_late, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())");
+                $stmt->execute([$employee_id, $leave_type, $original_leave_type, $start_date, $end_date, $reason, $days, $location_type, $location_specify, $medical_condition, $illness_specify, $special_women_condition, $study_type, $medical_certificate_path, $late_justification]);
+            } catch (PDOException $e2) {
+                // Final fallback without original_leave_type
+                $stmt = $pdo->prepare("INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, reason, status, days_requested, location_type, location_specify, medical_condition, illness_specify, special_women_condition, study_type, medical_certificate_path, late_justification, is_late, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())");
+                $stmt->execute([$employee_id, $leave_type, $start_date, $end_date, $reason, $days, $location_type, $location_specify, $medical_condition, $illness_specify, $special_women_condition, $study_type, $medical_certificate_path, $late_justification]);
+            }
         } else {
             throw $e; // Re-throw if it's a different error
         }

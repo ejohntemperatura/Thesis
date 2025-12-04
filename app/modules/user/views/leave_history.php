@@ -167,8 +167,15 @@ include '../../../../includes/user_header.php';
                                                 </div>
                                             <?php endif; ?>
                                         </td>
-                                        <td class="px-6 py-4 text-slate-300 text-sm max-w-xs truncate" title="<?php echo htmlspecialchars($request['reason']); ?>">
-                                            <?php echo htmlspecialchars($request['reason']); ?>
+                                        <td class="px-6 py-4 text-slate-300 text-sm max-w-xs truncate" title="<?php echo htmlspecialchars($request['is_late'] == 1 ? ($request['late_justification'] ?? '') : ($request['reason'] ?? '')); ?>">
+                                            <?php 
+                                            // For late leave applications, show late_justification instead of reason
+                                            if ($request['is_late'] == 1) {
+                                                echo htmlspecialchars($request['late_justification'] ?? '');
+                                            } else {
+                                                echo htmlspecialchars($request['reason'] ?? '');
+                                            }
+                                            ?>
                                         </td>
                                         <td class="px-6 py-4">
                                             <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide <?php 

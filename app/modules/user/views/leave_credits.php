@@ -363,13 +363,17 @@ include '../../../../includes/user_header.php';
                                             </td>
                                             <td class="py-3 px-4 text-slate-300">
                                                 <div class="max-w-xs">
-                                                    <div class="truncate" title="<?php echo htmlspecialchars($leave['reason']); ?>">
-                                                        <?php echo htmlspecialchars(substr($leave['reason'], 0, 50)) . (strlen($leave['reason']) > 50 ? '...' : ''); ?>
+                                                    <?php 
+                                                    // For late leave applications, show late_justification instead of reason
+                                                    $displayText = $leave['is_late'] == 1 ? ($leave['late_justification'] ?? '') : ($leave['reason'] ?? '');
+                                                    ?>
+                                                    <div class="truncate" title="<?php echo htmlspecialchars($displayText); ?>">
+                                                        <?php echo htmlspecialchars(substr($displayText, 0, 50)) . (strlen($displayText) > 50 ? '...' : ''); ?>
                                                     </div>
                                                     <?php if ($leave['is_late'] && !empty($leave['late_justification'])): ?>
                                                         <div class="text-xs text-orange-400 mt-1">
                                                             <i class="fas fa-exclamation-triangle mr-1"></i>
-                                                            <?php echo htmlspecialchars(substr($leave['late_justification'], 0, 30)) . (strlen($leave['late_justification']) > 30 ? '...' : ''); ?>
+                                                            Late Application
                                                         </div>
                                                     <?php endif; ?>
                                                 </div>

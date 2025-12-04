@@ -99,7 +99,7 @@ if ($leave_type === 'solo_parent') {
 }
 $start_date = $_POST['start_date'];
 $end_date = $_POST['end_date'];
-$reason = $_POST['reason'];
+$reason = !empty($_POST['reason']) ? $_POST['reason'] : null; // Make reason optional - set to null if empty
 
 // Get conditional fields based on leave type
 $location_type = $_POST['location_type'] ?? null;
@@ -271,11 +271,13 @@ if ($leave_type === 'other') {
 
 // Check if the leave application is for past dates (late application)
 // Skip this check for "other" type (Terminal Leave/Monetization) since they're about leave credits, not calendar dates
+// Allow same-day and next-day applications - only flag as late if the date is actually in the past (before today)
 if ($leave_type !== 'other') {
-    $today = new DateTime();
-    $today->setTime(0, 0, 0); // Reset time to start of day for accurate comparison
+    $yesterday = new DateTime();
+    $yesterday->modify('-1 day');
+    $yesterday->setTime(23, 59, 59); // End of yesterday
 
-    if ($start < $today) {
+    if ($start < $yesterday) {
         // This is a late application - redirect to late application form
         $_SESSION['late_application_data'] = [
             'leave_type' => $leave_type,

@@ -134,7 +134,19 @@ $rejected_count = $stmt->fetchColumn();
 $total_credits = $employee['vacation_leave'] ?? 15; // Default to 15 if not set
 
 // Fetch user's leave requests with approved days calculation
-$stmt = $pdo->prepare("\n    SELECT \n        lr.*, e.service_credit_balance AS sc_balance,\n        CASE \n            WHEN lr.approved_days IS NOT NULL AND lr.approved_days > 0 \n            THEN lr.approved_days\n            ELSE lr.days_requested\n        END as actual_days_approved\n    FROM leave_requests lr \n    JOIN employees e ON lr.employee_id = e.id\n    WHERE lr.employee_id = ? \n    ORDER BY lr.created_at DESC\n");
+$stmt = $pdo->prepare("
+    SELECT 
+        lr.*, lr.late_justification, e.service_credit_balance AS sc_balance,
+        CASE 
+            WHEN lr.approved_days IS NOT NULL AND lr.approved_days > 0 
+            THEN lr.approved_days
+            ELSE lr.days_requested
+        END as actual_days_approved
+    FROM leave_requests lr 
+    JOIN employees e ON lr.employee_id = e.id
+    WHERE lr.employee_id = ? 
+    ORDER BY lr.created_at DESC
+");
 $stmt->execute([$_SESSION['user_id']]);
 $leave_requests = $stmt->fetchAll();
 
@@ -280,18 +292,11 @@ include '../../../../includes/user_header.php';
     color: #64748b;
     text-decoration: line-through;
 }
-/* Late leave calendar allows past dates */
-.leave-calendar-picker.late-mode .day-cell.past-date {
+/* Late leave calendar allows ALL dates (past, present, future) - no special styling needed */
+.leave-calendar-picker.late-mode .day-cell {
     color: #e2e8f0;
-    text-decoration: none;
     cursor: pointer;
 }
-.leave-calendar-picker.late-mode .day-cell.past-date:hover:not(.weekend) {
-    background: rgba(107, 114, 128, 0.3);
-}
-.leave-calendar-picker.late-mode .day-cell.past-date.selected {
-    background: #6b7280;
-    color: white;
 }
 .leave-calendar-picker .calendar-footer {
     margin-top: 12px;
@@ -620,13 +625,6 @@ include '../../../../includes/user_header.php';
                         </div>
                     </div>
 
-                    <div>
-                        <label for="modal_reason" class="block text-sm font-semibold text-slate-300 mb-2">
-                            <i class="fas fa-comment-alt mr-2"></i>Reason for Leave
-                        </label>
-                        <textarea id="modal_reason" name="reason" rows="4" placeholder="Please provide a detailed reason for your leave request..." required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" style="resize: vertical; min-height: 100px; pointer-events: auto;"></textarea>
-                    </div>
-                    
                     <div class="flex gap-4 justify-end pt-6">
                         <button type="button" onclick="closeApplyLeaveModal()" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors">
                             Cancel
@@ -749,13 +747,6 @@ include '../../../../includes/user_header.php';
                                 Accepted: PDF, JPG, JPEG, PNG, DOC, DOCX (Max 10MB)
                             </p>
                         </div>
-                    </div>
-                    
-                    <div>
-                        <label for="modal_late_reason" class="block text-sm font-semibold text-slate-300 mb-2">
-                            <i class="fas fa-comment-alt mr-2"></i>Reason for Leave
-                        </label>
-                        <textarea id="modal_late_reason" name="reason" rows="4" placeholder="Please provide a detailed reason for your leave request..." required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent" style="pointer-events: auto;"></textarea>
                     </div>
                     
                     <!-- Conditional Fields for Late Application Modal -->
@@ -1850,8 +1841,12 @@ include '../../../../includes/user_header.php';
                     if (isToday) classes.push('today');
                     if (isSelected) classes.push('selected');
                     if (isInRange && !isSelected) classes.push('in-range');
-                    if (isPast && !this.isLateMode) classes.push('disabled', 'past-date');
-                    if (isPast && this.isLateMode) classes.push('past-date');
+                    
+                    // In late mode, all dates are selectable (past, present, future)
+                    // In regular mode, only today and future dates are selectable
+                    if (!this.isLateMode && isPast) {
+                        classes.push('disabled', 'past-date');
+                    }
                     
                     const clickable = !isWeekend && (this.isLateMode || !isPast);
                     const onclick = clickable ? `onclick="event.preventDefault(); ${this.getInstanceName()}.toggleDate('${dateStr}')"` : '';
@@ -2074,16 +2069,7 @@ include '../../../../includes/user_header.php';
             // Now handled by calendar picker
         }
         
-        // Test textarea functionality
-        const reasonTextarea = document.getElementById('modal_reason');
-        if (reasonTextarea) {
-            reasonTextarea.addEventListener('input', function() {
-                // Handle textarea input
-            });
-            reasonTextarea.addEventListener('focus', function() {
-                // Handle textarea focus
-            });
-        }
+        // Reason field removed from regular leave application
 
 
         
@@ -2207,8 +2193,7 @@ include '../../../../includes/user_header.php';
             const endDateInput = document.querySelector('#lateApplicationModal input[name="end_date"]');
             if (endDateInput) endDateInput.value = data.end_date;
             
-            const reasonTextarea = document.querySelector('#lateApplicationModal textarea[name="reason"]');
-            if (reasonTextarea) reasonTextarea.value = data.reason;
+            // Reason field removed from late leave application
             
             // Populate conditional fields
             if (data.location_type) {
@@ -2260,8 +2245,7 @@ include '../../../../includes/user_header.php';
             const endDateInput = document.querySelector('#applyLeaveModal input[name="end_date"]');
             if (endDateInput) endDateInput.value = data.end_date;
             
-            const reasonTextarea = document.querySelector('#applyLeaveModal textarea[name="reason"]');
-            if (reasonTextarea) reasonTextarea.value = data.reason;
+            // Reason field removed from regular leave application
             
             // Populate conditional fields
             if (data.location_type) {
@@ -2525,6 +2509,7 @@ include '../../../../includes/user_header.php';
                 events: [
                     <?php 
                     // Get user's leave requests for calendar (exclude rejected leaves)
+                    // EXCLUDE 'other' type (Terminal Leave/Monetization) as they don't represent actual absence days
                     $stmt = $pdo->prepare("
                         SELECT 
                             lr.*,
@@ -2536,6 +2521,7 @@ include '../../../../includes/user_header.php';
                         FROM leave_requests lr 
                         WHERE lr.employee_id = ? 
                         AND lr.status != 'rejected'
+                        AND lr.leave_type != 'other'
                         ORDER BY lr.start_date ASC
                     ");
                     $stmt->execute([$_SESSION['user_id']]);
@@ -2544,19 +2530,73 @@ include '../../../../includes/user_header.php';
                     foreach ($user_leave_requests as $request): 
                         // Use the getLeaveTypeDisplayName function for consistent display
                         $leaveDisplayName = getLeaveTypeDisplayName($request['leave_type'], $request['original_leave_type'] ?? null, $leaveTypes, $request['other_purpose'] ?? null);
-                    ?>
-                    {
-                        <?php
+                        
                         // For without pay leaves, use original leave type color if available
                         $colorClass = 'leave-' . $request['leave_type'];
                         if ($request['leave_type'] === 'without_pay' && !empty($request['original_leave_type'])) {
                             $colorClass = 'leave-' . $request['original_leave_type'];
                         }
-                        ?>
-                        id: '<?php echo $request['id']; ?>',
-                        title: '<?php echo addslashes($leaveDisplayName); ?> (<?php echo $request['actual_days_approved']; ?> days)',
-                        start: '<?php echo $request['start_date']; ?>',
-                        end: '<?php echo date('Y-m-d', strtotime($request['start_date'] . ' +' . $request['actual_days_approved'] . ' days')); ?>',
+                        
+                        // Check if specific dates are selected
+                        $weekdayGroups = [];
+                        
+                        if (!empty($request['selected_dates'])) {
+                            // Use selected dates - create individual events for each date
+                            $selectedDates = explode(',', $request['selected_dates']);
+                            foreach ($selectedDates as $date) {
+                                $date = trim($date);
+                                if (!empty($date)) {
+                                    $weekdayGroups[] = ['start' => $date, 'end' => $date, 'days' => 1];
+                                }
+                            }
+                        } else {
+                            // Fallback: Collect all weekday dates and group consecutive weekdays
+                            $start = new DateTime($request['start_date']);
+                            $daysToCount = $request['actual_days_approved'];
+                            $weekdaysCounted = 0;
+                            $current = clone $start;
+                            $currentGroup = null;
+                            
+                            while ($weekdaysCounted < $daysToCount) {
+                                $dayOfWeek = (int)$current->format('N');
+                                
+                                if ($dayOfWeek >= 1 && $dayOfWeek <= 5) { // Weekday
+                                    if ($currentGroup === null) {
+                                        $currentGroup = ['start' => $current->format('Y-m-d'), 'end' => $current->format('Y-m-d')];
+                                    } else {
+                                        $currentGroup['end'] = $current->format('Y-m-d');
+                                    }
+                                    $weekdaysCounted++;
+                                } else { // Weekend
+                                    if ($currentGroup !== null) {
+                                        $weekdayGroups[] = $currentGroup;
+                                        $currentGroup = null;
+                                    }
+                                }
+                                
+                                if ($weekdaysCounted < $daysToCount) {
+                                    $current->modify('+1 day');
+                                }
+                            }
+                            
+                            // Add the last group
+                            if ($currentGroup !== null) {
+                                $weekdayGroups[] = $currentGroup;
+                            }
+                        }
+                        
+                        // Create separate events for each weekday group
+                        foreach ($weekdayGroups as $index => $group):
+                            $groupEnd = new DateTime($group['end']);
+                            $groupEnd->modify('+1 day');
+                            // Use individual day count for title display
+                            $displayDays = isset($group['days']) ? $group['days'] : $request['actual_days_approved'];
+                    ?>
+                    {
+                        id: '<?php echo $request['id'] . '_' . $index; ?>',
+                        title: '<?php echo addslashes($leaveDisplayName); ?> (<?php echo $displayDays; ?> day<?php echo $displayDays != 1 ? 's' : ''; ?>)',
+                        start: '<?php echo $group['start']; ?>',
+                        end: '<?php echo $groupEnd->format('Y-m-d'); ?>',
                         className: '<?php echo $colorClass; ?>',
                         extendedProps: {
                             leave_type: '<?php echo $request['leave_type']; ?>',
@@ -2567,6 +2607,7 @@ include '../../../../includes/user_header.php';
                             display_name: '<?php echo addslashes($leaveDisplayName); ?>'
                         }
                     },
+                    <?php endforeach; ?>
                     <?php endforeach; ?>
                 ],
                 eventClick: function(info) {

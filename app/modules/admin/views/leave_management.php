@@ -224,7 +224,7 @@ try {
 // Fetch initial leave requests (limited)
 try {
     $query = "
-        SELECT lr.*, e.name as employee_name, e.email as employee_email, e.department, e.service_credit_balance AS sc_balance,
+        SELECT lr.*, lr.late_justification, e.name as employee_name, e.email as employee_email, e.department, e.service_credit_balance AS sc_balance,
                dept_approver.name as dept_head_name, director_approver.name as director_name, admin_approver.name as admin_name,
                CASE 
                    WHEN lr.approved_days IS NOT NULL AND lr.approved_days > 0 
@@ -510,8 +510,11 @@ include '../../../../includes/admin_header.php';
                                                 </td>
                                                 <td class="py-4 px-4">
                                                     <span class="text-slate-300 max-w-[150px] truncate block" 
-                                                          title="<?php echo htmlspecialchars($request['reason']); ?>">
-                                                        <?php echo htmlspecialchars($request['reason']); ?>
+                                                          title="<?php echo htmlspecialchars($request['is_late'] == 1 ? ($request['late_justification'] ?? '') : ($request['reason'] ?? '')); ?>">
+                                                        <?php 
+                                                        // For late leave applications, show late_justification instead of reason
+                                                        echo htmlspecialchars($request['is_late'] == 1 ? ($request['late_justification'] ?? '') : ($request['reason'] ?? '')); 
+                                                        ?>
                                                     </span>
                                                 </td>
                                                 <!-- Department Head Approval -->
