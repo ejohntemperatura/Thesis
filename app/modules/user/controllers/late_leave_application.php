@@ -113,7 +113,11 @@ if ($file !== null) {
     }
 }
 
-// Calculate number of days (inclusive)
+// Get selected dates and days count from form
+$selected_dates = $_POST['selected_dates'] ?? '';
+$days_count = isset($_POST['days_count']) ? (int)$_POST['days_count'] : 0;
+
+// Calculate number of days from selected dates or fallback to range calculation
 $start = new DateTime($start_date);
 $end = new DateTime($end_date);
 if ($end < $start) {
@@ -121,8 +125,23 @@ if ($end < $start) {
     header('Location: dashboard.php');
     exit();
 }
-$interval = $start->diff($end);
-$days = $interval->days + 1; // Include both start and end dates
+
+// Use the days_count from form if provided (from calendar picker)
+// Otherwise fallback to calculating from date range
+if ($days_count > 0) {
+    $days = $days_count;
+} else {
+    // Fallback: Calculate days excluding Saturdays and Sundays
+    $days = 0;
+    $current = clone $start;
+    while ($current <= $end) {
+        $dayOfWeek = (int)$current->format('N'); // 1 (Monday) to 7 (Sunday)
+        if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
+            $days++;
+        }
+        $current->modify('+1 day');
+    }
+}
 
 // Check leave credits using the LeaveCreditsManager
 $creditsManager = new LeaveCreditsManager($pdo);
@@ -139,8 +158,8 @@ try {
     $pdo->beginTransaction();
 
     // Insert late leave request with conditional fields (mark as late application)
-    $stmt = $pdo->prepare("INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, reason, status, days_requested, is_late, late_justification, location_type, location_specify, medical_condition, illness_specify, special_women_condition, study_type, medical_certificate_path, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-    $stmt->execute([$employee_id, $leave_type, $start_date, $end_date, $reason, $days, $late_justification, $location_type, $location_specify, $medical_condition, $illness_specify, $special_women_condition, $study_type, $medical_certificate_path]);
+    $stmt = $pdo->prepare("INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, selected_dates, reason, status, days_requested, is_late, late_justification, location_type, location_specify, medical_condition, illness_specify, special_women_condition, study_type, medical_certificate_path, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+    $stmt->execute([$employee_id, $leave_type, $start_date, $end_date, $selected_dates, $reason, $days, $late_justification, $location_type, $location_specify, $medical_condition, $illness_specify, $special_women_condition, $study_type, $medical_certificate_path]);
 
     // Deduct leave credits immediately when applying
     $creditsManager->deductLeaveCredits($employee_id, $leave_type, $start_date, $end_date);

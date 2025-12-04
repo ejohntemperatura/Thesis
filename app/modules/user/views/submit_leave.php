@@ -13,6 +13,9 @@ if (!isset($_SESSION['user_id']) || $_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $employee_id = $_SESSION['user_id'];
 
+// Check if user wants to proceed with without pay leave (MUST BE EARLY)
+$proceed_without_pay = isset($_POST['proceed_without_pay']) && $_POST['proceed_without_pay'] === 'yes';
+
 // Verify employee exists in database
 $stmt = $pdo->prepare("SELECT id FROM employees WHERE id = ?");
 $stmt->execute([$employee_id]);
@@ -108,20 +111,31 @@ $study_type = $_POST['study_type'] ?? null;
 
 // Handle medical certificate upload for sick leave
 $medical_certificate_path = null;
-// Enforce required upload for maternity/paternity; optional for sick (but processed if provided)
-if (in_array($leave_type, ['maternity','paternity'])) {
-    if (!isset($_FILES['medical_certificate']) || $_FILES['medical_certificate']['error'] !== UPLOAD_ERR_OK) {
-        $_SESSION['error'] = "Supporting document is required for " . ucfirst($leave_type) . " leave.";
-        header('Location: dashboard.php');
-        exit();
+
+// Determine the actual leave type to check (use original_leave_type if proceeding without pay)
+$check_leave_type = $leave_type;
+if ($proceed_without_pay && isset($_POST['original_leave_type'])) {
+    $check_leave_type = $_POST['original_leave_type'];
+}
+
+// NEW APPROACH: Make documents optional for maternity/paternity when without pay
+// Only enforce document requirement when NOT proceeding without pay
+if (!$proceed_without_pay) {
+    // Enforce required upload for maternity/paternity; optional for sick (but processed if provided)
+    if (in_array($check_leave_type, ['maternity','paternity'])) {
+        if (!isset($_FILES['medical_certificate']) || $_FILES['medical_certificate']['error'] !== UPLOAD_ERR_OK) {
+            $_SESSION['error'] = "Supporting document is required for " . ucfirst($check_leave_type) . " leave.";
+            header('Location: dashboard.php');
+            exit();
+        }
     }
 }
 
-// Select the correct file input to process
+// Process file upload if available (for both first submission and resubmission)
 $file = null;
-if ($leave_type === 'sick' && isset($_FILES['sick_medical_certificate']) && $_FILES['sick_medical_certificate']['error'] === UPLOAD_ERR_OK) {
+if ($check_leave_type === 'sick' && isset($_FILES['sick_medical_certificate']) && $_FILES['sick_medical_certificate']['error'] === UPLOAD_ERR_OK) {
     $file = $_FILES['sick_medical_certificate'];
-} elseif (in_array($leave_type, ['maternity','paternity']) && isset($_FILES['medical_certificate']) && $_FILES['medical_certificate']['error'] === UPLOAD_ERR_OK) {
+} elseif (in_array($check_leave_type, ['maternity','paternity']) && isset($_FILES['medical_certificate']) && $_FILES['medical_certificate']['error'] === UPLOAD_ERR_OK) {
     $file = $_FILES['medical_certificate'];
 }
 
@@ -157,6 +171,8 @@ if ($file !== null) {
     
     if (move_uploaded_file($file['tmp_name'], $file_path)) {
         $medical_certificate_path = $file_path;
+        // Store in session immediately for without pay resubmission
+        $_SESSION['uploaded_medical_cert'] = $file_path;
     } else {
         $_SESSION['error'] = "Failed to upload supporting document.";
         header('Location: dashboard.php');
@@ -164,7 +180,39 @@ if ($file !== null) {
     }
 }
 
-// Calculate number of days (inclusive) excluding weekends
+// If proceeding without pay, try to get path from POST or session
+if ($proceed_without_pay) {
+    if (!empty($_POST['medical_certificate_path'])) {
+        $medical_certificate_path = $_POST['medical_certificate_path'];
+    } elseif (isset($_SESSION['uploaded_medical_cert'])) {
+        $medical_certificate_path = $_SESSION['uploaded_medical_cert'];
+    }
+    // If still no path, that's OK for without pay leave
+}
+
+// Get selected dates and days count from form
+$selected_dates = $_POST['selected_dates'] ?? '';
+$days_count = isset($_POST['days_count']) ? (int)$_POST['days_count'] : 0;
+
+// Debug: Log received values
+error_log("Leave submission - selected_dates: '$selected_dates', days_count: $days_count, start: $start_date, end: $end_date");
+
+// If selected_dates is provided, use ONLY those dates
+if (!empty($selected_dates)) {
+    $dates_array = array_filter(explode(',', $selected_dates)); // Remove empty values
+    $days_count = count($dates_array);
+    error_log("Calculated days from selected_dates: $days_count dates: " . implode(', ', $dates_array));
+    
+    // Update start_date and end_date to match the actual selected dates
+    if ($days_count > 0) {
+        sort($dates_array); // Sort dates chronologically
+        $start_date = $dates_array[0]; // First selected date
+        $end_date = $dates_array[$days_count - 1]; // Last selected date
+        error_log("Updated date range based on selected dates: $start_date to $end_date");
+    }
+}
+
+// Calculate number of days from selected dates or fallback to range calculation
 $start = new DateTime($start_date);
 $end = new DateTime($end_date);
 if ($end < $start) {
@@ -173,16 +221,23 @@ if ($end < $start) {
     exit();
 }
 
-// Calculate days excluding Saturdays and Sundays
-$days = 0;
-$current = clone $start;
-while ($current <= $end) {
-    $dayOfWeek = (int)$current->format('N'); // 1 (Monday) to 7 (Sunday)
-    // Only count weekdays (Monday=1 to Friday=5)
-    if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
-        $days++;
+// Use the days_count from form if provided (from calendar picker with selected dates)
+// Otherwise fallback to calculating from date range
+if ($days_count > 0 && !empty($selected_dates)) {
+    // Use the count from selected dates (specific dates chosen by user)
+    $days = $days_count;
+} else {
+    // Fallback: Calculate days excluding Saturdays and Sundays from the full range
+    $days = 0;
+    $current = clone $start;
+    while ($current <= $end) {
+        $dayOfWeek = (int)$current->format('N'); // 1 (Monday) to 7 (Sunday)
+        // Only count weekdays (Monday=1 to Friday=5)
+        if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
+            $days++;
+        }
+        $current->modify('+1 day');
     }
-    $current->modify('+1 day');
 }
 
 // Check if the leave application is for past dates (late application)
@@ -250,9 +305,6 @@ if ($leave_type === 'cto') {
     }
 }
 
-// Check if user wants to proceed with without pay leave
-$proceed_without_pay = isset($_POST['proceed_without_pay']) && $_POST['proceed_without_pay'] === 'yes';
-
 // Additional check: CTO cannot proceed without pay even if proceed_without_pay is set
 if ($leave_type === 'cto' && !$creditCheck['sufficient'] && $proceed_without_pay) {
     $_SESSION['error'] = "CTO leave requires sufficient credits and cannot be taken without pay.";
@@ -269,11 +321,17 @@ if (isset($_SESSION['last_submission']) && $_SESSION['last_submission'] === $sub
 }
 
 if (!$creditCheck['sufficient'] && !$proceed_without_pay) {
+    // Debug: Log the medical certificate path being stored
+    error_log("Storing session data - medical_certificate_path: " . ($medical_certificate_path ?? 'NULL'));
+    error_log("Storing session data - leave_type: $leave_type");
+    
     // Store the form data and show popup for insufficient credits
     $_SESSION['insufficient_credits_data'] = [
         'leave_type' => $leave_type,
         'start_date' => $start_date,
         'end_date' => $end_date,
+        'selected_dates' => $selected_dates,
+        'days_count' => $days_count,
         'reason' => $reason,
         'location_type' => $location_type,
         'location_specify' => $location_specify,
@@ -291,6 +349,8 @@ if (!$creditCheck['sufficient'] && !$proceed_without_pay) {
         'leave_type' => $leave_type,
         'start_date' => $start_date,
         'end_date' => $end_date,
+        'selected_dates' => $selected_dates,
+        'days_count' => $days_count,
         'reason' => $reason,
         'location_type' => $location_type,
         'location_specify' => $location_specify,
@@ -343,16 +403,16 @@ try {
         }
     }
 
-    // Insert leave request with conditional fields
+    // Insert leave request with conditional fields including selected_dates
     // Check if original_leave_type column exists
     try {
-        $stmt = $pdo->prepare("INSERT INTO leave_requests (employee_id, leave_type, original_leave_type, start_date, end_date, reason, status, days_requested, location_type, location_specify, medical_condition, illness_specify, special_women_condition, study_type, medical_certificate_path, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-        $stmt->execute([$employee_id, $leave_type, $original_leave_type, $start_date, $end_date, $reason, $days, $location_type, $location_specify, $medical_condition, $illness_specify, $special_women_condition, $study_type, $medical_certificate_path]);
+        $stmt = $pdo->prepare("INSERT INTO leave_requests (employee_id, leave_type, original_leave_type, start_date, end_date, selected_dates, reason, status, days_requested, location_type, location_specify, medical_condition, illness_specify, special_women_condition, study_type, medical_certificate_path, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+        $stmt->execute([$employee_id, $leave_type, $original_leave_type, $start_date, $end_date, $selected_dates, $reason, $days, $location_type, $location_specify, $medical_condition, $illness_specify, $special_women_condition, $study_type, $medical_certificate_path]);
     } catch (PDOException $e) {
         // If original_leave_type column doesn't exist, use the old query
         if (strpos($e->getMessage(), 'original_leave_type') !== false) {
-            $stmt = $pdo->prepare("INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, reason, status, days_requested, location_type, location_specify, medical_condition, illness_specify, special_women_condition, study_type, medical_certificate_path, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-            $stmt->execute([$employee_id, $leave_type, $start_date, $end_date, $reason, $days, $location_type, $location_specify, $medical_condition, $illness_specify, $special_women_condition, $study_type, $medical_certificate_path]);
+            $stmt = $pdo->prepare("INSERT INTO leave_requests (employee_id, leave_type, start_date, end_date, selected_dates, reason, status, days_requested, location_type, location_specify, medical_condition, illness_specify, special_women_condition, study_type, medical_certificate_path, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+            $stmt->execute([$employee_id, $leave_type, $start_date, $end_date, $selected_dates, $reason, $days, $location_type, $location_specify, $medical_condition, $illness_specify, $special_women_condition, $study_type, $medical_certificate_path]);
         } else {
             throw $e; // Re-throw if it's a different error
         }
@@ -415,6 +475,7 @@ try {
     unset($_SESSION['show_insufficient_credits_popup']);
     unset($_SESSION['insufficient_credits_data']);
     unset($_SESSION['temp_insufficient_credits_data']);
+    unset($_SESSION['uploaded_medical_cert']);
     
     // Debug: Log successful submission
     error_log("Leave request submitted successfully - ID: $leaveRequestId, Employee: $employee_id, Leave Type: $leave_type, Original: $original_leave_type");

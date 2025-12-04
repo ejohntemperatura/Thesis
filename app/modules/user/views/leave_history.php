@@ -22,7 +22,8 @@ $stmt = $pdo->prepare("
     SELECT lr.*, e.service_credit_balance AS sc_balance,
            lr.leave_type as display_leave_type,
            lr.is_late,
-           lr.late_justification
+           lr.late_justification,
+           lr.selected_dates
     FROM leave_requests lr 
     JOIN employees e ON lr.employee_id = e.id
     WHERE lr.employee_id = ? 
@@ -30,6 +31,14 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$_SESSION['user_id']]);
 $leave_requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Process selected_dates for each request
+foreach ($leave_requests as &$request) {
+    if (!empty($request['selected_dates'])) {
+        $request['selected_dates_array'] = explode(',', $request['selected_dates']);
+    }
+}
+unset($request);
 
 // Set page title
 $page_title = "Leave History";
@@ -67,8 +76,7 @@ include '../../../../includes/user_header.php';
                             <thead class="bg-slate-700/30">
                                 <tr>
                                     <th class="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Leave Type</th>
-                                    <th class="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Start Date</th>
-                                    <th class="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">End Date</th>
+                                    <th class="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Leave Dates</th>
                                     <th class="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Reason</th>
                                     <th class="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Status</th>
                                     <th class="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Applied On</th>
@@ -120,36 +128,33 @@ include '../../../../includes/user_header.php';
                                                 <?php endif; ?>
                                             </div>
                                         </td>
-                                        <td class="px-6 py-4 text-slate-300 text-sm"><?php echo date('M d, Y', strtotime($request['start_date'])); ?></td>
                                         <td class="px-6 py-4 text-slate-300 text-sm">
-                                            <?php 
-                                            // Calculate correct end date based on approved days (excluding weekends)
-                                            if ($request['status'] === 'approved' && isset($request['approved_days']) && $request['approved_days'] > 0) {
-                                                $start = new DateTime($request['start_date']);
-                                                $daysToCount = $request['approved_days'];
-                                                $weekdaysCounted = 0;
-                                                $current = clone $start;
-                                                
-                                                // Count the first day if it's a weekday
-                                                $dayOfWeek = (int)$current->format('N');
-                                                if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
-                                                    $weekdaysCounted++;
-                                                }
-                                                
-                                                // Continue counting until we reach the approved days
-                                                while ($weekdaysCounted < $daysToCount) {
-                                                    $current->modify('+1 day');
-                                                    $dayOfWeek = (int)$current->format('N');
-                                                    if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
-                                                        $weekdaysCounted++;
+                                            <div class="flex flex-wrap gap-1">
+                                                <?php 
+                                                if (!empty($request['selected_dates_array'])) {
+                                                    // Show selected dates as badges
+                                                    foreach ($request['selected_dates_array'] as $date): ?>
+                                                        <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-blue-500/30">
+                                                            <?php echo date('M d, Y', strtotime($date)); ?>
+                                                        </span>
+                                                    <?php endforeach;
+                                                } else {
+                                                    // Generate date range as badges for older records
+                                                    $start = new DateTime($request['start_date']);
+                                                    $end = new DateTime($request['end_date']);
+                                                    $current = clone $start;
+                                                    while ($current <= $end) {
+                                                        $dayOfWeek = (int)$current->format('N');
+                                                        if ($dayOfWeek >= 1 && $dayOfWeek <= 5): ?>
+                                                            <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-blue-500/30">
+                                                                <?php echo $current->format('M d, Y'); ?>
+                                                            </span>
+                                                        <?php endif;
+                                                        $current->modify('+1 day');
                                                     }
                                                 }
-                                                
-                                                echo date('M d, Y', $current->getTimestamp());
-                                            } else {
-                                                echo date('M d, Y', strtotime($request['end_date']));
-                                            }
-                                            ?>
+                                                ?>
+                                            </div>
                                         </td>
                                         <td class="px-6 py-4 text-slate-300 text-sm max-w-xs truncate" title="<?php echo htmlspecialchars($request['reason']); ?>">
                                             <?php echo htmlspecialchars($request['reason']); ?>
@@ -326,16 +331,19 @@ include '../../../../includes/user_header.php';
             if (leaveTypes[baseType]) {
                 const leaveTypeConfig = leaveTypes[baseType];
                 
+                // Use formal_name if available, otherwise fall back to name
+                const displayName = leaveTypeConfig.formal_name || leaveTypeConfig.name;
+                
                 if (isWithoutPay) {
                     // Show name with without pay indicator
                     if (leaveTypeConfig.name_with_note) {
                         return leaveTypeConfig.name_with_note;
                     } else {
-                        return leaveTypeConfig.name + ' (Without Pay)';
+                        return displayName + ' (Without Pay)';
                     }
                 } else {
-                    // Show regular name
-                    return leaveTypeConfig.name;
+                    // Show formal name
+                    return displayName;
                 }
             } else {
                 // Fallback for unknown types
@@ -421,49 +429,36 @@ include '../../../../includes/user_header.php';
                                         <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide">${resolveLeaveTypeLabel(leave)}</span>
                                     </p>
                                     
-                                    <h6 class="text-slate-400 mb-2 font-semibold">Start Date</h6>
-                                    <p class="mb-3 text-white">${new Date(leave.start_date).toLocaleDateString('en-US', { 
-                                        year: 'numeric', 
-                                        month: 'long', 
-                                        day: 'numeric' 
-                                    })}</p>
-                                    
-                                    <h6 class="text-slate-400 mb-2 font-semibold">End Date</h6>
-                                    <p class="mb-3 text-white">${(() => {
-                                        // Calculate correct end date based on approved days (excluding weekends)
-                                        if (leave.status === 'approved' && leave.approved_days && leave.approved_days > 0) {
-                                            const startDate = new Date(leave.start_date);
-                                            let current = new Date(startDate);
-                                            let weekdaysCounted = 0;
-                                            
-                                            // Count the first day if it's a weekday
-                                            let dayOfWeek = current.getDay(); // 0=Sunday, 6=Saturday
-                                            if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-                                                weekdaysCounted++;
-                                            }
-                                            
-                                            // Continue counting until we reach approved days
-                                            while (weekdaysCounted < leave.approved_days) {
-                                                current.setDate(current.getDate() + 1);
-                                                dayOfWeek = current.getDay();
-                                                if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-                                                    weekdaysCounted++;
-                                                }
-                                            }
-                                            
-                                            return current.toLocaleDateString('en-US', { 
-                                                year: 'numeric', 
-                                                month: 'long', 
-                                                day: 'numeric' 
-                                            });
-                                        } else {
-                                            return new Date(leave.end_date).toLocaleDateString('en-US', { 
-                                                year: 'numeric', 
-                                                month: 'long', 
-                                                day: 'numeric' 
-                                            });
-                                        }
-                                    })()}</p>
+                                    ${leave.selected_dates_array && leave.selected_dates_array.length > 0 ? `
+                                        <h6 class="text-slate-400 mb-2 font-semibold">Selected Leave Days</h6>
+                                        <div class="mb-3 bg-slate-700/50 p-3 rounded-lg">
+                                            <div class="flex flex-wrap gap-2">
+                                                ${leave.selected_dates_array.map(date => `
+                                                    <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs font-semibold">
+                                                        ${new Date(date + 'T00:00:00').toLocaleDateString('en-US', { 
+                                                            month: 'short', 
+                                                            day: 'numeric',
+                                                            year: 'numeric'
+                                                        })}
+                                                    </span>
+                                                `).join('')}
+                                            </div>
+                                        </div>
+                                    ` : `
+                                        <h6 class="text-slate-400 mb-2 font-semibold">Start Date</h6>
+                                        <p class="mb-3 text-white">${new Date(leave.start_date).toLocaleDateString('en-US', { 
+                                            year: 'numeric', 
+                                            month: 'long', 
+                                            day: 'numeric' 
+                                        })}</p>
+                                        
+                                        <h6 class="text-slate-400 mb-2 font-semibold">End Date</h6>
+                                        <p class="mb-3 text-white">${new Date(leave.end_date).toLocaleDateString('en-US', { 
+                                            year: 'numeric', 
+                                            month: 'long', 
+                                            day: 'numeric' 
+                                        })}</p>
+                                    `}
                                     
                                     <h6 class="text-slate-400 mb-2 font-semibold">Days Requested</h6>
                                     <p class="mb-3 text-white">${leave.days_requested || leave.days || 'N/A'} day(s)</p>

@@ -236,10 +236,7 @@ $leave_requests = $stmt->fetchAll();
                     <i class="fas fa-bell elms-sidebar-icon"></i>
                     <span>Leave Alerts</span>
                 </a>
-                <a href="#" onclick="openDTRKiosk(); return false;" class="elms-sidebar-link">
-                    <i class="fas fa-clock elms-sidebar-icon"></i>
-                    <span>DTR</span>
-                </a>
+
             </div>
             
             <!-- Reports Section -->
@@ -394,8 +391,7 @@ $leave_requests = $stmt->fetchAll();
                         <tr>
                             <th>Employee</th>
                             <th class="hidden sm:table-cell">Type</th>
-                            <th class="hidden md:table-cell">Start Date</th>
-                            <th class="hidden md:table-cell">End Date</th>
+                            <th class="hidden md:table-cell">Leave Dates</th>
                             <th>
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                                     <span>Status</span>
@@ -454,29 +450,12 @@ $leave_requests = $stmt->fetchAll();
                                                     </span>
                                                     <div class="text-slate-400 text-xs mt-1">
                                                         <?php 
-                                                        // Calculate correct end date based on approved days (excluding weekends)
-                                                        if ($request['status'] === 'approved' && $request['approved_days'] && $request['approved_days'] > 0) {
-                                                            $start = new DateTime($request['start_date']);
-                                                            $daysToCount = $request['approved_days'];
-                                                            $weekdaysCounted = 0;
-                                                            $current = clone $start;
-                                                            
-                                                            $dayOfWeek = (int)$current->format('N');
-                                                            if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
-                                                                $weekdaysCounted++;
-                                                            }
-                                                            
-                                                            while ($weekdaysCounted < $daysToCount) {
-                                                                $current->modify('+1 day');
-                                                                $dayOfWeek = (int)$current->format('N');
-                                                                if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
-                                                                    $weekdaysCounted++;
-                                                                }
-                                                            }
-                                                            
-                                                            echo date('M d', strtotime($request['start_date'])) . ' - ' . date('M d', $current->getTimestamp());
+                                                        if (!empty($request['selected_dates'])) {
+                                                            $dates = explode(',', $request['selected_dates']);
+                                                            echo date('M d', strtotime($dates[0])) . ' - ' . date('M d, Y', strtotime($dates[count($dates)-1]));
+                                                            echo '<br><span class="text-slate-500">' . count($dates) . ' dates</span>';
                                                         } else {
-                                                            echo date('M d', strtotime($request['start_date'])) . ' - ' . date('M d', strtotime($request['end_date']));
+                                                            echo date('M d', strtotime($request['start_date'])) . ' - ' . date('M d, Y', strtotime($request['end_date']));
                                                         }
                                                         ?>
                                                     </div>
@@ -513,34 +492,33 @@ $leave_requests = $stmt->fetchAll();
                                             ?>
                                         </span>
                                     </td>
-                                    <td class="px-3 md:px-6 py-4 text-slate-300 text-sm hidden md:table-cell"><?php echo date('M d, Y', strtotime($request['start_date'])); ?></td>
                                     <td class="px-3 md:px-6 py-4 text-slate-300 text-sm hidden md:table-cell">
-                                        <?php 
-                                        // Calculate correct end date based on approved days (excluding weekends)
-                                        if ($request['status'] === 'approved' && $request['approved_days'] && $request['approved_days'] > 0) {
-                                            $start = new DateTime($request['start_date']);
-                                            $daysToCount = $request['approved_days'];
-                                            $weekdaysCounted = 0;
-                                            $current = clone $start;
-                                            
-                                            $dayOfWeek = (int)$current->format('N');
-                                            if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
-                                                $weekdaysCounted++;
-                                            }
-                                            
-                                            while ($weekdaysCounted < $daysToCount) {
-                                                $current->modify('+1 day');
-                                                $dayOfWeek = (int)$current->format('N');
-                                                if ($dayOfWeek >= 1 && $dayOfWeek <= 5) {
-                                                    $weekdaysCounted++;
+                                        <div class="flex flex-wrap gap-1">
+                                            <?php 
+                                            if (!empty($request['selected_dates'])) {
+                                                $dates = explode(',', $request['selected_dates']);
+                                                foreach ($dates as $date): ?>
+                                                    <span class="bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-blue-500/30">
+                                                        <?php echo date('M d, Y', strtotime($date)); ?>
+                                                    </span>
+                                                <?php endforeach;
+                                            } else {
+                                                // Generate date range as badges for older records
+                                                $start = new DateTime($request['start_date']);
+                                                $end = new DateTime($request['end_date']);
+                                                $current = clone $start;
+                                                while ($current <= $end) {
+                                                    $dayOfWeek = (int)$current->format('N');
+                                                    if ($dayOfWeek >= 1 && $dayOfWeek <= 5): ?>
+                                                        <span class="bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-blue-500/30">
+                                                            <?php echo $current->format('M d, Y'); ?>
+                                                        </span>
+                                                    <?php endif;
+                                                    $current->modify('+1 day');
                                                 }
                                             }
-                                            
-                                            echo date('M d, Y', $current->getTimestamp());
-                                        } else {
-                                            echo date('M d, Y', strtotime($request['end_date']));
-                                        }
-                                        ?>
+                                            ?>
+                                        </div>
                                     </td>
                                     <td class="px-3 md:px-6 py-4">
                                         <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide <?php 
@@ -671,10 +649,12 @@ $leave_requests = $stmt->fetchAll();
 
             if (leaveTypes[key]) {
                 const cfg = leaveTypes[key];
+                // Use formal_name if available, otherwise fall back to name
+                const displayName = cfg.formal_name || cfg.name;
                 if (isWithoutPay) {
-                    return cfg.name_with_note ? cfg.name_with_note : cfg.name + ' (Without Pay)';
+                    return cfg.name_with_note ? cfg.name_with_note : displayName + ' (Without Pay)';
                 }
-                return cfg.name;
+                return displayName;
             }
 
             // Fallback
@@ -818,40 +798,33 @@ $leave_requests = $stmt->fetchAll();
                                             </p>
                                         </div>
                                         ` : ''}
-                                        <div>
-                                            <label class="text-sm font-medium text-slate-400">Start Date</label>
-                                            <p class="text-white">${leave.start_date ? new Date(leave.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</p>
-                                        </div>
-                                        <div>
-                                            <label class="text-sm font-medium text-slate-400">End Date</label>
-                                            <p class="text-white">${(() => {
-                                                // Calculate correct end date based on approved days (excluding weekends)
-                                                if (leave.status === 'approved' && leave.approved_days && leave.approved_days > 0) {
-                                                    const startDate = new Date(leave.start_date);
-                                                    let current = new Date(startDate);
-                                                    let weekdaysCounted = 0;
-                                                    
-                                                    // Count the first day if it's a weekday
-                                                    let dayOfWeek = current.getDay(); // 0=Sunday, 6=Saturday
-                                                    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-                                                        weekdaysCounted++;
-                                                    }
-                                                    
-                                                    // Continue counting until we reach approved days
-                                                    while (weekdaysCounted < leave.approved_days) {
-                                                        current.setDate(current.getDate() + 1);
-                                                        dayOfWeek = current.getDay();
-                                                        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-                                                            weekdaysCounted++;
-                                                        }
-                                                    }
-                                                    
-                                                    return current.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-                                                } else {
-                                                    return leave.end_date ? new Date(leave.end_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
-                                                }
-                                            })()}</p>
-                                        </div>
+                                        ${leave.selected_dates && leave.selected_dates.trim() !== '' ? `
+                                            <div class="md:col-span-2">
+                                                <label class="text-sm font-medium text-slate-400 mb-2 block">Selected Leave Days</label>
+                                                <div class="bg-slate-700/50 p-3 rounded-lg">
+                                                    <div class="flex flex-wrap gap-2">
+                                                        ${leave.selected_dates.split(',').map(date => `
+                                                            <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs font-semibold">
+                                                                ${new Date(date + 'T00:00:00').toLocaleDateString('en-US', { 
+                                                                    month: 'short', 
+                                                                    day: 'numeric',
+                                                                    year: 'numeric'
+                                                                })}
+                                                            </span>
+                                                        `).join('')}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ` : `
+                                            <div>
+                                                <label class="text-sm font-medium text-slate-400">Start Date</label>
+                                                <p class="text-white">${leave.start_date ? new Date(leave.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</p>
+                                            </div>
+                                            <div>
+                                                <label class="text-sm font-medium text-slate-400">End Date</label>
+                                                <p class="text-white">${leave.end_date ? new Date(leave.end_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</p>
+                                            </div>
+                                        `}
                                         <div class="md:col-span-2">
                                             <label class="text-sm font-medium text-slate-400">Reason</label>
                                             <p class="text-white bg-slate-800/50 rounded-lg p-3 mt-1">${leave.reason || 'No reason provided'}</p>

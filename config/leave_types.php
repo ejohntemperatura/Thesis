@@ -10,6 +10,7 @@ function getLeaveTypes() {
     // Standard CSC Leave Types with Credits
     'vacation' => [
         'name' => 'Vacation Leave (VL)',
+        'formal_name' => 'Vacation Leave (Sec. 51, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
         'icon' => 'fas fa-umbrella-beach',
         'color' => 'bg-blue-500',
         'requires_credits' => true,
@@ -21,6 +22,7 @@ function getLeaveTypes() {
     ],
     'sick' => [
         'name' => 'Sick Leave (SL)',
+        'formal_name' => 'Sick Leave (Sec. 43, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
         'icon' => 'fas fa-thermometer-half',
         'color' => 'bg-red-500',
         'requires_credits' => true,
@@ -33,6 +35,7 @@ function getLeaveTypes() {
     ],
     'special_privilege' => [
         'name' => 'Special Leave Privilege (SLP)',
+        'formal_name' => 'Special Privilege Leave (Rule VI, CSC MC No. 6, s. 1996, as amended/Sec. 55, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
         'icon' => 'fas fa-star',
         'color' => 'bg-yellow-500',
         'requires_credits' => true,
@@ -44,6 +47,7 @@ function getLeaveTypes() {
     ],
     'maternity' => [
         'name' => 'Maternity Leave',
+        'formal_name' => 'Maternity Leave (R.A. No. 11210 / RR issued by CSC, DOLE and SSS)',
         'icon' => 'fas fa-baby',
         'color' => 'bg-pink-500',
         'requires_credits' => true,
@@ -58,6 +62,7 @@ function getLeaveTypes() {
     ],
     'paternity' => [
         'name' => 'Paternity Leave',
+        'formal_name' => 'Paternity Leave (R.A. No. 8187 / CSC MC No. 71, s. 1998, as amended)',
         'icon' => 'fas fa-male',
         'color' => 'bg-cyan-500',
         'requires_credits' => true,
@@ -71,6 +76,7 @@ function getLeaveTypes() {
     ],
     'solo_parent' => [
         'name' => 'Solo Parent Leave',
+        'formal_name' => 'Solo Parent Leave (SPL) (R.A. No. 8972 / CSC MC No. 8, s. 2004)',
         'icon' => 'fas fa-user-friends',
         'color' => 'bg-orange-500',
         'requires_credits' => true,
@@ -82,6 +88,7 @@ function getLeaveTypes() {
     ],
     'vawc' => [
         'name' => 'VAWC Leave',
+        'formal_name' => '10-Day VAWC Leave (R.A. No. 9262 / CSC MC No. 15, s. 2005)',
         'icon' => 'fas fa-shield-alt',
         'color' => 'bg-red-600',
         'requires_credits' => true,
@@ -94,6 +101,7 @@ function getLeaveTypes() {
     ],
     'special_women' => [
         'name' => 'Special Leave Benefits for Women',
+        'formal_name' => 'Special Leave Benefits for Women (R.A. No. 9710 / CSC MC No. 25, s. 2010)',
         'icon' => 'fas fa-female',
         'color' => 'bg-rose-500',
         'requires_credits' => true,
@@ -106,6 +114,7 @@ function getLeaveTypes() {
     ],
     'rehabilitation' => [
         'name' => 'Rehabilitation Leave',
+        'formal_name' => 'Rehabilitation Privilege (Sec. 59, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
         'icon' => 'fas fa-heart',
         'color' => 'bg-green-500',
         'requires_credits' => true,
@@ -118,6 +127,7 @@ function getLeaveTypes() {
     ],
     'special_emergency' => [
         'name' => 'Special Emergency Leave (Calamity)',
+        'formal_name' => 'Special Emergency (Calamity) Leave (CSC MC No. 2, s. 2012, as amended)',
         'icon' => 'fas fa-house-damage',
         'color' => 'bg-amber-600',
         'requires_credits' => true,
@@ -131,6 +141,7 @@ function getLeaveTypes() {
     ],
     'adoption' => [
         'name' => 'Adoption Leave',
+        'formal_name' => 'Adoption Leave (R.A. No. 8552)',
         'icon' => 'fas fa-hands-holding-child',
         'color' => 'bg-teal-500',
         'requires_credits' => true,
@@ -144,6 +155,7 @@ function getLeaveTypes() {
     ],
     'mandatory' => [
         'name' => 'Mandatory/Force Leave',
+        'formal_name' => 'Mandatory/Forced Leave (Sec. 53, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
         'icon' => 'fas fa-calendar-xmark',
         'color' => 'bg-slate-600',
         'requires_credits' => true,
@@ -157,6 +169,7 @@ function getLeaveTypes() {
     ],
     'study' => [
         'name' => 'Study Leave',
+        'formal_name' => 'Study Leave (Sec. 58, Rule XVI, Omnibus Rules Implementing E.O. No. 292)',
         'name_with_note' => 'Study Leave (Without Pay)',
         'icon' => 'fas fa-graduation-cap',
         'color' => 'bg-indigo-500',
@@ -325,16 +338,19 @@ function getLeaveTypeDisplayName($leave_type, $original_leave_type = null, $leav
     if (isset($leaveTypes[$normalizedBase])) {
         $leaveTypeConfig = $leaveTypes[$normalizedBase];
         
+        // Use formal_name if available, otherwise fall back to name
+        $displayName = $leaveTypeConfig['formal_name'] ?? $leaveTypeConfig['name'];
+        
         if ($isWithoutPay) {
             // Show name with without pay indicator
             if (isset($leaveTypeConfig['name_with_note'])) {
                 return $leaveTypeConfig['name_with_note'];
             } else {
-                return $leaveTypeConfig['name'] . ' (Without Pay)';
+                return $displayName . ' (Without Pay)';
             }
         } else {
-            // Show regular name
-            return $leaveTypeConfig['name'];
+            // Show formal name
+            return $displayName;
         }
     } else {
         // Fallback for unknown types

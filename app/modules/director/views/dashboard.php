@@ -143,8 +143,7 @@ $leaveTypes = getLeaveTypes();
 						<tr>
 							<th class="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Employee</th>
 							<th class="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Leave Type</th>
-							<th class="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Start Date</th>
-							<th class="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">End Date</th>
+							<th class="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Leave Dates</th>
 							<th class="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Days</th>
 							<th class="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Reason</th>
 							<th class="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Status</th>
@@ -197,8 +196,34 @@ $leaveTypes = getLeaveTypes();
 										<?php endif; ?>
 									</div>
 								</td>
-								<td class="px-6 py-4 text-slate-300 text-sm"><?php echo date('M d, Y', strtotime($request['start_date'])); ?></td>
-								<td class="px-6 py-4 text-slate-300 text-sm"><?php echo date('M d, Y', strtotime($request['end_date'])); ?></td>
+								<td class="px-6 py-4 text-slate-300 text-sm">
+									<div class="flex flex-wrap gap-1">
+										<?php 
+										if (!empty($request['selected_dates'])) {
+											$dates = explode(',', $request['selected_dates']);
+											foreach ($dates as $date): ?>
+												<span class="bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-blue-500/30">
+													<?php echo date('M d, Y', strtotime($date)); ?>
+												</span>
+											<?php endforeach;
+										} else {
+											// Generate date range as badges for older records
+											$start = new DateTime($request['start_date']);
+											$end = new DateTime($request['end_date']);
+											$current = clone $start;
+											while ($current <= $end) {
+												$dayOfWeek = (int)$current->format('N');
+												if ($dayOfWeek >= 1 && $dayOfWeek <= 5): ?>
+													<span class="bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg text-xs font-semibold whitespace-nowrap border border-blue-500/30">
+														<?php echo $current->format('M d, Y'); ?>
+													</span>
+												<?php endif;
+												$current->modify('+1 day');
+											}
+										}
+										?>
+									</div>
+								</td>
 								<td class="px-6 py-4 text-slate-300 text-sm">
 									<?php 
 									// Use days_requested from database (excludes weekends)
@@ -303,16 +328,19 @@ $leaveTypes = getLeaveTypes();
 			if (leaveTypes[baseType]) {
 				const leaveTypeConfig = leaveTypes[baseType];
 				
+				// Use formal_name if available, otherwise fall back to name
+				const displayName = leaveTypeConfig.formal_name || leaveTypeConfig.name;
+				
 				if (isWithoutPay) {
 					// Show name with without pay indicator
 					if (leaveTypeConfig.name_with_note) {
 						return leaveTypeConfig.name_with_note;
 					} else {
-						return leaveTypeConfig.name + ' (Without Pay)';
+						return displayName + ' (Without Pay)';
 					}
 				} else {
-					// Show regular name
-					return leaveTypeConfig.name;
+					// Show formal name
+					return displayName;
 				}
 			} else {
 				// Fallback for unknown types
@@ -493,13 +521,47 @@ $leaveTypes = getLeaveTypes();
 														<label class="block text-sm font-semibold text-slate-300 mb-1">Leave Type</label>
 														<p class="text-white font-medium">${getLeaveTypeDisplayNameJS(request.leave_type, request.original_leave_type)}</p>
 													</div>
-													<div>
-														<label class="block text-sm font-semibold text-slate-300 mb-1">Start Date</label>
-														<p class="text-white">${request.start_date}</p>
-													</div>
-													<div>
-														<label class="block text-sm font-semibold text-slate-300 mb-1">End Date</label>
-														<p class="text-white">${request.end_date}</p>
+													<div class="col-span-2">
+														<label class="block text-sm font-semibold text-slate-300 mb-2">Selected Leave Days</label>
+														<div class="bg-slate-700/50 p-3 rounded-lg">
+															<div class="flex flex-wrap gap-2">
+																${(() => {
+																	if (request.selected_dates && request.selected_dates.trim() !== '') {
+																		return request.selected_dates.split(',').map(date => `
+																			<span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-semibold border border-blue-500/30">
+																				${new Date(date + 'T00:00:00').toLocaleDateString('en-US', { 
+																					month: 'short', 
+																					day: 'numeric',
+																					year: 'numeric'
+																				})}
+																			</span>
+																		`).join('');
+																	} else {
+																		// Generate weekday dates from start to end
+																		const start = new Date(request.start_date);
+																		const end = new Date(request.end_date);
+																		const dates = [];
+																		let current = new Date(start);
+																		while (current <= end) {
+																			const dayOfWeek = current.getDay();
+																			if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+																				dates.push(`
+																					<span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-lg text-xs font-semibold border border-blue-500/30">
+																						${current.toLocaleDateString('en-US', { 
+																							month: 'short', 
+																							day: 'numeric',
+																							year: 'numeric'
+																						})}
+																					</span>
+																				`);
+																			}
+																			current.setDate(current.getDate() + 1);
+																		}
+																		return dates.join('');
+																	}
+																})()}
+															</div>
+														</div>
 													</div>
 													<div>
 														<label class="block text-sm font-semibold text-slate-300 mb-1">Days Requested</label>

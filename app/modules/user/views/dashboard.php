@@ -148,6 +148,207 @@ $page_title = "Leave Application";
 include '../../../../includes/user_header.php';
 ?>
 <link href='../../../../assets/libs/fullcalendar/css/main.min.css' rel='stylesheet' />
+<style>
+/* Leave Calendar Picker Styles - Floating Popup */
+.calendar-picker-wrapper {
+    position: relative;
+}
+.calendar-trigger-btn {
+    width: 100%;
+    background: rgba(51, 65, 85, 0.8);
+    border: 1px solid rgba(71, 85, 105, 0.5);
+    border-radius: 12px;
+    padding: 12px 16px;
+    color: #e2e8f0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s;
+}
+.calendar-trigger-btn:hover {
+    background: rgba(51, 65, 85, 1);
+    border-color: rgba(59, 130, 246, 0.5);
+}
+.calendar-trigger-btn .trigger-text {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.calendar-trigger-btn .trigger-icon {
+    color: #3b82f6;
+}
+.leave-calendar-picker {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: rgba(30, 41, 59, 0.98);
+    border: 1px solid rgba(71, 85, 105, 0.5);
+    border-radius: 12px;
+    padding: 16px;
+    user-select: none;
+    margin-top: 4px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    display: none;
+}
+.leave-calendar-picker.show {
+    display: block;
+    animation: fadeInDown 0.2s ease-out;
+}
+@keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.leave-calendar-picker .calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+}
+.leave-calendar-picker .calendar-header button {
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #93c5fd;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.leave-calendar-picker .calendar-header button:hover {
+    background: rgba(59, 130, 246, 0.4);
+}
+.leave-calendar-picker .calendar-header .month-year {
+    color: white;
+    font-weight: 600;
+    font-size: 1rem;
+}
+.leave-calendar-picker .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+.leave-calendar-picker .day-header {
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 6px 0;
+}
+.leave-calendar-picker .day-cell {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: #e2e8f0;
+    transition: all 0.15s;
+    min-height: 32px;
+}
+.leave-calendar-picker .day-cell:hover:not(.disabled):not(.weekend) {
+    background: rgba(59, 130, 246, 0.3);
+}
+.leave-calendar-picker .day-cell.selected {
+    background: #3b82f6;
+    color: white;
+    font-weight: 600;
+}
+.leave-calendar-picker .day-cell.in-range {
+    background: rgba(59, 130, 246, 0.2);
+}
+.leave-calendar-picker .day-cell.disabled {
+    color: #475569;
+    cursor: not-allowed;
+}
+.leave-calendar-picker .day-cell.weekend {
+    color: #64748b;
+    cursor: not-allowed;
+    background: rgba(100, 116, 139, 0.1);
+}
+.leave-calendar-picker .day-cell.today {
+    border: 2px solid #3b82f6;
+}
+.leave-calendar-picker .day-cell.other-month {
+    color: #475569;
+}
+.leave-calendar-picker .day-cell.past-date {
+    color: #64748b;
+    text-decoration: line-through;
+}
+/* Late leave calendar allows past dates */
+.leave-calendar-picker.late-mode .day-cell.past-date {
+    color: #e2e8f0;
+    text-decoration: none;
+    cursor: pointer;
+}
+.leave-calendar-picker.late-mode .day-cell.past-date:hover:not(.weekend) {
+    background: rgba(107, 114, 128, 0.3);
+}
+.leave-calendar-picker.late-mode .day-cell.past-date.selected {
+    background: #6b7280;
+    color: white;
+}
+.leave-calendar-picker .calendar-footer {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(71, 85, 105, 0.3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.leave-calendar-picker .calendar-footer button {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.leave-calendar-picker .calendar-footer .btn-clear {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+}
+.leave-calendar-picker .calendar-footer .btn-clear:hover {
+    background: rgba(239, 68, 68, 0.4);
+}
+.leave-calendar-picker .calendar-footer .btn-done {
+    background: rgba(34, 197, 94, 0.2);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    color: #86efac;
+}
+.leave-calendar-picker .calendar-footer .btn-done:hover {
+    background: rgba(34, 197, 94, 0.4);
+}
+.selected-dates-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.selected-date-chip {
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #93c5fd;
+    padding: 4px 10px;
+    border-radius: 16px;
+    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.selected-date-chip .remove-date {
+    cursor: pointer;
+    opacity: 0.7;
+}
+.selected-date-chip .remove-date:hover {
+    opacity: 1;
+}
+</style>
 
     <!-- Apply Leave Modal -->
     <div id="applyLeaveModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 elms-modal-overlay">
@@ -217,32 +418,34 @@ include '../../../../includes/user_header.php';
                                             $show = ((float)$employee[$creditField]) > 0;
                                         }
                                     }
-                                    if (!$show) continue; ?>
-                                    <option value="<?php echo $type; ?>"><?php echo $config['name']; ?></option>
+                                    if (!$show) continue; 
+                                    $formalName = $config['formal_name'] ?? $config['name'];
+                                ?>
+                                    <option value="<?php echo $type; ?>"><?php echo htmlspecialchars($formalName); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div>
-                            <label for="modal_start_date" class="block text-sm font-semibold text-slate-300 mb-2">
-                                <i class="fas fa-calendar-day mr-2"></i>Start Date
-                            </label>
-                            <input type="date" id="modal_start_date" name="start_date" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label for="modal_end_date" class="block text-sm font-semibold text-slate-300 mb-2">
-                                <i class="fas fa-calendar-day mr-2"></i>End Date
-                            </label>
-                            <input type="date" id="modal_end_date" name="end_date" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <!-- Calendar Date Picker -->
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">
+                            <i class="fas fa-calendar-alt mr-2"></i>Select Leave Days
+                        </label>
+                        <div class="calendar-picker-wrapper">
+                            <button type="button" class="calendar-trigger-btn" onclick="leaveCalendar.toggle()">
+                                <span class="trigger-text">
+                                    <i class="fas fa-calendar-alt trigger-icon"></i>
+                                    <span id="selectedDatesDisplay">Click to select dates</span>
+                                </span>
+                                <span id="modal_total_days" class="text-blue-400 font-semibold">0 days</span>
+                            </button>
+                            <div id="leaveCalendarPicker" class="leave-calendar-picker"></div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-slate-300 mb-2">
-                                <i class="fas fa-calculator mr-2"></i>Total Days
-                            </label>
-                            <input type="text" id="modal_total_days" readonly class="w-full bg-slate-600 border border-slate-600 rounded-xl px-4 py-3 text-slate-400">
-                        </div>
+                        <input type="hidden" id="modal_start_date" name="start_date" required>
+                        <input type="hidden" id="modal_end_date" name="end_date" required>
+                        <input type="hidden" id="modal_selected_dates" name="selected_dates">
+                        <input type="hidden" id="modal_days_count" name="days_count">
                     </div>
                     
                     <!-- Maternity/Paternity Supporting Document (Required) - Regular Application -->
@@ -451,17 +654,34 @@ include '../../../../includes/user_header.php';
                                             $showLate = ((float)$employee[$creditField]) > 0;
                                         }
                                     }
-                                    if (!$showLate) continue; ?>
-                                    <option value="<?php echo $type; ?>"><?php echo $config['name']; ?></option>
+                                    if (!$showLate) continue; 
+                                    $formalName = $config['formal_name'] ?? $config['name'];
+                                ?>
+                                    <option value="<?php echo $type; ?>"><?php echo htmlspecialchars($formalName); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div>
-                            <label for="modal_late_start_date" class="block text-sm font-semibold text-slate-300 mb-2">
-                                <i class="fas fa-calendar-day mr-2"></i>Start Date
-                            </label>
-                            <input type="date" id="modal_late_start_date" name="start_date" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent">
+                    </div>
+
+                    <!-- Calendar Date Picker for Late Leave -->
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">
+                            <i class="fas fa-calendar-alt mr-2"></i>Select Leave Days
+                        </label>
+                        <div class="calendar-picker-wrapper">
+                            <button type="button" class="calendar-trigger-btn" onclick="lateLeaveCalendar.toggle()">
+                                <span class="trigger-text">
+                                    <i class="fas fa-calendar-alt trigger-icon"></i>
+                                    <span id="lateSelectedDatesDisplay">Click to select dates</span>
+                                </span>
+                                <span id="modal_late_total_days" class="text-gray-400 font-semibold">0 days</span>
+                            </button>
+                            <div id="lateLeaveCalendarPicker" class="leave-calendar-picker"></div>
                         </div>
+                        <input type="hidden" id="modal_late_start_date" name="start_date" required>
+                        <input type="hidden" id="modal_late_end_date" name="end_date" required>
+                        <input type="hidden" id="modal_late_selected_dates" name="selected_dates">
+                        <input type="hidden" id="modal_late_days_count" name="days_count">
                     </div>
 
                     <!-- Maternity/Paternity Supporting Document (Required) for Late Application -->
@@ -476,21 +696,6 @@ include '../../../../includes/user_header.php';
                                 <i class="fas fa-info-circle mr-1"></i>
                                 Accepted: PDF, JPG, JPEG, PNG, DOC, DOCX (Max 10MB)
                             </p>
-                        </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label for="modal_late_end_date" class="block text-sm font-semibold text-slate-300 mb-2">
-                                <i class="fas fa-calendar-day mr-2"></i>End Date
-                            </label>
-                            <input type="date" id="modal_late_end_date" name="end_date" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-slate-300 mb-2">
-                                <i class="fas fa-calculator mr-2"></i>Total Days
-                            </label>
-                            <input type="text" id="modal_late_total_days" readonly class="w-full bg-slate-600 border border-slate-600 rounded-xl px-4 py-3 text-slate-400">
                         </div>
                     </div>
                     
@@ -1309,6 +1514,10 @@ include '../../../../includes/user_header.php';
             // Reset form
             document.getElementById('applyLeaveForm').reset();
             clearModalConditionalFields();
+            // Reset calendar picker
+            if (typeof leaveCalendar !== 'undefined') {
+                leaveCalendar.reset();
+            }
         }
 
         function closeLateApplicationModal() {
@@ -1318,6 +1527,10 @@ include '../../../../includes/user_header.php';
             // Reset form
             document.getElementById('lateApplicationForm').reset();
             clearModalLateConditionalFields();
+            // Reset calendar picker
+            if (typeof lateLeaveCalendar !== 'undefined') {
+                lateLeaveCalendar.reset();
+            }
         }
 
         function openInsufficientCreditsModal() {
@@ -1342,6 +1555,10 @@ include '../../../../includes/user_header.php';
             
             // Get the stored form data
             const formData = <?php echo json_encode($_SESSION['temp_insufficient_credits_data'] ?? []); ?>;
+            
+            // Debug: Log the form data
+            console.log('proceedWithWithoutPay - formData:', formData);
+            console.log('medical_certificate_path:', formData.medical_certificate_path);
             
             if (formData && Object.keys(formData).length > 0) {
                 // Show processing modal first
@@ -1407,31 +1624,333 @@ include '../../../../includes/user_header.php';
             }
         }
 
-        // Add event listeners
-        document.getElementById('modal_start_date').addEventListener('change', calculateDays);
-        document.getElementById('modal_end_date').addEventListener('change', calculateDays);
-        document.getElementById('modal_late_start_date').addEventListener('change', calculateLateDays);
-        document.getElementById('modal_late_end_date').addEventListener('change', calculateLateDays);
-        
-        // Disable weekends in date pickers
-        function disableWeekends(dateInput) {
-            dateInput.addEventListener('input', function(e) {
-                const selectedDate = new Date(this.value);
-                const dayOfWeek = selectedDate.getDay();
+        // Leave Calendar Picker Class
+        class LeaveCalendarPicker {
+            constructor(containerId, options = {}) {
+                this.container = document.getElementById(containerId);
+                this.isLateMode = options.isLateMode || false;
+                this.startDateInput = document.getElementById(options.startDateId);
+                this.endDateInput = document.getElementById(options.endDateId);
+                this.totalDaysEl = document.getElementById(options.totalDaysId);
+                this.displayContainer = document.getElementById(options.displayId);
+                this.selectedDatesId = options.selectedDatesId;
+                this.daysCountId = options.daysCountId;
+                this.selectedDatesInput = document.getElementById(options.selectedDatesId);
+                this.daysCountInput = document.getElementById(options.daysCountId);
                 
-                // If Saturday (6) or Sunday (0), clear the selection
-                if (dayOfWeek === 0 || dayOfWeek === 6) {
-                    showStyledAlert('Weekends (Saturday and Sunday) cannot be selected for leave applications.', 'warning');
-                    this.value = '';
+                // Debug: Log if elements are found
+                console.log('Calendar init - selectedDatesInput:', this.selectedDatesInput ? 'found' : 'NOT FOUND', options.selectedDatesId);
+                console.log('Calendar init - daysCountInput:', this.daysCountInput ? 'found' : 'NOT FOUND', options.daysCountId);
+                this.selectedDates = [];
+                this.currentMonth = new Date();
+                this.today = new Date();
+                this.today.setHours(0, 0, 0, 0);
+                this.isOpen = false;
+                
+                if (this.isLateMode) {
+                    this.container.classList.add('late-mode');
                 }
-            });
+                
+                // Calendar only closes when clicking Done button
+                // No outside click close - let employee decide when done
+                
+                this.render();
+            }
+            
+            toggle() {
+                if (this.isOpen) {
+                    this.close();
+                } else {
+                    this.open();
+                }
+            }
+            
+            open() {
+                this.container.classList.add('show');
+                this.isOpen = true;
+            }
+            
+            close() {
+                this.container.classList.remove('show');
+                this.isOpen = false;
+            }
+            
+            render() {
+                const year = this.currentMonth.getFullYear();
+                const month = this.currentMonth.getMonth();
+                const firstDay = new Date(year, month, 1);
+                const lastDay = new Date(year, month + 1, 0);
+                const startDayOfWeek = firstDay.getDay();
+                
+                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                   'July', 'August', 'September', 'October', 'November', 'December'];
+                
+                let html = `
+                    <div class="calendar-header">
+                        <button type="button" onclick="event.preventDefault(); ${this.getInstanceName()}.prevMonth()">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <span class="month-year">${monthNames[month]} ${year}</span>
+                        <button type="button" onclick="event.preventDefault(); ${this.getInstanceName()}.nextMonth()">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                    <div class="calendar-grid">
+                        <div class="day-header">Sun</div>
+                        <div class="day-header">Mon</div>
+                        <div class="day-header">Tue</div>
+                        <div class="day-header">Wed</div>
+                        <div class="day-header">Thu</div>
+                        <div class="day-header">Fri</div>
+                        <div class="day-header">Sat</div>
+                `;
+                
+                // Previous month days
+                const prevMonth = new Date(year, month, 0);
+                for (let i = startDayOfWeek - 1; i >= 0; i--) {
+                    const day = prevMonth.getDate() - i;
+                    html += `<div class="day-cell other-month disabled">${day}</div>`;
+                }
+                
+                // Current month days
+                for (let day = 1; day <= lastDay.getDate(); day++) {
+                    const date = new Date(year, month, day);
+                    const dateStr = this.formatDate(date);
+                    const dayOfWeek = date.getDay();
+                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                    const isPast = date < this.today;
+                    const isToday = date.getTime() === this.today.getTime();
+                    const isSelected = this.selectedDates.includes(dateStr);
+                    const isInRange = this.isDateInRange(date);
+                    
+                    let classes = ['day-cell'];
+                    if (isWeekend) classes.push('weekend');
+                    if (isToday) classes.push('today');
+                    if (isSelected) classes.push('selected');
+                    if (isInRange && !isSelected) classes.push('in-range');
+                    if (isPast && !this.isLateMode) classes.push('disabled', 'past-date');
+                    if (isPast && this.isLateMode) classes.push('past-date');
+                    
+                    const clickable = !isWeekend && (this.isLateMode || !isPast);
+                    const onclick = clickable ? `onclick="event.preventDefault(); ${this.getInstanceName()}.toggleDate('${dateStr}')"` : '';
+                    
+                    html += `<div class="${classes.join(' ')}" ${onclick}>${day}</div>`;
+                }
+                
+                // Next month days
+                const remainingCells = 42 - (startDayOfWeek + lastDay.getDate());
+                for (let day = 1; day <= remainingCells; day++) {
+                    html += `<div class="day-cell other-month disabled">${day}</div>`;
+                }
+                
+                html += '</div>';
+                
+                // Footer with buttons
+                html += `
+                    <div class="calendar-footer">
+                        <button type="button" class="btn-clear" onclick="event.preventDefault(); ${this.getInstanceName()}.clearAll()">
+                            <i class="fas fa-trash-alt mr-1"></i> Clear
+                        </button>
+                        <span class="text-slate-400 text-sm">${this.selectedDates.length} selected</span>
+                        <button type="button" class="btn-done" onclick="event.preventDefault(); ${this.getInstanceName()}.close()">
+                            <i class="fas fa-check mr-1"></i> Done
+                        </button>
+                    </div>
+                `;
+                
+                this.container.innerHTML = html;
+            }
+            
+            clearAll() {
+                this.selectedDates = [];
+                this.updateInputs();
+                this.updateDisplay();
+                this.render();
+            }
+            
+            getInstanceName() {
+                return this.isLateMode ? 'lateLeaveCalendar' : 'leaveCalendar';
+            }
+            
+            formatDate(date) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            
+            formatDisplayDate(dateStr) {
+                const date = new Date(dateStr + 'T00:00:00');
+                const options = { month: 'short', day: 'numeric' };
+                return date.toLocaleDateString('en-US', options);
+            }
+            
+            isDateInRange(date) {
+                if (this.selectedDates.length < 2) return false;
+                const sortedDates = [...this.selectedDates].sort();
+                const start = new Date(sortedDates[0] + 'T00:00:00');
+                const end = new Date(sortedDates[sortedDates.length - 1] + 'T00:00:00');
+                return date > start && date < end;
+            }
+            
+            toggleDate(dateStr) {
+                const index = this.selectedDates.indexOf(dateStr);
+                if (index > -1) {
+                    this.selectedDates.splice(index, 1);
+                } else {
+                    this.selectedDates.push(dateStr);
+                }
+                this.selectedDates.sort();
+                this.updateInputs();
+                this.updateDisplay();
+                this.render();
+            }
+            
+            removeDate(dateStr) {
+                const index = this.selectedDates.indexOf(dateStr);
+                if (index > -1) {
+                    this.selectedDates.splice(index, 1);
+                    this.updateInputs();
+                    this.updateDisplay();
+                    this.render();
+                }
+            }
+            
+            updateInputs() {
+                // Count only weekdays from selected dates
+                const weekdayDates = this.selectedDates.filter(dateStr => {
+                    const date = new Date(dateStr + 'T00:00:00');
+                    const day = date.getDay();
+                    return day !== 0 && day !== 6;
+                }).sort();
+                
+                if (weekdayDates.length > 0) {
+                    this.startDateInput.value = weekdayDates[0];
+                    this.endDateInput.value = weekdayDates[weekdayDates.length - 1];
+                } else {
+                    this.startDateInput.value = '';
+                    this.endDateInput.value = '';
+                }
+                
+                // Re-fetch elements if not found (in case they weren't available during init)
+                if (!this.selectedDatesInput && this.selectedDatesId) {
+                    this.selectedDatesInput = document.getElementById(this.selectedDatesId);
+                }
+                if (!this.daysCountInput && this.daysCountId) {
+                    this.daysCountInput = document.getElementById(this.daysCountId);
+                }
+                
+                // Store selected dates as comma-separated string
+                if (this.selectedDatesInput) {
+                    this.selectedDatesInput.value = weekdayDates.join(',');
+                    console.log('Set selected_dates to:', weekdayDates.join(','));
+                }
+                
+                // Store the actual count
+                if (this.daysCountInput) {
+                    this.daysCountInput.value = weekdayDates.length;
+                    console.log('Set days_count to:', weekdayDates.length);
+                }
+                
+                if (this.totalDaysEl) {
+                    this.totalDaysEl.textContent = weekdayDates.length + ' day' + (weekdayDates.length !== 1 ? 's' : '');
+                }
+            }
+            
+            updateDisplay() {
+                if (this.selectedDates.length === 0) {
+                    this.displayContainer.textContent = 'Click to select dates';
+                    return;
+                }
+                
+                const sortedDates = [...this.selectedDates].sort();
+                if (sortedDates.length === 1) {
+                    this.displayContainer.textContent = this.formatDisplayDate(sortedDates[0]);
+                } else if (sortedDates.length === 2) {
+                    this.displayContainer.textContent = `${this.formatDisplayDate(sortedDates[0])} - ${this.formatDisplayDate(sortedDates[1])}`;
+                } else {
+                    this.displayContainer.textContent = `${this.formatDisplayDate(sortedDates[0])} - ${this.formatDisplayDate(sortedDates[sortedDates.length - 1])} (${sortedDates.length} dates)`;
+                }
+            }
+            
+            prevMonth() {
+                this.currentMonth.setMonth(this.currentMonth.getMonth() - 1);
+                this.render();
+            }
+            
+            nextMonth() {
+                this.currentMonth.setMonth(this.currentMonth.getMonth() + 1);
+                this.render();
+            }
+            
+            reset() {
+                this.selectedDates = [];
+                this.currentMonth = new Date();
+                this.isOpen = false;
+                this.container.classList.remove('show');
+                this.updateInputs();
+                this.updateDisplay();
+                this.render();
+            }
         }
         
-        // Apply weekend restriction to all date inputs
-        disableWeekends(document.getElementById('modal_start_date'));
-        disableWeekends(document.getElementById('modal_end_date'));
-        disableWeekends(document.getElementById('modal_late_start_date'));
-        disableWeekends(document.getElementById('modal_late_end_date'));
+        // Initialize calendar pickers
+        let leaveCalendar, lateLeaveCalendar;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Regular leave calendar
+            leaveCalendar = new LeaveCalendarPicker('leaveCalendarPicker', {
+                isLateMode: false,
+                startDateId: 'modal_start_date',
+                endDateId: 'modal_end_date',
+                totalDaysId: 'modal_total_days',
+                displayId: 'selectedDatesDisplay',
+                selectedDatesId: 'modal_selected_dates',
+                daysCountId: 'modal_days_count'
+            });
+            
+            // Late leave calendar
+            lateLeaveCalendar = new LeaveCalendarPicker('lateLeaveCalendarPicker', {
+                isLateMode: true,
+                startDateId: 'modal_late_start_date',
+                endDateId: 'modal_late_end_date',
+                totalDaysId: 'modal_late_total_days',
+                displayId: 'lateSelectedDatesDisplay',
+                selectedDatesId: 'modal_late_selected_dates',
+                daysCountId: 'modal_late_days_count'
+            });
+            
+            // Ensure hidden fields are populated before form submission
+            const applyLeaveForm = document.getElementById('applyLeaveForm');
+            if (applyLeaveForm) {
+                applyLeaveForm.addEventListener('submit', function(e) {
+                    // Force update inputs before submission
+                    if (leaveCalendar) {
+                        leaveCalendar.updateInputs();
+                    }
+                    console.log('Form submitting with days_count:', document.getElementById('modal_days_count').value);
+                });
+            }
+            
+            const lateApplicationForm = document.getElementById('lateApplicationForm');
+            if (lateApplicationForm) {
+                lateApplicationForm.addEventListener('submit', function(e) {
+                    // Force update inputs before submission
+                    if (lateLeaveCalendar) {
+                        lateLeaveCalendar.updateInputs();
+                    }
+                });
+            }
+        });
+        
+        // Legacy functions for compatibility
+        function calculateDays() {
+            // Now handled by calendar picker
+        }
+        
+        function calculateLateDays() {
+            // Now handled by calendar picker
+        }
         
         // Test textarea functionality
         const reasonTextarea = document.getElementById('modal_reason');

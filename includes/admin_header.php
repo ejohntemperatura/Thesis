@@ -118,10 +118,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     <i class="fas fa-bell elms-sidebar-icon"></i>
                     <span>Leave Alerts</span>
                 </a>
-                <a href="#" onclick="openDTRKiosk(); return false;" class="elms-sidebar-link <?php echo ($current_page == 'dtr_kiosk.php') ? 'active' : ''; ?>">
-                    <i class="fas fa-clock elms-sidebar-icon"></i>
-                    <span>DTR</span>
-                </a>
+
             </div>
             
             <!-- Reports Section -->

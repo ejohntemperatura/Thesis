@@ -50,6 +50,12 @@ try {
     $end = new DateTime($request['end_date']);
     $request['days'] = $start->diff($end)->days + 1;
     
+    // Parse selected dates if available
+    $request['selected_dates_array'] = [];
+    if (!empty($request['selected_dates'])) {
+        $request['selected_dates_array'] = explode(',', $request['selected_dates']);
+    }
+    
     // Compute raw vs display leave type
     $leaveTypes = getLeaveTypes();
     $request['leave_type_raw'] = $request['original_leave_type'] ?? $request['leave_type'];
