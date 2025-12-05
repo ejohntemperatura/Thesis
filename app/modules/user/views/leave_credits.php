@@ -75,6 +75,7 @@ $stmt = $pdo->prepare("
     SELECT 
         leave_type,
         original_leave_type,
+        other_purpose,
         start_date,
         end_date,
         CASE 
@@ -105,9 +106,24 @@ $totalUsed = array_sum(array_column($leaveHistory, 'days_used'));
 
 // Calculate leave usage by type (use original_leave_type if available, otherwise leave_type)
 $leaveUsageByType = [];
+
+// Track monetization and terminal leave deductions separately
+$monetizationDeductions = 0;
+$terminalDeductions = 0;
+
 foreach ($leaveHistory as $leave) {
     // Use original_leave_type if available (for proceed without pay), otherwise use leave_type
     $type = !empty($leave['original_leave_type']) ? $leave['original_leave_type'] : $leave['leave_type'];
+    
+    // Track monetization and terminal leave separately
+    if ($type === 'other' && $leave['status'] === 'approved') {
+        $other_purpose = strtolower(trim($leave['other_purpose'] ?? ''));
+        if ($other_purpose === 'monetization') {
+            $monetizationDeductions += $leave['days_used'];
+        } elseif ($other_purpose === 'terminal_leave') {
+            $terminalDeductions += $leave['days_used'];
+        }
+    }
     
     if (!isset($leaveUsageByType[$type])) {
         $leaveUsageByType[$type] = [
@@ -234,6 +250,17 @@ include '../../../../includes/user_header.php';
                         $pendingDays = $usage['pending_days'];
                         $rejectedDays = $usage['rejected_days'];
                         
+                        // Add monetization and terminal leave deductions to vacation/sick leave
+                        if ($type === 'vacation') {
+                            // Monetization deducts from vacation only
+                            // Terminal leave deducts from vacation first
+                            $totalAllocatedDays += $monetizationDeductions + $terminalDeductions;
+                        } elseif ($type === 'sick') {
+                            // Terminal leave may deduct from sick leave if vacation is insufficient
+                            // Note: This is already reflected in the balance, we're just showing it in usage
+                            // We don't add terminal here as it's complex to split - the balance already reflects it
+                        }
+                        
                         if ($isCTO) {
                             $totalAllocatedHours = $totalAllocatedDays * 8;
                             $pendingHours = $pendingDays * 8;
@@ -272,6 +299,19 @@ include '../../../../includes/user_header.php';
                                 <span class="text-slate-400">Used (Approved):</span>
                                 <span class="text-white font-semibold"><?php echo number_format($usedAmount, 2); ?> <?php echo $type === 'cto' ? 'hours' : 'days'; ?></span>
                             </div>
+                            <?php if ($type === 'vacation' && ($monetizationDeductions > 0 || $terminalDeductions > 0)): ?>
+                            <div class="flex justify-between text-xs ml-4">
+                                <span class="text-slate-500">
+                                    <?php if ($monetizationDeductions > 0): ?>
+                                        • Monetization: <?php echo number_format($monetizationDeductions, 2); ?> days
+                                    <?php endif; ?>
+                                    <?php if ($terminalDeductions > 0): ?>
+                                        <?php if ($monetizationDeductions > 0) echo '<br>'; ?>
+                                        • Terminal Leave: <?php echo number_format($terminalDeductions, 2); ?> days
+                                    <?php endif; ?>
+                                </span>
+                            </div>
+                            <?php endif; ?>
                             <?php if ($isCTO ? $pendingHours > 0 : $pendingDays > 0): ?>
                             <div class="flex justify-between text-sm">
                                 <span class="text-slate-400">Pending:</span>

@@ -54,7 +54,7 @@ $stmt = $pdo->prepare("
     SELECT lr.*, lr.late_justification, e.name as employee_name, e.service_credit_balance AS sc_balance,
            CASE 
                WHEN lr.status = 'cancelled' THEN 'cancelled'
-               WHEN lr.status = 'rejected' OR lr.dept_head_approval = 'rejected' OR lr.director_approval = 'rejected' THEN 'rejected'
+               WHEN lr.status = 'rejected' THEN 'rejected'
                WHEN lr.dept_head_approval = 'approved' AND lr.director_approval = 'approved' THEN 'approved'
                ELSE 'pending'
            END as final_approval_status
@@ -859,10 +859,6 @@ $leave_requests = $stmt->fetchAll();
                                                 <p class="text-white">${leave.end_date ? new Date(leave.end_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</p>
                                             </div>
                                         `}
-                                        <div class="md:col-span-2">
-                                            <label class="text-sm font-medium text-slate-400">Reason</label>
-                                            <p class="text-white bg-slate-800/50 rounded-lg p-3 mt-1">${leave.reason || 'No reason provided'}</p>
-                                        </div>
                                     </div>
                                 </div>
 
@@ -983,7 +979,6 @@ $leave_requests = $stmt->fetchAll();
                                                 ${(() => {
                                                     let deptStatus = leave.dept_head_approval || 'pending';
                                                     if (leave.status === 'cancelled') deptStatus = 'cancelled';
-                                                    else if (leave.status === 'rejected' && deptStatus === 'pending') deptStatus = 'rejected';
                                                     const cls = getStatusBadgeClass(deptStatus);
                                                     const txt = deptStatus.charAt(0).toUpperCase() + deptStatus.slice(1);
                                                     return `<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${cls} border">${txt}</span>`;
@@ -1000,7 +995,6 @@ $leave_requests = $stmt->fetchAll();
                                                 ${(() => {
                                                     let hrStatus = leave.admin_approval || 'pending';
                                                     if (leave.status === 'cancelled') hrStatus = 'cancelled';
-                                                    else if (leave.dept_head_approval === 'rejected') hrStatus = 'rejected';
                                                     const cls = getStatusBadgeClass(hrStatus);
                                                     const txt = hrStatus.charAt(0).toUpperCase() + hrStatus.slice(1);
                                                     return `<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${cls} border">${txt}</span>`;
@@ -1017,8 +1011,6 @@ $leave_requests = $stmt->fetchAll();
                                                 ${(() => {
                                                     let dirStatus = leave.director_approval || 'pending';
                                                     if (leave.status === 'cancelled') dirStatus = 'cancelled';
-                                                    else if (leave.dept_head_approval === 'rejected') dirStatus = 'rejected';
-                                                    else if (leave.admin_approval === 'rejected') dirStatus = 'rejected';
                                                     const cls = getStatusBadgeClass(dirStatus);
                                                     const txt = dirStatus.charAt(0).toUpperCase() + dirStatus.slice(1);
                                                     return `<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${cls} border">${txt}</span>`;

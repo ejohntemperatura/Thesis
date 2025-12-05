@@ -499,21 +499,7 @@ class RobustEmail {
      */
     private function getVerificationEmailTemplate($userName, $verificationLink, $employeeId = null) {
         $employeeIdSection = '';
-        if ($employeeId) {
-            $employeeIdSection = "
-                <div style='background: #e0f2fe; border: 1px solid #0ea5e9; padding: 15px; border-radius: 6px; margin: 20px 0;'>
-                    <h4 style='color: #0369a1; margin: 0 0 10px 0; font-size: 16px;'>
-                        <i class='fas fa-id-card' style='margin-right: 8px;'></i>Your Employee ID Number
-                    </h4>
-                    <p style='color: #0c4a6e; margin: 0; font-size: 18px; font-weight: bold; font-family: monospace;'>
-                        {$employeeId}
-                    </p>
-                    <p style='color: #0c4a6e; margin: 10px 0 0 0; font-size: 14px;'>
-                        You will need this ID number for DTR (Daily Time Record) and other system functions. Please keep it safe.
-                    </p>
-                </div>
-            ";
-        }
+        // Employee ID section removed for privacy
         
         return "
         <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
@@ -555,19 +541,7 @@ class RobustEmail {
         $employeeIdSection = '';
         if ($employeeId) {
             $employeeIdSection = "
-                <div style='background: #e0f2fe; border: 2px solid #0ea5e9; padding: 20px; border-radius: 8px; margin: 25px 0; text-align: center;'>
-                    <h3 style='color: #0369a1; margin: 0 0 15px 0; font-size: 18px;'>
-                        <i class='fas fa-id-card' style='margin-right: 8px;'></i>Your Employee ID Number
-                    </h3>
-                    <div style='background: white; padding: 15px; border-radius: 6px; margin: 10px 0;'>
-                        <p style='color: #0c4a6e; margin: 0; font-size: 32px; font-weight: bold; font-family: monospace; letter-spacing: 2px;'>
-                            {$employeeId}
-                        </p>
-                    </div>
-                    <p style='color: #0c4a6e; margin: 10px 0 0 0; font-size: 14px;'>
-                        <strong>Important:</strong> You will need this ID number for DTR (Daily Time Record) and other system functions. Please save it for future reference.
-                    </p>
-                </div>
+                // Employee ID section removed for privacy
             ";
         }
         

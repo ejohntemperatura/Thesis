@@ -542,17 +542,9 @@ include '../../../../includes/admin_header.php';
                                                     $admin_status_raw = $request['admin_approval'] ?? 'pending';
                                                     
                                                     // Determine display status for HR
+                                                    // Show HR's actual status, not cascaded from Dept Head
                                                     if ($is_cancelled) {
                                                         $admin_status = 'cancelled';
-                                                    } elseif ($dept_status == 'rejected') {
-                                                        // Dept Head rejected - cascade rejection to HR
-                                                        $admin_status = 'rejected';
-                                                    } elseif ($admin_status_raw == 'rejected') {
-                                                        // HR actually rejected
-                                                        $admin_status = 'rejected';
-                                                    } elseif ($is_rejected && $admin_status_raw == 'pending') {
-                                                        // Final status is rejected but HR shows pending - cascade
-                                                        $admin_status = 'rejected';
                                                     } else {
                                                         $admin_status = $admin_status_raw;
                                                     }
@@ -575,17 +567,9 @@ include '../../../../includes/admin_header.php';
                                                     $director_status_raw = $request['director_approval'] ?? 'pending';
                                                     
                                                     // Determine display status for Director
+                                                    // Show Director's actual status, not cascaded from Dept Head or HR
                                                     if ($is_cancelled) {
                                                         $director_status = 'cancelled';
-                                                    } elseif ($dept_status == 'rejected' || $admin_status_raw == 'rejected') {
-                                                        // Dept Head or HR rejected - cascade rejection to Director
-                                                        $director_status = 'rejected';
-                                                    } elseif ($director_status_raw == 'rejected') {
-                                                        // Director actually rejected
-                                                        $director_status = 'rejected';
-                                                    } elseif ($is_rejected && $director_status_raw == 'pending') {
-                                                        // Final status is rejected but Director shows pending - cascade
-                                                        $director_status = 'rejected';
                                                     } else {
                                                         $director_status = $director_status_raw;
                                                     }
@@ -609,9 +593,11 @@ include '../../../../includes/admin_header.php';
                                                     $dept_approved = $dept_status == 'approved';
                                                     $director_approved = $director_status == 'approved';
                                                     $both_approved = $dept_approved && $director_approved;
-                                                    $any_rejected = $dept_status == 'rejected' || $director_status == 'rejected' || $admin_status == 'rejected';
+                                                    // Only consider finally rejected if status is 'rejected'
+                                                    $finally_rejected = $final_status == 'rejected';
                                                     $is_cancelled = $final_status == 'cancelled';
-                                                    $hr_can_act = ($__SESSION_ROLE = ($_SESSION['role'] ?? '')) === 'admin' && $dept_approved && ($director_status == 'pending' || $director_status == null) && $admin_status != 'approved' && !$is_cancelled;
+                                                    // HR can act if they haven't acted yet and request is not cancelled or finally rejected
+                                                    $hr_can_act = ($__SESSION_ROLE = ($_SESSION['role'] ?? '')) === 'admin' && $admin_status != 'approved' && $admin_status != 'rejected' && !$is_cancelled && !$finally_rejected;
                                                     ?>
                                                     
                                                     <div class="flex flex-col gap-2">
@@ -635,7 +621,7 @@ include '../../../../includes/admin_header.php';
                                                                 <i class="fas fa-print"></i><span>Print</span>
                                                             </a>
                                                         </div>
-                                                    <?php elseif ($any_rejected): ?>
+                                                    <?php elseif ($finally_rejected): ?>
                                                         <div class="text-center">
                                                             <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">Rejected</span>
                                                         </div>
@@ -1252,7 +1238,6 @@ include '../../../../includes/admin_header.php';
                                 <label class="text-sm font-medium text-slate-400 mb-2 block">HR</label>
                                 <div class="mb-2">${getStatusBadge(
                                     leaveRequest.status === 'cancelled' ? 'cancelled' :
-                                    (leaveRequest.dept_head_approval === 'rejected') ? 'rejected' :
                                     (leaveRequest.admin_approval || 'pending')
                                 )}</div>
                                 ${leaveRequest.admin_name ? `<p class=\"text-xs text-slate-400\">by ${leaveRequest.admin_name}</p>` : ''}
@@ -1264,8 +1249,6 @@ include '../../../../includes/admin_header.php';
                                 <label class="text-sm font-medium text-slate-400 mb-2 block">Director Head</label>
                                 <div class="mb-2">${getStatusBadge(
                                     leaveRequest.status === 'cancelled' ? 'cancelled' :
-                                    (leaveRequest.dept_head_approval === 'rejected') ? 'rejected' :
-                                    (leaveRequest.admin_approval === 'rejected') ? 'rejected' :
                                     (leaveRequest.director_approval || 'pending')
                                 )}</div>
                                 ${leaveRequest.director_name ? `<p class=\"text-xs text-slate-400\">by ${leaveRequest.director_name}</p>` : ''}
@@ -1813,6 +1796,47 @@ include '../../../../includes/admin_header.php';
                         </div>
                     </div>
                     ` : ''}
+
+                    ${(() => {
+                        const deptStatus = leaveRequest.dept_head_approval || 'pending';
+                        const adminStatus = leaveRequest.admin_approval || 'pending';
+                        const deptRejected = deptStatus === 'rejected';
+                        
+                        if (deptRejected) {
+                            return `
+                            <div class="bg-yellow-500/20 border border-yellow-500/30 rounded-xl p-6 mb-6">
+                                <div class="flex items-center">
+                                    <i class="fas fa-exclamation-triangle text-yellow-400 mr-3 text-xl"></i>
+                                    <div>
+                                        <h4 class="text-lg font-semibold text-white mb-1">Department Head Rejected</h4>
+                                        <p class="text-yellow-400">The Department Head has rejected this request. You can still review and make your own decision as HR.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div class="bg-slate-700/50 rounded-xl p-4">
+                                    <h4 class="font-semibold mb-3 flex items-center text-red-400">
+                                        <i class="fas fa-user-tie mr-2"></i>Department Head
+                                    </h4>
+                                    <p class="text-slate-300 mb-2"><strong class="text-white">Status:</strong> 
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30 ml-2">Rejected</span>
+                                    </p>
+                                    <p class="text-slate-400 text-sm">Reviewed and rejected</p>
+                                </div>
+                                <div class="bg-slate-700/50 rounded-xl p-4">
+                                    <h4 class="font-semibold mb-3 flex items-center text-primary">
+                                        <i class="fas fa-user-shield mr-2"></i>HR/Admin (You)
+                                    </h4>
+                                    <p class="text-slate-300 mb-2"><strong class="text-white">Status:</strong> 
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 ml-2">Pending</span>
+                                    </p>
+                                    <p class="text-slate-400 text-sm">Action Required: Your decision</p>
+                                </div>
+                            </div>
+                            `;
+                        }
+                        return '';
+                    })()}
 
                     <div class="flex justify-center gap-3 pt-2">
                         <button type="button" onclick="confirmHRApproval(${requestId})" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors"><i class="fas fa-check mr-2"></i>Approve as HR</button>

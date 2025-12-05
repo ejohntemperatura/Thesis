@@ -1106,19 +1106,19 @@ include '../../../../includes/user_header.php';
         </div>
     </a>
     
-    <!-- Attendance Log Card -->
-    <button onclick="openAttendanceModal()" class="elms-stat-card" style="border: none; cursor: pointer; text-align: left;">
+    <!-- Leave Credits Card -->
+    <a href="leave_credits.php" class="elms-stat-card">
         <div>
-            <p class="elms-stat-label">Attendance Log</p>
-            <p class="elms-stat-value" style="font-size: 1rem; margin-top: 0.5rem;">📊</p>
-            <p style="color: #a78bfa; font-size: 0.875rem; margin-top: 0.5rem;">
-                <i class="fas fa-arrow-right"></i> View attendance
+            <p class="elms-stat-label">Leave Credits</p>
+            <p class="elms-stat-value" style="font-size: 1rem; margin-top: 0.5rem;">💳</p>
+            <p style="color: #34d399; font-size: 0.875rem; margin-top: 0.5rem;">
+                <i class="fas fa-arrow-right"></i> View credits
             </p>
         </div>
-        <div class="elms-stat-icon-container" style="background-color: #4c1d95;">
-            <i class="fas fa-clipboard-list elms-stat-icon" style="color: #a78bfa;"></i>
+        <div class="elms-stat-icon-container" style="background-color: #064e3b;">
+            <i class="fas fa-wallet elms-stat-icon" style="color: #34d399;"></i>
         </div>
-    </button>
+    </a>
 </div>
 
                 <!-- Recent Leave Requests -->

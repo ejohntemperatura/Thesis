@@ -27,13 +27,12 @@ include '../../../../includes/director_header.php';
 $initial_limit = 5; // Show only 5 initially
 
 // Get total count of pending requests
+// Director can now see requests even if Dept Head or HR rejected them
 $stmt = $pdo->prepare("
     SELECT COUNT(*) as total 
     FROM leave_requests lr 
     JOIN employees e ON lr.employee_id = e.id 
-    WHERE lr.dept_head_approval = 'approved'
-    AND lr.admin_approval = 'approved'
-    AND (lr.director_approval IS NULL OR lr.director_approval = 'pending')
+    WHERE (lr.director_approval IS NULL OR lr.director_approval = 'pending')
     AND lr.status NOT IN ('rejected', 'cancelled')
 ");
 $stmt->execute();
@@ -44,9 +43,7 @@ $stmt = $pdo->prepare("
     SELECT lr.*, lr.late_justification, e.name as employee_name, e.position, e.department, e.service_credit_balance AS sc_balance
     FROM leave_requests lr 
     JOIN employees e ON lr.employee_id = e.id 
-    WHERE lr.dept_head_approval = 'approved'
-    AND lr.admin_approval = 'approved'
-    AND (lr.director_approval IS NULL OR lr.director_approval = 'pending')
+    WHERE (lr.director_approval IS NULL OR lr.director_approval = 'pending')
     AND lr.status NOT IN ('rejected', 'cancelled')
     ORDER BY lr.is_late DESC, lr.created_at DESC 
     LIMIT " . intval($initial_limit)
@@ -375,83 +372,123 @@ $leaveTypes = getLeaveTypes();
 
 		// Show status information modal
 		function showStatusInfo(leaveId) {
-			// Create modal HTML
-			const modalHtml = `
-				<div id="statusInfoModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 elms-modal-overlay">
-					<div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 max-w-2xl w-full max-h-[90vh] overflow-y-auto elms-modal">
-						<div class="px-6 py-4 border-b border-slate-700/50 bg-slate-700/30">
-							<div class="flex items-center justify-between">
-								<h3 class="text-xl font-semibold text-white flex items-center">
-									<i class="fas fa-info-circle text-primary mr-3"></i>Leave Request Status
-								</h3>
-								<button type="button" class="text-slate-400 hover:text-white transition-colors" onclick="closeStatusModal()">
-									<i class="fas fa-times text-xl"></i>
-								</button>
-							</div>
-						</div>
-						<div class="p-6">
-							<div class="bg-blue-500/20 border border-blue-500/30 rounded-xl p-4 mb-6">
-								<h4 class="text-lg font-semibold text-white mb-2 flex items-center">
-									<i class="fas fa-clock text-blue-400 mr-2"></i>Current Status
-								</h4>
-								<p class="text-slate-300">This leave request has been <strong class="text-white">approved by the Department Head and Admin</strong> and is now awaiting your final decision as Director.</p>
-							</div>
-							<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-								<div class="bg-slate-700/50 rounded-xl p-4">
-									<h4 class="text-green-400 font-semibold mb-3 flex items-center">
-										<i class="fas fa-user-tie mr-2"></i>Department Head
-									</h4>
-									<p class="text-slate-300 mb-2"><strong class="text-white">Status:</strong> 
-										<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30 ml-2">Approved</span>
-									</p>
-									<p class="text-slate-400 text-sm">Already reviewed and approved</p>
+			// Fetch leave request details first
+			fetch(`../api/get_leave_request_details.php?id=${leaveId}`)
+				.then(response => response.json())
+				.then(data => {
+					if (data.success) {
+						const request = data.leave;
+						const deptStatus = request.dept_head_approval || 'pending';
+						const adminStatus = request.admin_approval || 'pending';
+						const directorStatus = request.director_approval || 'pending';
+						
+						const getStatusBadge = (status) => {
+							if (status === 'approved') {
+								return '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30 ml-2">Approved</span>';
+							} else if (status === 'rejected') {
+								return '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30 ml-2">Rejected</span>';
+							} else {
+								return '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 ml-2">Pending</span>';
+							}
+						};
+						
+						// Generate status message
+						let statusMessage = '';
+						let statusClass = 'bg-blue-500/20 border-blue-500/30';
+						
+						if (deptStatus === 'rejected' && adminStatus === 'rejected') {
+							statusClass = 'bg-red-500/20 border-red-500/30';
+							statusMessage = 'Both <strong class="text-white">Department Head and HR have rejected</strong> this request. Awaiting your final decision as Director.';
+						} else if (deptStatus === 'rejected') {
+							statusClass = 'bg-yellow-500/20 border-yellow-500/30';
+							statusMessage = '<strong class="text-white">Department Head has rejected</strong> this request. HR status: ' + adminStatus + '. Awaiting your final decision as Director.';
+						} else if (adminStatus === 'rejected') {
+							statusClass = 'bg-yellow-500/20 border-yellow-500/30';
+							statusMessage = '<strong class="text-white">HR has rejected</strong> this request. Awaiting your final decision as Director.';
+						} else if (deptStatus === 'approved' && adminStatus === 'approved') {
+							statusMessage = 'This leave request has been <strong class="text-white">approved by the Department Head and HR</strong> and is now awaiting your final decision as Director.';
+						} else {
+							statusMessage = 'This leave request is awaiting your final decision as Director.';
+						}
+						
+						// Create modal HTML
+						const modalHtml = `
+							<div id="statusInfoModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 elms-modal-overlay">
+								<div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 max-w-2xl w-full max-h-[90vh] overflow-y-auto elms-modal">
+									<div class="px-6 py-4 border-b border-slate-700/50 bg-slate-700/30">
+										<div class="flex items-center justify-between">
+											<h3 class="text-xl font-semibold text-white flex items-center">
+												<i class="fas fa-info-circle text-primary mr-3"></i>Leave Request Status
+											</h3>
+											<button type="button" class="text-slate-400 hover:text-white transition-colors" onclick="closeStatusModal()">
+												<i class="fas fa-times text-xl"></i>
+											</button>
+										</div>
+									</div>
+									<div class="p-6">
+										<div class="${statusClass} border rounded-xl p-4 mb-6">
+											<h4 class="text-lg font-semibold text-white mb-2 flex items-center">
+												<i class="fas fa-clock text-blue-400 mr-2"></i>Current Status
+											</h4>
+											<p class="text-slate-300">${statusMessage}</p>
+										</div>
+										<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+											<div class="bg-slate-700/50 rounded-xl p-4">
+												<h4 class="${deptStatus === 'approved' ? 'text-green-400' : deptStatus === 'rejected' ? 'text-red-400' : 'text-yellow-400'} font-semibold mb-3 flex items-center">
+													<i class="fas fa-user-tie mr-2"></i>Department Head
+												</h4>
+												<p class="text-slate-300 mb-2"><strong class="text-white">Status:</strong> ${getStatusBadge(deptStatus)}</p>
+												<p class="text-slate-400 text-sm">${deptStatus === 'approved' ? 'Reviewed and approved' : deptStatus === 'rejected' ? 'Reviewed and rejected' : 'Awaiting review'}</p>
+											</div>
+											<div class="bg-slate-700/50 rounded-xl p-4">
+												<h4 class="${adminStatus === 'approved' ? 'text-green-400' : adminStatus === 'rejected' ? 'text-red-400' : 'text-yellow-400'} font-semibold mb-3 flex items-center">
+													<i class="fas fa-user-shield mr-2"></i>Admin
+												</h4>
+												<p class="text-slate-300 mb-2"><strong class="text-white">Status:</strong> ${getStatusBadge(adminStatus)}</p>
+												<p class="text-slate-400 text-sm">${adminStatus === 'approved' ? 'Reviewed and approved' : adminStatus === 'rejected' ? 'Reviewed and rejected' : 'Awaiting review'}</p>
+											</div>
+											<div class="bg-slate-700/50 rounded-xl p-4">
+												<h4 class="text-primary font-semibold mb-3 flex items-center">
+													<i class="fas fa-crown mr-2"></i>Director (You)
+												</h4>
+												<p class="text-slate-300 mb-2"><strong class="text-white">Status:</strong> ${getStatusBadge(directorStatus)}</p>
+												<p class="text-slate-400 text-sm">Action Required: Final approval decision</p>
+											</div>
+										</div>
+										<div class="border-t border-slate-700/50 pt-6">
+											<div class="bg-slate-700/50 rounded-xl p-4">
+												<h4 class="text-slate-400 font-semibold mb-3 flex items-center">
+													<i class="fas fa-flag-checkered mr-2"></i>Final Status
+												</h4>
+												<p class="text-slate-300 mb-2"><strong class="text-white">Result:</strong> 
+													<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-500/20 text-slate-400 border border-slate-500/30 ml-2">Pending Your Decision</span>
+												</p>
+												<p class="text-slate-400 text-sm">Your decision will be final</p>
+											</div>
+										</div>
+										<div class="flex justify-end mt-6">
+											<button type="button" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition-colors" onclick="closeStatusModal()">Close</button>
+										</div>
+									</div>
 								</div>
-								<div class="bg-slate-700/50 rounded-xl p-4">
-									<h4 class="text-emerald-400 font-semibold mb-3 flex items-center">
-										<i class="fas fa-user-shield mr-2"></i>Admin
-									</h4>
-									<p class="text-slate-300 mb-2"><strong class="text-white">Status:</strong> 
-										<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30 ml-2">Approved</span>
-									</p>
-									<p class="text-slate-400 text-sm">Already reviewed and approved</p>
-								</div>
-								<div class="bg-slate-700/50 rounded-xl p-4">
-									<h4 class="text-primary font-semibold mb-3 flex items-center">
-										<i class="fas fa-crown mr-2"></i>Director (You)
-									</h4>
-									<p class="text-slate-300 mb-2"><strong class="text-white">Status:</strong> 
-										<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 ml-2">Pending</span>
-									</p>
-									<p class="text-slate-400 text-sm">Action Required: Final approval decision</p>
 								</div>
 							</div>
-							<div class="border-t border-slate-700/50 pt-6">
-								<div class="bg-slate-700/50 rounded-xl p-4">
-									<h4 class="text-slate-400 font-semibold mb-3 flex items-center">
-										<i class="fas fa-flag-checkered mr-2"></i>Final Status
-									</h4>
-									<p class="text-slate-300 mb-2"><strong class="text-white">Result:</strong> 
-										<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-500/20 text-slate-400 border border-slate-500/30 ml-2">Pending Your Decision</span>
-									</p>
-									<p class="text-slate-400 text-sm">Your decision will be final</p>
-								</div>
-							</div>
-							<div class="flex justify-end mt-6">
-								<button type="button" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition-colors" onclick="closeStatusModal()">Close</button>
-							</div>
-						</div>
-					</div>
-				</div>
-			`;
+						`;
 
-			// Remove existing modal if any
-			const existingModal = document.getElementById('statusInfoModal');
-			if (existingModal) {
-				existingModal.remove();
-			}
+						// Remove existing modal if any
+						const existingModal = document.getElementById('statusInfoModal');
+						if (existingModal) {
+							existingModal.remove();
+						}
 
-			// Add modal to body
-			document.body.insertAdjacentHTML('beforeend', modalHtml);
+						// Add modal to document
+						document.body.insertAdjacentHTML('beforeend', modalHtml);
+					}
+				})
+				.catch(error => {
+					console.error('Error fetching leave request details:', error);
+					alert('Error loading leave request details');
+				});
 		}
 
 		// Close status modal
@@ -488,27 +525,97 @@ $leaveTypes = getLeaveTypes();
 									
 									<div class="p-6">
 										<!-- Status Information -->
-										${request.is_late == 1 || request.is_late === true ? `
-										<div class="bg-orange-500/20 border border-orange-500/30 rounded-xl p-4 mb-6">
-											<div class="flex items-center">
-												<i class="fas fa-exclamation-triangle text-orange-400 mr-3 text-xl"></i>
-												<div>
-													<h4 class="text-lg font-semibold text-white mb-1">Late Leave Application</h4>
-													<p class="text-orange-400">This is a late leave application that has been approved by the Department Head. Please review the late justification carefully before making your final decision.</p>
+										${(() => {
+											const deptStatus = request.dept_head_approval || 'pending';
+											const adminStatus = request.admin_approval || 'pending';
+											const deptApproved = deptStatus === 'approved';
+											const adminApproved = adminStatus === 'approved';
+											const deptRejected = deptStatus === 'rejected';
+											const adminRejected = adminStatus === 'rejected';
+											
+											let statusMessage = '';
+											let statusClass = 'bg-blue-500/20 border-blue-500/30';
+											let iconClass = 'fas fa-info-circle text-blue-400';
+											
+											if (request.is_late == 1 || request.is_late === true) {
+												statusClass = 'bg-orange-500/20 border-orange-500/30';
+												iconClass = 'fas fa-exclamation-triangle text-orange-400';
+												statusMessage = 'This is a late leave application. Please review the late justification carefully before making your final decision.';
+											} else if (deptRejected && adminRejected) {
+												statusClass = 'bg-red-500/20 border-red-500/30';
+												iconClass = 'fas fa-exclamation-circle text-red-400';
+												statusMessage = 'Both Department Head and HR have rejected this request. You have the final authority to override or confirm the rejection.';
+											} else if (deptRejected) {
+												statusClass = 'bg-yellow-500/20 border-yellow-500/30';
+												iconClass = 'fas fa-exclamation-triangle text-yellow-400';
+												statusMessage = 'Department Head has rejected this request, but HR has ' + (adminApproved ? 'approved' : 'not yet reviewed') + ' it. You have the final authority to make the decision.';
+											} else if (adminRejected) {
+												statusClass = 'bg-yellow-500/20 border-yellow-500/30';
+												iconClass = 'fas fa-exclamation-triangle text-yellow-400';
+												statusMessage = 'HR has rejected this request. You have the final authority to override or confirm the rejection.';
+											} else if (deptApproved && adminApproved) {
+												statusMessage = 'This leave request has been approved by both Department Head and HR. Awaiting your final decision.';
+											} else if (deptApproved) {
+												statusMessage = 'Department Head has approved. HR status: ' + (adminStatus === 'pending' ? 'Pending' : adminStatus) + '. Awaiting your final decision.';
+											} else {
+												statusMessage = 'This leave request is awaiting your final decision as Director.';
+											}
+											
+											return `
+											<div class="${statusClass} border rounded-xl p-4 mb-6">
+												<div class="flex items-center">
+													<i class="${iconClass} mr-3 text-xl"></i>
+													<div>
+														<h4 class="text-lg font-semibold text-white mb-1">Approval Status</h4>
+														<p class="text-slate-300">${statusMessage}</p>
+													</div>
 												</div>
 											</div>
+											`;
+										})()}
+										
+										<!-- Approval Status Cards -->
+										<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+											${(() => {
+												const deptStatus = request.dept_head_approval || 'pending';
+												const adminStatus = request.admin_approval || 'pending';
+												const directorStatus = request.director_approval || 'pending';
+												
+												const getStatusBadge = (status) => {
+													if (status === 'approved') {
+														return '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">Approved</span>';
+													} else if (status === 'rejected') {
+														return '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">Rejected</span>';
+													} else {
+														return '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">Pending</span>';
+													}
+												};
+												
+												return `
+													<div class="bg-slate-700/50 rounded-xl p-4">
+														<h4 class="font-semibold mb-3 flex items-center ${deptStatus === 'approved' ? 'text-green-400' : deptStatus === 'rejected' ? 'text-red-400' : 'text-yellow-400'}">
+															<i class="fas fa-user-tie mr-2"></i>Department Head
+														</h4>
+														<p class="text-slate-300 mb-2"><strong class="text-white">Status:</strong> ${getStatusBadge(deptStatus)}</p>
+														<p class="text-slate-400 text-sm">${deptStatus === 'approved' ? 'Reviewed and approved' : deptStatus === 'rejected' ? 'Reviewed and rejected' : 'Awaiting review'}</p>
+													</div>
+													<div class="bg-slate-700/50 rounded-xl p-4">
+														<h4 class="font-semibold mb-3 flex items-center ${adminStatus === 'approved' ? 'text-green-400' : adminStatus === 'rejected' ? 'text-red-400' : 'text-yellow-400'}">
+															<i class="fas fa-user-shield mr-2"></i>HR/Admin
+														</h4>
+														<p class="text-slate-300 mb-2"><strong class="text-white">Status:</strong> ${getStatusBadge(adminStatus)}</p>
+														<p class="text-slate-400 text-sm">${adminStatus === 'approved' ? 'Reviewed and approved' : adminStatus === 'rejected' ? 'Reviewed and rejected' : 'Awaiting review'}</p>
+													</div>
+													<div class="bg-slate-700/50 rounded-xl p-4">
+														<h4 class="font-semibold mb-3 flex items-center text-primary">
+															<i class="fas fa-crown mr-2"></i>Director (You)
+														</h4>
+														<p class="text-slate-300 mb-2"><strong class="text-white">Status:</strong> ${getStatusBadge(directorStatus)}</p>
+														<p class="text-slate-400 text-sm">Action Required: Final decision</p>
+													</div>
+												`;
+											})()}
 										</div>
-										` : `
-										<div class="bg-blue-500/20 border border-blue-500/30 rounded-xl p-4 mb-6">
-											<div class="flex items-center">
-												<i class="fas fa-info-circle text-blue-400 mr-3 text-xl"></i>
-												<div>
-													<h4 class="text-lg font-semibold text-white mb-1">Approval Status</h4>
-													<p class="text-blue-400">This leave request has been approved by the Department Head and is now awaiting your final decision.</p>
-												</div>
-											</div>
-										</div>
-										`}
 										
 										<!-- Leave Request Details -->
 										<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -681,15 +788,6 @@ $leaveTypes = getLeaveTypes();
 											</div>
 										</div>
 										
-										<!-- Reason for Leave Section -->
-										<div class="bg-slate-700/30 rounded-xl p-6 border border-slate-600/50 mb-6" style="width: 100%;">
-											<h4 class="text-lg font-semibold text-white mb-4 flex items-center">
-												<i class="fas fa-comment-alt text-purple-500 mr-3"></i>
-												Reason for Leave
-											</h4>
-											<p class="text-slate-300 leading-relaxed mb-0">${request.reason}</p>
-										</div>
-										
 										<!-- Late Justification (only for late applications) -->
 										${request.is_late == 1 || request.is_late === true ? `
 										<div class="bg-orange-500/10 border border-orange-500/20 rounded-xl p-6 mb-6">
@@ -838,8 +936,8 @@ $leaveTypes = getLeaveTypes();
 		function submitDirectorRejection(requestId, reason) {
 			// Create and show processing modal
 			const processingModalHtml = `
-				<div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-					<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4">
+				<div id="processingModal" class="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[9999] elms-modal-overlay">
+					<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4 elms-modal">
 						<div class="p-6 text-center">
 							<div class="mb-4">
 								<div class="inline-flex items-center justify-center w-16 h-16 bg-slate-700 rounded-full mb-4">
@@ -908,7 +1006,7 @@ $leaveTypes = getLeaveTypes();
 					if (confirmed) {
 						// Create and show processing modal
 					const processingModalHtml = `
-						<div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 elms-modal-overlay">
+						<div id="processingModal" class="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[9999] elms-modal-overlay">
 							<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4 elms-modal">
 								<div class="p-6 text-center">
 									<div class="mb-4">

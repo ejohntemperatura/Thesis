@@ -27,22 +27,23 @@ try {
         throw new Exception('Leave request not found');
     }
     
-    // Ensure Department Head approved first
-    if (($request['dept_head_approval'] ?? 'pending') !== 'approved') {
-        throw new Exception('Department Head must act first before Director can make a decision.');
-    }
-
-    // Ensure HR/Admin has approved before Director decision
-    if (($request['admin_approval'] ?? 'pending') !== 'approved') {
-        throw new Exception('HR must review and approve before Director can make a decision.');
-    }
-
     // Get rejection reason
     $reason = $_POST['reason'] ?? 'No reason provided';
     
-    // Update director approval status to rejected
-    $stmt = $pdo->prepare("UPDATE leave_requests SET director_approval = 'rejected', director_approved_by = ?, director_approved_at = NOW(), director_rejection_reason = ?, status = 'rejected' WHERE id = ?");
+    // Director can reject regardless of previous approvals
+    // Update director approval status to rejected (don't set final status yet)
+    $stmt = $pdo->prepare("UPDATE leave_requests SET director_approval = 'rejected', director_approved_by = ?, director_approved_at = NOW(), director_rejection_reason = ? WHERE id = ?");
     $stmt->execute([$_SESSION['user_id'], $reason, $request_id]);
+    
+    // Check if all three levels rejected - then mark as finally rejected
+    $dept_status = $request['dept_head_approval'] ?? 'pending';
+    $admin_status = $request['admin_approval'] ?? 'pending';
+    
+    if ($dept_status === 'rejected' && $admin_status === 'rejected') {
+        // All three rejected - mark as finally rejected
+        $stmt = $pdo->prepare("UPDATE leave_requests SET status = 'rejected' WHERE id = ?");
+        $stmt->execute([$request_id]);
+    }
     
     $_SESSION['success'] = 'Leave request rejected successfully!';
     

@@ -110,8 +110,8 @@ try {
         // Handle rejection
         $reason = $_POST['reason'] ?? 'No reason provided';
         
-        // Update department head approval status to rejected
-        $stmt = $pdo->prepare("UPDATE leave_requests SET dept_head_approval = 'rejected', dept_head_approved_by = ?, dept_head_approved_at = NOW(), dept_head_rejection_reason = ?, status = 'rejected' WHERE id = ?");
+        // Update department head approval status to rejected (don't set final status yet)
+        $stmt = $pdo->prepare("UPDATE leave_requests SET dept_head_approval = 'rejected', dept_head_approved_by = ?, dept_head_approved_at = NOW(), dept_head_rejection_reason = ? WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $reason, $request_id]);
         
         $_SESSION['success'] = 'Leave request rejected successfully!';

@@ -60,30 +60,75 @@ try {
     // Deduct leave credits based on approved days (only for with pay)
     if ($pay_status === 'with_pay') {
         $leave_type = strtolower(trim($request['leave_type']));
+        $other_purpose = strtolower(trim($request['other_purpose'] ?? ''));
         
-        // Map leave types to correct balance fields
-        $leave_type_mapping = [
-            'annual' => 'vacation_leave_balance',
-            'sick' => 'sick_leave_balance',
-            'vacation' => 'vacation_leave_balance',
-            'special_privilege' => 'special_privilege_leave_balance',
-            'solo_parent' => 'solo_parent_leave_balance',
-            'vawc' => 'vawc_leave_balance',
-            'rehabilitation' => 'rehabilitation_leave_balance',
-            'terminal' => 'terminal_leave_balance',
-            'maternity' => 'maternity_leave_balance',
-            'paternity' => 'paternity_leave_balance',
-            'study' => 'study_leave_balance',
-            'without_pay' => null  // without_pay doesn't have a balance field
-        ];
-        
-        $balance_field = $leave_type_mapping[$leave_type] ?? null;
-        
-        // Only deduct if we have a valid balance field and it's not without_pay
-        if ($balance_field && $leave_type !== 'without_pay') {
-            // Deduct the approved days from leave balance (not the requested days)
-            $stmt = $pdo->prepare("UPDATE employees SET $balance_field = $balance_field - ? WHERE id = ?");
-            $stmt->execute([$approved_days, $request['emp_id']]);
+        // Handle Terminal Leave and Monetization (special logic)
+        if ($leave_type === 'other' && in_array($other_purpose, ['terminal_leave', 'monetization'])) {
+            // Get current employee leave balances
+            $stmt = $pdo->prepare("SELECT vacation_leave_balance, sick_leave_balance FROM employees WHERE id = ?");
+            $stmt->execute([$request['emp_id']]);
+            $balances = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            $vacation_balance = floatval($balances['vacation_leave_balance'] ?? 0);
+            $sick_balance = floatval($balances['sick_leave_balance'] ?? 0);
+            $days_to_deduct = floatval($approved_days);
+            
+            if ($other_purpose === 'monetization') {
+                // Monetization: Deduct from vacation leave only
+                $new_vacation = max(0, $vacation_balance - $days_to_deduct);
+                $stmt = $pdo->prepare("UPDATE employees SET vacation_leave_balance = ? WHERE id = ?");
+                $stmt->execute([$new_vacation, $request['emp_id']]);
+                
+            } elseif ($other_purpose === 'terminal_leave') {
+                // Terminal Leave: Deduct from both vacation and sick leave
+                // First deduct from vacation, then from sick if needed
+                $remaining_to_deduct = $days_to_deduct;
+                $new_vacation = $vacation_balance;
+                $new_sick = $sick_balance;
+                
+                // Deduct from vacation first
+                if ($vacation_balance > 0) {
+                    $deduct_from_vacation = min($vacation_balance, $remaining_to_deduct);
+                    $new_vacation = $vacation_balance - $deduct_from_vacation;
+                    $remaining_to_deduct -= $deduct_from_vacation;
+                }
+                
+                // If still have days to deduct, take from sick leave
+                if ($remaining_to_deduct > 0 && $sick_balance > 0) {
+                    $deduct_from_sick = min($sick_balance, $remaining_to_deduct);
+                    $new_sick = $sick_balance - $deduct_from_sick;
+                }
+                
+                // Update both balances
+                $stmt = $pdo->prepare("UPDATE employees SET vacation_leave_balance = ?, sick_leave_balance = ? WHERE id = ?");
+                $stmt->execute([$new_vacation, $new_sick, $request['emp_id']]);
+            }
+        } else {
+            // Regular leave types
+            // Map leave types to correct balance fields
+            $leave_type_mapping = [
+                'annual' => 'vacation_leave_balance',
+                'sick' => 'sick_leave_balance',
+                'vacation' => 'vacation_leave_balance',
+                'special_privilege' => 'special_privilege_leave_balance',
+                'solo_parent' => 'solo_parent_leave_balance',
+                'vawc' => 'vawc_leave_balance',
+                'rehabilitation' => 'rehabilitation_leave_balance',
+                'terminal' => 'terminal_leave_balance',
+                'maternity' => 'maternity_leave_balance',
+                'paternity' => 'paternity_leave_balance',
+                'study' => 'study_leave_balance',
+                'without_pay' => null  // without_pay doesn't have a balance field
+            ];
+            
+            $balance_field = $leave_type_mapping[$leave_type] ?? null;
+            
+            // Only deduct if we have a valid balance field and it's not without_pay
+            if ($balance_field && $leave_type !== 'without_pay') {
+                // Deduct the approved days from leave balance (not the requested days)
+                $stmt = $pdo->prepare("UPDATE employees SET $balance_field = $balance_field - ? WHERE id = ?");
+                $stmt->execute([$approved_days, $request['emp_id']]);
+            }
         }
     }
     

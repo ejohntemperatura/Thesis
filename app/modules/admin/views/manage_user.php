@@ -38,13 +38,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         switch ($_POST['action']) {
             case 'add':
                 // Validate required fields
-                if (empty($_POST['name']) || empty($_POST['email'])) {
-                    $_SESSION['error'] = "Name and email are required!";
+                if (empty($_POST['first_name']) || empty($_POST['last_name']) || empty($_POST['email'])) {
+                    $_SESSION['error'] = "First name, last name, and email are required!";
                     header('Location: ' . $_SERVER['PHP_SELF']);
                     exit();
                 }
                 
-                $name = trim($_POST['name']);
+                $firstName = trim($_POST['first_name']);
+                $middleName = trim($_POST['middle_name'] ?? '');
+                $lastName = trim($_POST['last_name']);
+                $name = trim($firstName . ' ' . ($middleName ? $middleName . ' ' : '') . $lastName);
                 $email = trim($_POST['email']);
                 $position = trim($_POST['position'] ?? '');
                 $department = trim($_POST['department'] ?? '');
@@ -115,11 +118,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Only employees keep marital status; others set to NULL
                     if ($role !== 'employee') { $maritalStatus = null; }
                     $stmt = $pdo->prepare("
-                        INSERT INTO employees (name, email, password, position, department, contact, role, gender, address, marital_status, is_solo_parent,
+                        INSERT INTO employees (name, first_name, middle_name, last_name, email, password, position, department, contact, role, gender, address, marital_status, is_solo_parent,
                                                vacation_leave_balance, sick_leave_balance, special_leave_privilege_balance, email_verified, verification_token, verification_expires, account_status)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'pending')
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'pending')
                     ");
-                    $stmt->execute([$name, $email, $temporaryPassword, $position, $department, $contact, $role, $gender, $address, $maritalStatus, $isSoloParent,
+                    $stmt->execute([$name, $firstName, $middleName, $lastName, $email, $temporaryPassword, $position, $department, $contact, $role, $gender, $address, $maritalStatus, $isSoloParent,
                                   $vacationInit, $sickInit, $slpInit, $verificationToken, $verificationExpires]);
                     
                     $userId = $pdo->lastInsertId();
@@ -172,14 +175,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             case 'edit':
                 // Validate required fields
-                if (empty($_POST['id']) || empty($_POST['name']) || empty($_POST['email'])) {
-                    $_SESSION['error'] = "ID, name, and email are required!";
+                if (empty($_POST['id']) || empty($_POST['first_name']) || empty($_POST['last_name']) || empty($_POST['email'])) {
+                    $_SESSION['error'] = "ID, first name, last name, and email are required!";
                     header('Location: ' . $_SERVER['PHP_SELF']);
                     exit();
                 }
                 
                 $id = $_POST['id'];
-                $name = trim($_POST['name']);
+                $firstName = trim($_POST['first_name']);
+                $middleName = trim($_POST['middle_name'] ?? '');
+                $lastName = trim($_POST['last_name']);
+                $name = trim($firstName . ' ' . ($middleName ? $middleName . ' ' : '') . $lastName);
                 $email = trim($_POST['email']);
                 $position = trim($_POST['position'] ?? '');
                 $department = trim($_POST['department'] ?? '');
@@ -272,14 +278,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 // Update with leave balances
                                 $stmt = $pdo->prepare("
                                     UPDATE employees 
-                                    SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
+                                    SET name = ?, first_name = ?, middle_name = ?, last_name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
                                         is_solo_parent = ?, 
                                         vacation_leave_balance = ?, sick_leave_balance = ?, special_leave_privilege_balance = ?,
                                         cto_balance = cto_balance + ?, service_credit_balance = service_credit_balance + ?
                                     WHERE id = ?
                                 ");
                                 $stmt->execute([
-                                    $name, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
+                                    $name, $firstName, $middleName, $lastName, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
                                     $isSoloParent, 
                                     $vacationBal, $sickBal, $slpBal,
                                     ($ctoBal !== null ? $ctoBal : 0),
@@ -290,13 +296,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 // Additive update for CTO and service credits only (leave balances unchanged)
                                 $stmt = $pdo->prepare("
                                     UPDATE employees 
-                                    SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
+                                    SET name = ?, first_name = ?, middle_name = ?, last_name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
                                         is_solo_parent = ?, 
                                         cto_balance = cto_balance + ?, service_credit_balance = service_credit_balance + ?
                                     WHERE id = ?
                                 ");
                                 $stmt->execute([
-                                    $name, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
+                                    $name, $firstName, $middleName, $lastName, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
                                     $isSoloParent, 
                                     ($ctoBal !== null ? $ctoBal : 0),
                                     ($serviceBal !== null ? $serviceBal : 0),
@@ -308,14 +314,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 // Update with leave balances (no service_credit_balance column)
                                 $stmt = $pdo->prepare("
                                     UPDATE employees 
-                                    SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
+                                    SET name = ?, first_name = ?, middle_name = ?, last_name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
                                         is_solo_parent = ?, 
                                         vacation_leave_balance = ?, sick_leave_balance = ?, special_leave_privilege_balance = ?,
                                         cto_balance = cto_balance + ?
                                     WHERE id = ?
                                 ");
                                 $stmt->execute([
-                                    $name, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
+                                    $name, $firstName, $middleName, $lastName, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
                                     $isSoloParent, 
                                     $vacationBal, $sickBal, $slpBal,
                                     ($ctoBal !== null ? $ctoBal : 0),
@@ -325,13 +331,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 // Additive update for CTO only (no service_credit_balance column)
                                 $stmt = $pdo->prepare("
                                     UPDATE employees 
-                                    SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
+                                    SET name = ?, first_name = ?, middle_name = ?, last_name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
                                         is_solo_parent = ?, 
                                         cto_balance = cto_balance + ?
                                     WHERE id = ?
                                 ");
                                 $stmt->execute([
-                                    $name, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
+                                    $name, $firstName, $middleName, $lastName, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
                                     $isSoloParent, 
                                     ($ctoBal !== null ? $ctoBal : 0),
                                     $id
@@ -344,20 +350,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             // Additive update for both CTO and service credits
                             $stmt = $pdo->prepare("
                                 UPDATE employees 
-                                SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = NULL,
+                                SET name = ?, first_name = ?, middle_name = ?, last_name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = NULL,
                                     is_solo_parent = ?, cto_balance = cto_balance + ?, service_credit_balance = service_credit_balance + ?
                                 WHERE id = ?
                             ");
-                            $stmt->execute([$name, $email, $position, $department, $contact, $role, $gender, $address, $isSoloParent, ($ctoBal !== null ? $ctoBal : 0), ($serviceBal !== null ? $serviceBal : 0), $id]);
+                            $stmt->execute([$name, $firstName, $middleName, $lastName, $email, $position, $department, $contact, $role, $gender, $address, $isSoloParent, ($ctoBal !== null ? $ctoBal : 0), ($serviceBal !== null ? $serviceBal : 0), $id]);
                         } else {
                             // Additive update for CTO only (no service_credit_balance column)
                             $stmt = $pdo->prepare("
                                 UPDATE employees 
-                                SET name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = NULL,
+                                SET name = ?, first_name = ?, middle_name = ?, last_name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = NULL,
                                     is_solo_parent = ?, cto_balance = cto_balance + ?
                                 WHERE id = ?
                             ");
-                            $stmt->execute([$name, $email, $position, $department, $contact, $role, $gender, $address, $isSoloParent, ($ctoBal !== null ? $ctoBal : 0), $id]);
+                            $stmt->execute([$name, $firstName, $middleName, $lastName, $email, $position, $department, $contact, $role, $gender, $address, $isSoloParent, ($ctoBal !== null ? $ctoBal : 0), $id]);
                         }
                     }
                     $_SESSION['success'] = "User updated successfully!";
@@ -674,7 +680,7 @@ include '../../../../includes/admin_header.php';
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="flex items-center justify-center gap-2">
-                                            <button onclick="editUser(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars($user['name']); ?>', '<?php echo htmlspecialchars($user['email']); ?>', '<?php echo htmlspecialchars($user['contact'] ?? ''); ?>', '<?php echo htmlspecialchars($user['position'] ?? ''); ?>', '<?php echo htmlspecialchars($user['department'] ?? ''); ?>', '<?php echo htmlspecialchars($user['role']); ?>')" 
+                                            <button onclick="editUser(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars($user['first_name'] ?? ''); ?>', '<?php echo htmlspecialchars($user['middle_name'] ?? ''); ?>', '<?php echo htmlspecialchars($user['last_name'] ?? ''); ?>', '<?php echo htmlspecialchars($user['email']); ?>', '<?php echo htmlspecialchars($user['contact'] ?? ''); ?>', '<?php echo htmlspecialchars($user['position'] ?? ''); ?>', '<?php echo htmlspecialchars($user['department'] ?? ''); ?>', '<?php echo htmlspecialchars($user['role']); ?>')" 
                                                     class="text-slate-400 hover:text-primary transition-colors" title="Edit">
                                                 <i class="fas fa-edit"></i>
                                             </button>
@@ -714,11 +720,22 @@ include '../../../../includes/admin_header.php';
             
             <form id="addUserForm" method="POST" class="space-y-6">
                 <input type="hidden" name="action" value="add">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
-                        <label for="addName" class="block text-sm font-semibold text-slate-300 mb-2">Name</label>
-                        <input type="text" id="addName" name="name" required autofocus autocomplete="off" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        <label for="addFirstName" class="block text-sm font-semibold text-slate-300 mb-2">First Name</label>
+                        <input type="text" id="addFirstName" name="first_name" required autofocus autocomplete="off" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                     </div>
+                    <div>
+                        <label for="addMiddleName" class="block text-sm font-semibold text-slate-300 mb-2">Middle Name</label>
+                        <input type="text" id="addMiddleName" name="middle_name" autocomplete="off" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                    <div>
+                        <label for="addLastName" class="block text-sm font-semibold text-slate-300 mb-2">Last Name</label>
+                        <input type="text" id="addLastName" name="last_name" required autocomplete="off" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 gap-6">
                     <div>
                         <label for="addEmail" class="block text-sm font-semibold text-slate-300 mb-2">Email</label>
                         <input type="email" id="addEmail" name="email" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
@@ -944,11 +961,22 @@ include '../../../../includes/admin_header.php';
                 <input type="hidden" name="action" value="edit">
                 <input type="hidden" name="id" id="editId">
                 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
-                        <label for="editName" class="block text-sm font-semibold text-slate-300 mb-2">Name</label>
-                        <input type="text" id="editName" name="name" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                        <label for="editFirstName" class="block text-sm font-semibold text-slate-300 mb-2">First Name</label>
+                        <input type="text" id="editFirstName" name="first_name" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                     </div>
+                    <div>
+                        <label for="editMiddleName" class="block text-sm font-semibold text-slate-300 mb-2">Middle Name</label>
+                        <input type="text" id="editMiddleName" name="middle_name" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                    <div>
+                        <label for="editLastName" class="block text-sm font-semibold text-slate-300 mb-2">Last Name</label>
+                        <input type="text" id="editLastName" name="last_name" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 gap-6">
                     <div>
                         <label for="editEmail" class="block text-sm font-semibold text-slate-300 mb-2">Email</label>
                         <input type="email" id="editEmail" name="email" required class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
@@ -1214,7 +1242,9 @@ include '../../../../includes/admin_header.php';
             if (currentViewUserId && currentViewUserData) {
                 editUser(
                     currentViewUserId,
-                    currentViewUserData.name,
+                    currentViewUserData.first_name || '',
+                    currentViewUserData.middle_name || '',
+                    currentViewUserData.last_name || '',
                     currentViewUserData.email,
                     currentViewUserData.contact,
                     currentViewUserData.position,
@@ -1315,9 +1345,11 @@ include '../../../../includes/admin_header.php';
             }, 'danger', 'Delete User', 'Yes, Delete', 'Cancel');
         }
 
-        function editUser(id, name, email, contact, position, department, role) {
+        function editUser(id, firstName, middleName, lastName, email, contact, position, department, role) {
             document.getElementById('editId').value = id;
-            document.getElementById('editName').value = name || '';
+            document.getElementById('editFirstName').value = firstName || '';
+            document.getElementById('editMiddleName').value = middleName || '';
+            document.getElementById('editLastName').value = lastName || '';
             document.getElementById('editEmail').value = email || '';
             document.getElementById('editContact').value = contact || '';
             document.getElementById('editPosition').value = position || '';

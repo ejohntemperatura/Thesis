@@ -618,6 +618,62 @@ function getLateIndicator($lateInfo) {
             return titles[alertType] || '📢 Leave Alert';
         }
         
+        // Format alert message with proper HTML structure
+        function formatDTRAlertMessage(message) {
+            if (!message) return '';
+            
+            // Convert literal \n to actual newlines
+            message = message.replace(/\\n/g, '\n');
+            
+            // Split into lines
+            let lines = message.split('\n');
+            let html = '';
+            let inList = false;
+            
+            for (let line of lines) {
+                line = line.trim();
+                
+                if (!line) {
+                    // Empty line - close list if open
+                    if (inList) {
+                        html += '</ul>';
+                        inList = false;
+                    }
+                    continue;
+                }
+                
+                // Check if line starts with bullet point
+                if (line.startsWith('•')) {
+                    if (!inList) {
+                        html += '<ul style="list-style: none; margin: 0.75rem 0; padding-left: 1rem;">';
+                        inList = true;
+                    }
+                    html += '<li style="display: flex; align-items: start; margin-bottom: 0.5rem;"><span style="color: #fbbf24; margin-right: 0.5rem;">•</span><span style="flex: 1;">' + line.substring(1).trim() + '</span></li>';
+                } else if (line.startsWith('Subject:')) {
+                    // Subject line - make it bold and larger
+                    if (inList) {
+                        html += '</ul>';
+                        inList = false;
+                    }
+                    html += '<div style="font-weight: bold; font-size: 1rem; color: #93c5fd; margin-bottom: 1rem;">' + line + '</div>';
+                } else {
+                    // Regular paragraph
+                    if (inList) {
+                        html += '</ul>';
+                        inList = false;
+                    }
+                    html += '<p style="margin-bottom: 0.75rem;">' + line + '</p>';
+                }
+            }
+            
+            // Close list if still open
+            if (inList) {
+                html += '</ul>';
+            }
+            
+            return html;
+        }
+        
         function updateNavbarAlertBadge(count) {
             const badge = document.getElementById('navbarAlertBadge');
             if (count > 0) {
@@ -736,7 +792,7 @@ function getLateIndicator($lateInfo) {
                                 Message Details
                             </h4>
                             <div style="background: rgba(51, 65, 85, 0.3); border: 1px solid rgba(71, 85, 105, 0.5); border-radius: 0.75rem; padding: 1.25rem; max-height: 16rem; overflow-y: auto;">
-                                <p style="color: #e2e8f0; line-height: 1.75; white-space: pre-line; font-size: 0.875rem;">${message}</p>
+                                <div style="color: #e2e8f0; line-height: 1.75; font-size: 0.875rem;">${formatDTRAlertMessage(message)}</div>
                             </div>
                         </div>
                         

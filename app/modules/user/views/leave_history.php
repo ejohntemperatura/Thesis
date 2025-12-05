@@ -527,12 +527,6 @@ include '../../../../includes/user_header.php';
                                 </div>
                             </div>
                             
-                            <!-- Leave Reason -->
-                            <div class="mt-6">
-                                <h6 class="text-slate-400 mb-2 font-semibold">Leave Reason</h6>
-                                <p class="text-white bg-slate-700/50 p-4 rounded-lg">${leave.reason}</p>
-                            </div>
-                            
                             <!-- Location Details (for vacation leave) -->
                             ${leave.location_type ? `
                                 <div class="mt-6">

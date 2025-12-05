@@ -24,8 +24,6 @@ $employee['address'] = $employee['address'] ?? '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $_POST['name'];
     $email = $_POST['email'];
-    $position = $_POST['position'];
-    $department = $_POST['department'];
     $contact = $_POST['contact'];
     $address = $_POST['address'] ?? '';
 
@@ -75,14 +73,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (in_array('email', $columns)) {
             $updates[] = "email = ?";
             $params[] = $email;
-        }
-        if (in_array('position', $columns)) {
-            $updates[] = "position = ?";
-            $params[] = $position;
-        }
-        if (in_array('department', $columns)) {
-            $updates[] = "department = ?";
-            $params[] = $department;
         }
         if (in_array('contact', $columns)) {
             $updates[] = "contact = ?";
@@ -203,24 +193,6 @@ include '../../../../includes/user_header.php';
                             </div>
                             <div class="p-6">
                                 <form method="POST" action="" enctype="multipart/form-data" class="space-y-6">
-                                    <!-- Employee ID (Read-only) -->
-                                    <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
-                                        <label class="block text-sm font-semibold text-slate-300 mb-2">
-                                            <i class="fas fa-id-card mr-2 text-blue-400"></i>Employee ID Number (for DTR)
-                                        </label>
-                                        <div class="flex items-center gap-3">
-                                            <input type="text" value="<?php echo htmlspecialchars($employee['id']); ?>" readonly
-                                                   class="flex-1 bg-slate-600 border border-slate-500 rounded-xl px-4 py-3 text-white font-mono text-lg font-bold cursor-not-allowed">
-                                            <button type="button" onclick="copyEmployeeId()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-xl transition-colors flex items-center gap-2">
-                                                <i class="fas fa-copy"></i>
-                                                <span class="hidden sm:inline">Copy</span>
-                                            </button>
-                                        </div>
-                                        <p class="text-xs text-blue-300 mt-2">
-                                            <i class="fas fa-info-circle mr-1"></i>Use this ID number for DTR time in/out at the kiosk
-                                        </p>
-                                    </div>
-                                    
                                     <!-- Profile Picture Upload -->
                                     <div>
                                         <label class="block text-sm font-semibold text-slate-300 mb-2">
@@ -247,13 +219,19 @@ include '../../../../includes/user_header.php';
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div>
                                             <label class="block text-sm font-semibold text-slate-300 mb-2">Position</label>
-                                            <input type="text" name="position" value="<?php echo htmlspecialchars($employee['position']); ?>" required
-                                                   class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                                            <input type="text" name="position" value="<?php echo htmlspecialchars($employee['position']); ?>" readonly
+                                                   class="w-full bg-slate-600 border border-slate-500 rounded-xl px-4 py-3 text-slate-300 cursor-not-allowed">
+                                            <p class="text-xs text-slate-400 mt-1">
+                                                <i class="fas fa-lock mr-1"></i>Contact HR to update your position
+                                            </p>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-semibold text-slate-300 mb-2">Department</label>
-                                            <input type="text" name="department" value="<?php echo htmlspecialchars($employee['department']); ?>" required
-                                                   class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                                            <input type="text" name="department" value="<?php echo htmlspecialchars($employee['department']); ?>" readonly
+                                                   class="w-full bg-slate-600 border border-slate-500 rounded-xl px-4 py-3 text-slate-300 cursor-not-allowed">
+                                            <p class="text-xs text-slate-400 mt-1">
+                                                <i class="fas fa-lock mr-1"></i>Contact HR to update your department
+                                            </p>
                                         </div>
                                     </div>
                                     
@@ -281,30 +259,7 @@ include '../../../../includes/user_header.php';
     </div>
 
 <script>
-function copyEmployeeId() {
-    const employeeId = '<?php echo $employee['id']; ?>';
-    
-    // Create temporary input to copy
-    const tempInput = document.createElement('input');
-    tempInput.value = employeeId;
-    document.body.appendChild(tempInput);
-    tempInput.select();
-    document.execCommand('copy');
-    document.body.removeChild(tempInput);
-    
-    // Show feedback
-    const button = event.target.closest('button');
-    const originalHTML = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-check"></i><span class="hidden sm:inline ml-2">Copied!</span>';
-    button.classList.remove('bg-blue-500', 'hover:bg-blue-600');
-    button.classList.add('bg-green-500');
-    
-    setTimeout(() => {
-        button.innerHTML = originalHTML;
-        button.classList.remove('bg-green-500');
-        button.classList.add('bg-blue-500', 'hover:bg-blue-600');
-    }, 2000);
-}
+// Profile scripts
 </script>
 
 <?php include '../../../../includes/user_footer.php'; ?> 

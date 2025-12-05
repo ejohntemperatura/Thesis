@@ -30,14 +30,20 @@ try {
         throw new Exception('Leave request not found');
     }
 
-    // Verify sequence: Department Head must approve first
-    if (($request['dept_head_approval'] ?? 'pending') !== 'approved') {
-        throw new Exception('Department Head must approve first before HR can review.');
+    // HR can reject regardless of Department Head status
+    // Update HR/Admin approval to rejected (don't set final status yet)
+    $stmt = $pdo->prepare("UPDATE leave_requests SET admin_approval = 'rejected', admin_approved_by = ?, admin_approved_at = NOW(), admin_approval_notes = ? WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id'], $reason, $request_id]);
+    
+    // Check if all three levels rejected - then mark as finally rejected
+    $dept_status = $request['dept_head_approval'] ?? 'pending';
+    $director_status = $request['director_approval'] ?? 'pending';
+    
+    if ($dept_status === 'rejected' && $director_status === 'rejected') {
+        // All three rejected - mark as finally rejected
+        $stmt = $pdo->prepare("UPDATE leave_requests SET status = 'rejected', rejected_by = ?, rejected_at = NOW() WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id'], $request_id]);
     }
-
-    // Update HR/Admin approval to rejected and final status rejected
-    $stmt = $pdo->prepare("UPDATE leave_requests SET admin_approval = 'rejected', admin_approved_by = ?, admin_approved_at = NOW(), admin_approval_notes = ?, status = 'rejected', rejected_by = ?, rejected_at = NOW() WHERE id = ?");
-    $stmt->execute([$_SESSION['user_id'], $reason, $_SESSION['user_id'], $request_id]);
 
     // Fetch employee details for email notification
     $empStmt = $pdo->prepare("SELECT e.name AS employee_name, e.email AS employee_email FROM leave_requests lr JOIN employees e ON lr.employee_id = e.id WHERE lr.id = ?");

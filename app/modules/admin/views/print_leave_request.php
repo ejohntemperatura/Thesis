@@ -25,6 +25,9 @@ try {
         SELECT 
             lr.*,
             e.name as employee_name,
+            e.first_name,
+            e.middle_name,
+            e.last_name,
             e.position,
             e.department,
             e.vacation_leave_balance,
@@ -76,6 +79,7 @@ try {
 <html>
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="../../../../elmsicon.png">
     <title>Application for Leave - <?php echo htmlspecialchars($leaveRequest['employee_name']); ?></title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -391,7 +395,10 @@ try {
                     <td style="width: 13.33%; text-align: center; font-size: 6pt; padding: 2px; border-bottom: 1px solid #000;">(Middle)</td>
                 </tr>
                 <tr>
-                    <td colspan="4" style="text-align: center; padding: 4px;"><?php echo htmlspecialchars($leaveRequest['employee_name']); ?></td>
+                    <td style="padding: 2px; border-right: 1px solid #000;"></td>
+                    <td style="text-align: center; padding: 4px; border-right: 1px solid #000;"><?php echo htmlspecialchars($leaveRequest['last_name'] ?? ''); ?></td>
+                    <td style="text-align: center; padding: 4px; border-right: 1px solid #000;"><?php echo htmlspecialchars($leaveRequest['first_name'] ?? ''); ?></td>
+                    <td style="text-align: center; padding: 4px;"><?php echo htmlspecialchars($leaveRequest['middle_name'] ?? ''); ?></td>
                 </tr>
                 <tr>
                     <td style="font-weight: bold; padding: 4px; border-top: 1px solid #000;">3. DATE OF FILING</td>

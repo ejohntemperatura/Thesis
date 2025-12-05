@@ -72,6 +72,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
+// Function to generate concise warning message
+function getShortWarning($alert) {
+    $leaveName = isset($alert['leave_name']) ? $alert['leave_name'] : 'Leave';
+    $remaining = isset($alert['remaining']) ? $alert['remaining'] : 0;
+    $utilization = isset($alert['utilization']) ? $alert['utilization'] : 0;
+    
+    switch($alert['type']) {
+        case 'low_utilization':
+            return "⚠️ CSC Notice: {$leaveName} credits nearing maximum accumulation - {$utilization}% utilized, {$remaining} days remaining";
+        case 'year_end_urgent':
+        case 'year_end_critical':
+        case 'year_end_warning':
+            return "🔴 CSC Notice: {$remaining} {$leaveName} days subject to forfeiture on December 31st";
+        case 'overall_low_utilization':
+            return "⚠️ CSC Notice: Leave credits nearing maximum accumulation - {$utilization}% utilized, {$remaining} total days remaining";
+        case 'csc_limit_exceeded':
+            return "🚨 CSC Violation: {$leaveName} maximum allowable limit exceeded - Immediate HRMO coordination required";
+        case 'csc_limit_approaching':
+            return "⚠️ CSC Notice: {$leaveName} approaching maximum allowable limit - {$remaining} days remaining";
+        case 'forfeiture_critical':
+        case 'forfeiture_warning':
+            return "🔴 CSC Notice: {$remaining} {$leaveName} days subject to forfeiture - Immediate action required";
+        default:
+            return "⚠️ CSC Notice: {$leaveName} requires administrative attention";
+    }
+}
+
 // Get total user count first
 $userCountStmt = $pdo->prepare("SELECT COUNT(*) as total_users FROM employees WHERE role = 'employee'");
 $userCountStmt->execute();
@@ -543,13 +570,8 @@ include '../../../../includes/admin_header.php';
                                                     echo $alert['severity'] === 'urgent' ? 'text-red-300' : 
                                                         ($alert['severity'] === 'critical' ? 'text-orange-300' : 'text-yellow-300'); 
                                                 ?>">
-                                                    <?php echo htmlspecialchars($alert['message']); ?>
+                                                    <?php echo htmlspecialchars(getShortWarning($alert)); ?>
                                                 </p>
-                                                <?php if (isset($alert['leave_name'])): ?>
-                                                <p class="text-xs text-slate-400 mt-0.5">
-                                                    <?php echo $alert['leave_name']; ?> - <?php echo $alert['utilization']; ?>% used
-                                                </p>
-                                                <?php endif; ?>
                                             </div>
                                             <?php endforeach; ?>
                                             
@@ -564,13 +586,8 @@ include '../../../../includes/admin_header.php';
                                                         echo $alert['severity'] === 'urgent' ? 'text-red-300' : 
                                                             ($alert['severity'] === 'critical' ? 'text-orange-300' : 'text-yellow-300'); 
                                                     ?>">
-                                                        <?php echo htmlspecialchars($alert['message']); ?>
+                                                        <?php echo htmlspecialchars(getShortWarning($alert)); ?>
                                                     </p>
-                                                    <?php if (isset($alert['leave_name'])): ?>
-                                                    <p class="text-xs text-slate-400 mt-0.5">
-                                                        <?php echo $alert['leave_name']; ?> - <?php echo $alert['utilization']; ?>% used
-                                                    </p>
-                                                    <?php endif; ?>
                                                 </div>
                                                 <?php endforeach; ?>
                                             </div>
@@ -844,25 +861,25 @@ include '../../../../includes/admin_header.php';
                         alertTypeField.value = 'year_end_warning';
                         priorityField.value = 'urgent';
                         categoryField.value = 'year_end';
-                        defaultMessage = 'IMPORTANT REMINDER: Your leave credits will expire on December 31st. To avoid losing your credits, please file your leave applications as soon as possible. Contact HR if you need assistance.';
+                        defaultMessage = 'Subject: Advisory on Year-End Leave Credit Forfeiture\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour leave credits will expire on December 31st and are subject to forfeiture.\n\nAccordingly, you are advised to schedule and utilize your leave credits within the prescribed period to avoid the following actions:\n\n• Forfeiture of unused leave days at year-end;\n• Non-crediting of excess leave balances; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office';
                         break;
                     case 'critical':
                         alertTypeField.value = 'low_utilization';
                         priorityField.value = 'critical';
                         categoryField.value = 'utilization';
-                        defaultMessage = 'Hello! We noticed you have unused leave credits available. We encourage you to use your leave days to rest and recharge. Please schedule your leave at your earliest convenience.';
+                        defaultMessage = 'Subject: Advisory on Leave Credit Maximization\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour leave credits have reached or are nearing the maximum allowable accumulation.\n\nAccordingly, you are advised to schedule and utilize your excess leave credits within the prescribed period to avoid the following actions:\n\n• Application of Compulsory/Forced Leave, in accordance with CSC rules;\n• Non-crediting or forfeiture of leave days exceeding the allowable limit; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office';
                         break;
                     case 'moderate':
                         alertTypeField.value = 'balance_reminder';
                         priorityField.value = 'moderate';
                         categoryField.value = 'utilization';
-                        defaultMessage = 'Hi! Just a friendly reminder that you have leave days available. Taking time off is important for your well-being. Feel free to plan your leave and submit your application.';
+                        defaultMessage = 'Subject: Advisory on Leave Credit Maximization\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour leave credits have reached or are nearing the maximum allowable accumulation.\n\nAccordingly, you are advised to schedule and utilize your excess leave credits within the prescribed period to avoid the following actions:\n\n• Application of Compulsory/Forced Leave, in accordance with CSC rules;\n• Non-crediting or forfeiture of leave days exceeding the allowable limit; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office';
                         break;
                     default:
                         alertTypeField.value = 'balance_reminder';
                         priorityField.value = 'low';
                         categoryField.value = 'utilization';
-                        defaultMessage = 'Hi! Just a friendly reminder that you have leave days available. Taking time off is important for your well-being. Feel free to plan your leave and submit your application.';
+                        defaultMessage = 'Subject: Advisory on Leave Credit Maximization\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour leave credits have reached or are nearing the maximum allowable accumulation.\n\nAccordingly, you are advised to schedule and utilize your excess leave credits within the prescribed period to avoid the following actions:\n\n• Application of Compulsory/Forced Leave, in accordance with CSC rules;\n• Non-crediting or forfeiture of leave days exceeding the allowable limit; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office';
                 }
                 
                 // Set the default message
@@ -910,17 +927,71 @@ include '../../../../includes/admin_header.php';
             switch(templateType) {
                 case 'low_utilization':
                     alertTypeField.value = 'low_utilization';
-                    message = `Hello! We noticed you have unused leave credits available. We encourage you to use your leave days to rest and recharge. Please schedule your leave at your earliest convenience.`;
+                    message = `Subject: Advisory on Leave Credit Maximization
+
+In compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:
+
+Your leave credits have reached or are nearing the maximum allowable accumulation.
+
+Accordingly, you are advised to schedule and utilize your excess leave credits within the prescribed period to avoid the following actions:
+
+• Application of Compulsory/Forced Leave, in accordance with CSC rules;
+• Non-crediting or forfeiture of leave days exceeding the allowable limit; and
+• Administrative adjustment of your leave balance based on government accounting requirements.
+
+You are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.
+
+For concerns or clarifications, you may contact the HRMO during regular office hours.
+
+Thank you for your cooperation.
+
+Human Resource Management Office`;
                     break;
                     
                 case 'year_end':
                     alertTypeField.value = 'year_end_warning';
-                    message = `IMPORTANT REMINDER: Your leave credits will expire on December 31st. To avoid losing your credits, please file your leave applications as soon as possible. Contact HR if you need assistance.`;
+                    message = `Subject: Advisory on Year-End Leave Credit Forfeiture
+
+In compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:
+
+Your leave credits will expire on December 31st and are subject to forfeiture.
+
+Accordingly, you are advised to schedule and utilize your leave credits within the prescribed period to avoid the following actions:
+
+• Forfeiture of unused leave days at year-end;
+• Non-crediting of excess leave balances; and
+• Administrative adjustment of your leave balance based on government accounting requirements.
+
+You are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.
+
+For concerns or clarifications, you may contact the HRMO during regular office hours.
+
+Thank you for your cooperation.
+
+Human Resource Management Office`;
                     break;
                     
                 case 'friendly_reminder':
                     alertTypeField.value = 'balance_reminder';
-                    message = `Hi! Just a friendly reminder that you have leave days available. Taking time off is important for your well-being. Feel free to plan your leave and submit your application.`;
+                    message = `Subject: Advisory on Leave Credit Maximization
+
+In compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:
+
+Your leave credits have reached or are nearing the maximum allowable accumulation.
+
+Accordingly, you are advised to schedule and utilize your excess leave credits within the prescribed period to avoid the following actions:
+
+• Application of Compulsory/Forced Leave, in accordance with CSC rules;
+• Non-crediting or forfeiture of leave days exceeding the allowable limit; and
+• Administrative adjustment of your leave balance based on government accounting requirements.
+
+You are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.
+
+For concerns or clarifications, you may contact the HRMO during regular office hours.
+
+Thank you for your cooperation.
+
+Human Resource Management Office`;
                     break;
             }
             
@@ -959,13 +1030,13 @@ include '../../../../includes/admin_header.php';
                     
                     switch(alertType) {
                         case 'low_utilization':
-                            message = 'Hello! We noticed you have unused leave credits available. We encourage you to use your leave days to rest and recharge. Please schedule your leave at your earliest convenience.';
+                            message = 'Subject: Advisory on Leave Credit Maximization\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour leave credits have reached or are nearing the maximum allowable accumulation.\n\nAccordingly, you are advised to schedule and utilize your excess leave credits within the prescribed period to avoid the following actions:\n\n• Application of Compulsory/Forced Leave, in accordance with CSC rules;\n• Non-crediting or forfeiture of leave days exceeding the allowable limit; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office';
                             break;
                         case 'year_end_warning':
-                            message = 'IMPORTANT REMINDER: Your leave credits will expire on December 31st. To avoid losing your credits, please file your leave applications as soon as possible. Contact HR if you need assistance.';
+                            message = 'Subject: Advisory on Year-End Leave Credit Forfeiture\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour leave credits will expire on December 31st and are subject to forfeiture.\n\nAccordingly, you are advised to schedule and utilize your leave credits within the prescribed period to avoid the following actions:\n\n• Forfeiture of unused leave days at year-end;\n• Non-crediting of excess leave balances; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office';
                             break;
                         case 'balance_reminder':
-                            message = 'Hi! Just a friendly reminder that you have leave days available. Taking time off is important for your well-being. Feel free to plan your leave and submit your application.';
+                            message = 'Subject: Advisory on Leave Credit Maximization\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour leave credits have reached or are nearing the maximum allowable accumulation.\n\nAccordingly, you are advised to schedule and utilize your excess leave credits within the prescribed period to avoid the following actions:\n\n• Application of Compulsory/Forced Leave, in accordance with CSC rules;\n• Non-crediting or forfeiture of leave days exceeding the allowable limit; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office';
                             break;
                         case 'custom':
                             message = '';

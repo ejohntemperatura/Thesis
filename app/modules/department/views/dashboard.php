@@ -692,15 +692,6 @@ include '../../../../includes/department_header.php';
 											</div>
 										</div>
 										
-										<!-- Reason for Leave Section -->
-										<div class="bg-slate-700/30 rounded-xl p-6 border border-slate-600/50 mb-6" style="width: 100%;">
-											<h4 class="text-lg font-semibold text-white mb-4 flex items-center">
-												<i class="fas fa-comment-alt text-purple-500 mr-3"></i>
-												Reason for Leave
-											</h4>
-											<p class="text-slate-300 leading-relaxed mb-0">${request.reason}</p>
-										</div>
-										
 										<!-- Late Justification (only for late applications) -->
 										${request.is_late == 1 || request.is_late === true ? `
 										<div class="bg-orange-500/10 border border-orange-500/20 rounded-xl p-6 mb-6">
@@ -806,8 +797,8 @@ include '../../../../includes/department_header.php';
 		function submitDeptRejection(requestId, reason) {
 			// Create and show processing modal
 			const processingModalHtml = `
-				<div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-					<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4">
+				<div id="processingModal" class="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[9999] elms-modal-overlay">
+					<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4 elms-modal">
 						<div class="p-6 text-center">
 							<div class="mb-4">
 								<div class="inline-flex items-center justify-center w-16 h-16 bg-slate-700 rounded-full mb-4">
@@ -874,7 +865,7 @@ include '../../../../includes/department_header.php';
 					if (confirmed) {
 						// Create and show processing modal
 					const processingModalHtml = `
-						<div id="processingModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 elms-modal-overlay">
+						<div id="processingModal" class="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[9999] elms-modal-overlay">
 							<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-w-md w-full mx-4 elms-modal">
 								<div class="p-6 text-center">
 									<div class="mb-4">

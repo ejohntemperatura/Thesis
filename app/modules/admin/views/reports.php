@@ -33,12 +33,7 @@ switch ($report_type) {
     case 'overview':
         $reportData = $reportService->generateComprehensiveReport($start_date, $end_date, $filters);
         break;
-    case 'attendance':
-        $reportData = [
-            'dtr_data' => $reportService->getDTRData($start_date, $end_date, $filters),
-            'attendance_summary' => $reportService->getAttendanceSummary($start_date, $end_date, $filters)
-        ];
-        break;
+
     case 'performance':
         $reportData = [
             'employee_performance' => $reportService->getEmployeePerformance($start_date, $end_date, $filters),
@@ -106,11 +101,7 @@ if (isset($_POST['export'])) {
             $pdfGenerator->generateLeaveRequestsReport($start_date, $end_date, $export_filters['department'], $export_filters['employee_id']);
             break;
             
-        case 'attendance':
-            require_once '../../../../app/core/services/PDFAttendanceGenerator.php';
-            $pdfGenerator = new PDFAttendanceGenerator($pdo);
-            $pdfGenerator->generateAttendanceReport($start_date, $end_date, $export_filters['department'], $export_filters['employee_id']);
-            break;
+
             
         case 'leave_credits':
             require_once '../../../../app/core/services/PDFLeaveCreditsGenerator.php';
@@ -254,13 +245,7 @@ include '../../../../includes/admin_header.php';
                                             <i class="fas fa-chart-pie mr-2"></i>Overview
                                         </span>
                                     </label>
-                                    <label class="flex items-center space-x-3 cursor-pointer p-3 rounded-lg border border-slate-600 hover:border-blue-500 <?php echo $report_type == 'attendance' ? 'bg-blue-500/10 border-blue-500' : ''; ?>">
-                                        <input type="radio" name="report_type" value="attendance" <?php echo $report_type == 'attendance' ? 'checked' : ''; ?> 
-                                               class="w-4 h-4 text-blue-500 bg-slate-700 border-slate-600 focus:ring-blue-500">
-                                        <span class="text-slate-300">
-                                            <i class="fas fa-clock mr-2"></i>Attendance
-                                        </span>
-                                    </label>
+
                                     <label class="flex items-center space-x-3 cursor-pointer p-3 rounded-lg border border-slate-600 hover:border-blue-500 <?php echo $report_type == 'leave_analysis' ? 'bg-blue-500/10 border-blue-500' : ''; ?>">
                                         <input type="radio" name="report_type" value="leave_analysis" <?php echo $report_type == 'leave_analysis' ? 'checked' : ''; ?> 
                                                class="w-4 h-4 text-blue-500 bg-slate-700 border-slate-600 focus:ring-blue-500">
@@ -299,8 +284,7 @@ include '../../../../includes/admin_header.php';
                 <!-- Report Content -->
                 <?php if ($report_type == 'overview'): ?>
                     <?php include 'report_sections/overview.php'; ?>
-                <?php elseif ($report_type == 'attendance'): ?>
-                    <?php include 'report_sections/attendance.php'; ?>
+
                 <?php elseif ($report_type == 'leave_analysis'): ?>
                     <?php include 'report_sections/leave_analysis.php'; ?>
                 <?php elseif ($report_type == 'leave_credits'): ?>
@@ -331,20 +315,7 @@ include '../../../../includes/admin_header.php';
                                     <p class="text-slate-400 text-sm">Export all leave requests as PDF</p>
                                 </button>
                             </form>
-                            
-                            <form method="POST" class="bg-slate-700/50 rounded-xl p-4 border border-slate-600 hover:border-red-500 transition-all duration-300">
-                                <input type="hidden" name="employee_id" value="<?php echo $selected_employee; ?>">
-                                <input type="hidden" name="department" value="<?php echo $selected_department; ?>">
-                                <input type="hidden" name="leave_type" value="<?php echo $selected_leave_type; ?>">
-                                <input type="hidden" name="export_type" value="attendance">
-                                <button type="submit" name="export" class="w-full text-left">
-                                    <div class="flex items-center mb-2">
-                                        <i class="fas fa-file-pdf text-red-400 text-xl mr-3"></i>
-                                        <span class="font-semibold text-white">Attendance</span>
-                                    </div>
-                                    <p class="text-slate-400 text-sm">Export attendance data as PDF</p>
-                                </button>
-                            </form>
+
                             
                             <form method="POST" class="bg-slate-700/50 rounded-xl p-4 border border-slate-600 hover:border-red-500 transition-all duration-300">
                                 <input type="hidden" name="employee_id" value="<?php echo $selected_employee; ?>">

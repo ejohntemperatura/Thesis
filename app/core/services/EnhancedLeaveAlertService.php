@@ -236,7 +236,7 @@ class EnhancedLeaveAlertService {
                         'max_days' => $maxDays,
                         'excess_days' => $usedDays - $maxDays,
                         'severity' => 'critical',
-                        'message' => "CSC limit exceeded for {$leaveType}. Used: {$usedDays}/{$maxDays}. Contact HR immediately."
+                        'message' => "Subject: URGENT Notice on CSC Leave Limit Violation\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour {$leaveType} usage has exceeded the maximum allowable limit (Used: {$usedDays}/{$maxDays} days).\n\nYou are required to contact the Human Resource Management Office IMMEDIATELY for administrative adjustments and compliance measures.\n\nThis violation may result in:\n\n• Non-crediting of excess leave days;\n• Administrative sanctions as per CSC guidelines; and\n• Mandatory adjustment of your leave balance.\n\nPlease report to the HRMO at your earliest convenience.\n\nThank you for your immediate attention to this matter.\n\nHuman Resource Management Office"
                     ];
                 } elseif ($remainingDays <= 2 && $remainingDays > 0) {
                     $violations[] = [
@@ -246,7 +246,7 @@ class EnhancedLeaveAlertService {
                         'max_days' => $maxDays,
                         'remaining_days' => $remainingDays,
                         'severity' => 'urgent',
-                        'message' => "CSC limit approaching for {$leaveType}. {$remainingDays} days remaining before limit."
+                        'message' => "Subject: Advisory on CSC Leave Limit\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour {$leaveType} usage is approaching the maximum allowable limit ({$remainingDays} days remaining before limit).\n\nYou are advised to coordinate with your immediate supervisor regarding the scheduling of your leave to avoid exceeding the CSC-mandated limits.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office"
                     ];
                 }
             }
@@ -291,7 +291,7 @@ class EnhancedLeaveAlertService {
                             'unused_days' => $unusedDays,
                             'days_until_forfeiture' => $daysUntilYearEnd,
                             'severity' => 'critical',
-                            'message' => "CRITICAL: {$unusedDays} {$leaveType} days forfeited in {$daysUntilYearEnd} days!"
+                            'message' => "Subject: URGENT Advisory on Leave Credit Forfeiture\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour {$unusedDays} {$leaveType} days will be forfeited in {$daysUntilYearEnd} days.\n\nAccordingly, you are advised to schedule and utilize your leave credits IMMEDIATELY to avoid the following actions:\n\n• Forfeiture of unused leave days at year-end;\n• Non-crediting of excess leave balances; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office"
                         ];
                     } elseif ($daysUntilYearEnd <= self::LEAVE_FORFEITURE_WARNING_DAYS) {
                         $risks[] = [
@@ -300,7 +300,7 @@ class EnhancedLeaveAlertService {
                             'unused_days' => $unusedDays,
                             'days_until_forfeiture' => $daysUntilYearEnd,
                             'severity' => 'urgent',
-                            'message' => "WARNING: {$unusedDays} {$leaveType} days forfeited in {$daysUntilYearEnd} days"
+                            'message' => "Subject: Advisory on Leave Credit Forfeiture\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour {$unusedDays} {$leaveType} days will be forfeited in {$daysUntilYearEnd} days.\n\nAccordingly, you are advised to schedule and utilize your leave credits within the prescribed period to avoid the following actions:\n\n• Forfeiture of unused leave days at year-end;\n• Non-crediting of excess leave balances; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office"
                         ];
                     }
                 }
@@ -319,9 +319,9 @@ class EnhancedLeaveAlertService {
  */
 private function generateCSCUtilizationMessage($utilization, $remainingDays) {
     if ($utilization < self::LEAVE_UTILIZATION_CRITICAL) {
-        return "Low utilization: {$utilization}%. Schedule your {$remainingDays} remaining days.";
+        return "Subject: Advisory on Leave Credit Maximization\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour leave credits have reached or are nearing the maximum allowable accumulation ({$remainingDays} days remaining).\n\nAccordingly, you are advised to schedule and utilize your excess leave credits within the prescribed period to avoid the following actions:\n\n• Application of Compulsory/Forced Leave, in accordance with CSC rules;\n• Non-crediting or forfeiture of leave days exceeding the allowable limit; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office";
     } else {
-        return "Utilization reminder: {$utilization}% used, {$remainingDays} days remaining.";
+        return "Subject: Reminder on Leave Credit Utilization\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYou have {$remainingDays} days remaining for utilization.\n\nYou are advised to schedule and utilize your leave credits within the prescribed period. Please coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office";
     }
 }
     
@@ -405,9 +405,9 @@ private function generateCSCUtilizationMessage($utilization, $remainingDays) {
      */
     private function generateUtilizationMessage($type, $name, $utilization, $remaining, $daysRemaining) {
         if ($utilization < self::CRITICAL_UTILIZATION_THRESHOLD) {
-            return "Low leave utilization detected. Please schedule your remaining {$remaining} {$name} days.";
+            return "Subject: Advisory on Leave Credit Maximization\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour {$name} credits have reached or are nearing the maximum allowable accumulation ({$remaining} days remaining).\n\nAccordingly, you are advised to schedule and utilize your excess leave credits within the prescribed period to avoid the following actions:\n\n• Application of Compulsory/Forced Leave, in accordance with CSC rules;\n• Non-crediting or forfeiture of leave days exceeding the allowable limit; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office";
         } else {
-            return "Friendly reminder: You have {$remaining} {$name} days available for use.";
+            return "Subject: Reminder on Leave Credit Utilization\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYou have {$remaining} {$name} days available for utilization.\n\nYou are advised to schedule and utilize your leave credits within the prescribed period. Please coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office";
         }
     }
     
@@ -415,7 +415,7 @@ private function generateCSCUtilizationMessage($utilization, $remainingDays) {
      * Generate year-end urgent message
      */
     private function generateYearEndMessage($type, $name, $remaining, $daysRemaining) {
-        return "URGENT: {$remaining} {$name} days will be forfeited on Dec 31. Schedule immediately!";
+        return "Subject: Advisory on Year-End Leave Credit Forfeiture\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour {$remaining} {$name} days will expire on December 31st and are subject to forfeiture.\n\nAccordingly, you are advised to schedule and utilize your leave credits within the prescribed period to avoid the following actions:\n\n• Forfeiture of unused leave days at year-end;\n• Non-crediting of excess leave balances; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office";
     }
     
     /**
@@ -423,9 +423,9 @@ private function generateCSCUtilizationMessage($utilization, $remainingDays) {
      */
     private function generateOverallUtilizationMessage($utilization, $totalRemaining, $daysRemaining) {
         if ($daysRemaining <= self::URGENT_THRESHOLD_DAYS) {
-            return "URGENT: {$totalRemaining} total leave days will be forfeited on Dec 31. Schedule now!";
+            return "Subject: Advisory on Year-End Leave Credit Forfeiture\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour {$totalRemaining} total leave days will expire on December 31st and are subject to forfeiture.\n\nAccordingly, you are advised to schedule and utilize your leave credits within the prescribed period to avoid the following actions:\n\n• Forfeiture of unused leave days at year-end;\n• Non-crediting of excess leave balances; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office";
         } else {
-            return "Overall utilization: {$utilization}%. You have {$totalRemaining} total days remaining.";
+            return "Subject: Advisory on Leave Credit Maximization\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour leave credits have reached or are nearing the maximum allowable accumulation ({$totalRemaining} days remaining).\n\nAccordingly, you are advised to schedule and utilize your excess leave credits within the prescribed period to avoid the following actions:\n\n• Application of Compulsory/Forced Leave, in accordance with CSC rules;\n• Non-crediting or forfeiture of leave days exceeding the allowable limit; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office";
         }
     }
     

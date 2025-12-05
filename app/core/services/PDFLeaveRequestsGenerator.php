@@ -219,9 +219,8 @@ class PDFLeaveRequestsGenerator {
                 $this->pdf->SetFont('helvetica', 'B', 8);
                 $this->pdf->SetFillColor(200, 200, 200);
                 $this->pdf->SetTextColor(0, 0, 0);
-                $this->pdf->Cell(25, 6, 'Leave Type', 1, 0, 'C', true);
-                $this->pdf->Cell(18, 6, 'Start Date', 1, 0, 'C', true);
-                $this->pdf->Cell(18, 6, 'End Date', 1, 0, 'C', true);
+                $this->pdf->Cell(30, 6, 'Leave Type', 1, 0, 'C', true);
+                $this->pdf->Cell(50, 6, 'Selected Dates', 1, 0, 'C', true);
                 $this->pdf->Cell(12, 6, 'Days', 1, 0, 'C', true);
                 $this->pdf->Cell(15, 6, 'Status', 1, 0, 'C', true);
                 $this->pdf->Cell(20, 6, 'Applied Date', 1, 0, 'C', true);
@@ -230,9 +229,25 @@ class PDFLeaveRequestsGenerator {
                 // Table data for this employee
                 $this->pdf->SetFont('helvetica', '', 7);
                 foreach ($requests as $request) {
-                    $this->pdf->Cell(25, 6, substr(ucwords(str_replace('_', ' ', $request['leave_type'])), 0, 12), 1, 0, 'L');
-                    $this->pdf->Cell(18, 6, date('m/d/Y', strtotime($request['start_date'])), 1, 0, 'C');
-                    $this->pdf->Cell(18, 6, date('m/d/Y', strtotime($request['end_date'])), 1, 0, 'C');
+                    // Format selected dates
+                    $selectedDatesText = '';
+                    if (!empty($request['selected_dates'])) {
+                        $dates = explode(',', $request['selected_dates']);
+                        $formattedDates = array_map(function($date) {
+                            return date('m/d', strtotime(trim($date)));
+                        }, $dates);
+                        $selectedDatesText = implode(', ', $formattedDates);
+                        // Truncate if too long
+                        if (strlen($selectedDatesText) > 45) {
+                            $selectedDatesText = substr($selectedDatesText, 0, 42) . '...';
+                        }
+                    } else {
+                        // Fallback to date range if no selected dates
+                        $selectedDatesText = date('m/d', strtotime($request['start_date'])) . ' - ' . date('m/d', strtotime($request['end_date']));
+                    }
+                    
+                    $this->pdf->Cell(30, 6, substr(ucwords(str_replace('_', ' ', $request['leave_type'])), 0, 18), 1, 0, 'L');
+                    $this->pdf->Cell(50, 6, $selectedDatesText, 1, 0, 'L');
                     $this->pdf->Cell(12, 6, $request['actual_days_approved'], 1, 0, 'C');
                     $this->pdf->Cell(15, 6, ucfirst($request['status']), 1, 0, 'C');
                     $this->pdf->Cell(20, 6, date('m/d/Y', strtotime($request['created_at'])), 1, 0, 'C');

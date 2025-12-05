@@ -308,6 +308,62 @@ $current_page = basename($_SERVER['PHP_SELF']);
             return titles[alertType] || '📢 Leave Alert';
         }
         
+        // Format alert message with proper HTML structure
+        function formatAlertMessage(message) {
+            if (!message) return '';
+            
+            // Convert literal \n to actual newlines
+            message = message.replace(/\\n/g, '\n');
+            
+            // Split into lines
+            let lines = message.split('\n');
+            let html = '';
+            let inList = false;
+            
+            for (let line of lines) {
+                line = line.trim();
+                
+                if (!line) {
+                    // Empty line - close list if open and add spacing
+                    if (inList) {
+                        html += '</ul>';
+                        inList = false;
+                    }
+                    continue;
+                }
+                
+                // Check if line starts with bullet point
+                if (line.startsWith('•')) {
+                    if (!inList) {
+                        html += '<ul class="list-none space-y-2 my-3 ml-4">';
+                        inList = true;
+                    }
+                    html += '<li class="flex items-start"><span class="text-yellow-400 mr-2">•</span><span class="flex-1">' + line.substring(1).trim() + '</span></li>';
+                } else if (line.startsWith('Subject:')) {
+                    // Subject line - make it bold and larger
+                    if (inList) {
+                        html += '</ul>';
+                        inList = false;
+                    }
+                    html += '<div class="font-bold text-base text-blue-300 mb-4">' + line + '</div>';
+                } else {
+                    // Regular paragraph
+                    if (inList) {
+                        html += '</ul>';
+                        inList = false;
+                    }
+                    html += '<p class="mb-3">' + line + '</p>';
+                }
+            }
+            
+            // Close list if still open
+            if (inList) {
+                html += '</ul>';
+            }
+            
+            return html;
+        }
+        
         // Update navbar alert badge
         function updateNavbarAlertBadge(count) {
             const badge = document.getElementById('navbarAlertBadge');
@@ -469,7 +525,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                                 Message Details
                             </h4>
                             <div class="bg-slate-700/30 border border-slate-600/50 rounded-xl p-5 max-h-64 overflow-y-auto shadow-inner">
-                                <p class="text-slate-200 leading-relaxed whitespace-pre-line text-sm">${message}</p>
+                                <div class="text-slate-200 leading-relaxed text-sm space-y-3">${formatAlertMessage(message)}</div>
                             </div>
                         </div>
                         

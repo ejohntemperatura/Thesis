@@ -21,13 +21,12 @@ $limit = 10; // Load 10 more requests at a time
 
 try {
     // Get additional pending leave requests for director
+    // Director can now see requests even if Dept Head or HR rejected them
     $stmt = $pdo->prepare("
         SELECT lr.*, e.name as employee_name, e.position, e.department 
         FROM leave_requests lr 
         JOIN employees e ON lr.employee_id = e.id 
-        WHERE lr.dept_head_approval = 'approved'
-        AND lr.admin_approval = 'approved'
-        AND (lr.director_approval IS NULL OR lr.director_approval = 'pending')
+        WHERE (lr.director_approval IS NULL OR lr.director_approval = 'pending')
         AND lr.status NOT IN ('rejected', 'cancelled')
         ORDER BY lr.is_late DESC, lr.created_at DESC 
         LIMIT " . intval($limit) . " OFFSET " . intval($offset)

@@ -89,27 +89,38 @@ if ($action === 'approve') {
     
 } elseif ($action === 'reject') {
     if ($role === 'manager') {
-        $stmt = $pdo->prepare("UPDATE leave_requests SET dept_head_approval = 'rejected', dept_head_approved_by = ?, dept_head_approved_at = NOW(), status = 'rejected' WHERE id = ?");
+        // Department Head rejects - HR can still review
+        $stmt = $pdo->prepare("UPDATE leave_requests SET dept_head_approval = 'rejected', dept_head_approved_by = ?, dept_head_approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $request_id]);
-        $message = 'Leave request rejected by Department Head.';
+        $message = 'Leave request rejected by Department Head. HR can still review.';
     } elseif ($role === 'admin') {
-        // HR can reject after Dept Head approval
-        if (($leave_request['dept_head_approval'] ?? 'pending') !== 'approved') {
-            $message = 'Department Head must approve first before HR can reject.';
+        // HR can reject regardless of Dept Head status
+        $stmt = $pdo->prepare("UPDATE leave_requests SET admin_approval = 'rejected', admin_approved_by = ?, admin_approved_at = NOW() WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id'], $request_id]);
+        
+        // Check if all three levels rejected - then mark as finally rejected
+        $dept_status = $leave_request['dept_head_approval'] ?? 'pending';
+        if ($dept_status === 'rejected') {
+            // Both Dept Head and HR rejected - Director can still review
+            $message = 'Leave request rejected by HR. Director can still review.';
         } else {
-            $stmt = $pdo->prepare("UPDATE leave_requests SET admin_approval = 'rejected', admin_approved_by = ?, admin_approved_at = NOW(), status = 'rejected' WHERE id = ?");
-            $stmt->execute([$_SESSION['user_id'], $request_id]);
-            $message = 'Leave request rejected by HR.';
+            $message = 'Leave request rejected by HR. Director can still review.';
         }
     } elseif ($role === 'director') {
-        // Director can reject only after Dept Head and HR approvals
-        if (($leave_request['dept_head_approval'] ?? 'pending') !== 'approved') {
-            $message = 'Department Head must act first before Director can reject.';
-        } elseif (($leave_request['admin_approval'] ?? 'pending') !== 'approved') {
-            $message = 'HR must approve before Director can reject.';
+        // Director rejects - check if this is the final rejection
+        $stmt = $pdo->prepare("UPDATE leave_requests SET director_approval = 'rejected', director_approved_by = ?, director_approved_at = NOW() WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id'], $request_id]);
+        
+        // Check if all three levels rejected - then mark as finally rejected
+        $dept_status = $leave_request['dept_head_approval'] ?? 'pending';
+        $admin_status = $leave_request['admin_approval'] ?? 'pending';
+        
+        if ($dept_status === 'rejected' && $admin_status === 'rejected') {
+            // All three rejected - mark as finally rejected
+            $stmt = $pdo->prepare("UPDATE leave_requests SET status = 'rejected' WHERE id = ?");
+            $stmt->execute([$request_id]);
+            $message = 'Leave request finally rejected by all approvers.';
         } else {
-            $stmt = $pdo->prepare("UPDATE leave_requests SET director_approval = 'rejected', director_approved_by = ?, director_approved_at = NOW(), status = 'rejected' WHERE id = ?");
-            $stmt->execute([$_SESSION['user_id'], $request_id]);
             $message = 'Leave request rejected by Director.';
         }
     }
