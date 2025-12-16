@@ -1,43 +1,23 @@
 <?php
 /**
- * Enhanced Leave Alert Service
- * Provides advanced leave maximization alerts with CSC compliance tracking
+ * Enhanced Leave Alert Service - Focus on 1-Year Expiry Rules
+ * Specialized for Force Leave, CTO, and SLP with mandatory 1-year expiry
  * Based on Civil Service Commission rules and Philippine labor standards
  */
 
 class EnhancedLeaveAlertService {
     private $pdo;
-    private $leaveTypesConfig;
     
-    // CSC Leave Policy Thresholds (Based on Civil Service Commission Guidelines)
-    const URGENT_THRESHOLD_DAYS = 30;      // Days remaining in year
-    const MODERATE_THRESHOLD_DAYS = 60;    // Days remaining in year
-    const LOW_UTILIZATION_THRESHOLD = 50;  // Percentage of leave used
-    const CRITICAL_UTILIZATION_THRESHOLD = 25; // Critical low utilization
-    
-    // CSC Leave Limits (Per CSC Memorandum Circular)
-    const VACATION_LEAVE_MAX = 15;         // Maximum vacation leave per year
-    const SICK_LEAVE_MAX = 15;             // Maximum sick leave per year
-    const SPECIAL_PRIVILEGE_MAX = 3;       // Maximum special privilege leave per year
-    const MANDATORY_LEAVE_MAX = 5;         // Maximum mandatory leave per year
-    
-    // CSC Forfeiture Rules
-    const LEAVE_FORFEITURE_WARNING_DAYS = 45; // Warning before forfeiture
-    const LEAVE_FORFEITURE_CRITICAL_DAYS = 15; // Critical warning before forfeiture
-    const LEAVE_FORFEITURE_DEADLINE = 31;     // December 31 deadline
-    
-    // CSC Leave Utilization Thresholds
-    const LEAVE_UTILIZATION_WARNING = 60;   // Warning when utilization is below 60%
-    const LEAVE_UTILIZATION_CRITICAL = 30;  // Critical when utilization is below 30%
+    // 1-Year Expiry Thresholds
+    const EXPIRY_CRITICAL_DAYS = 15;  // Critical warning - 15 days before expiry
+    const EXPIRY_WARNING_DAYS = 45;   // Warning - 45 days before expiry
     
     public function __construct($pdo) {
         $this->pdo = $pdo;
-        require_once dirname(__DIR__, 3) . '/config/leave_types.php';
-        $this->leaveTypesConfig = getLeaveTypes();
     }
     
     /**
-     * Generate comprehensive leave alerts for all employees
+     * Generate alerts focused on 1-year expiry leave types only - Show ALL employees
      */
     public function generateComprehensiveAlerts() {
         $currentYear = date('Y');
@@ -47,454 +27,339 @@ class EnhancedLeaveAlertService {
         
         $alerts = [];
         
-        // Get all employees with their leave data
-        $employees = $this->getEmployeesWithLeaveData($currentYear);
+        // Get ALL employees with Force Leave, CTO, and SLP data
+        $employees = $this->getAllEmployeesWithOneYearExpiryData($currentYear);
         
         foreach ($employees as $employee) {
-            $employeeAlerts = $this->analyzeEmployeeLeaveUtilization($employee, $currentYear, $daysRemaining);
-            if (!empty($employeeAlerts)) {
-                $alerts[$employee['id']] = [
-                    'employee' => $employee,
-                    'alerts' => $employeeAlerts,
-                    'priority' => $this->calculateAlertPriority($employeeAlerts, $daysRemaining),
-                    'csc_compliance' => $this->checkCSCUtilizationCompliance($employee, $currentYear)
-                ];
-            }
+            $employeeAlerts = $this->analyzeOneYearExpiryLeaves($employee, $currentYear, $daysRemaining);
+            
+            // Include ALL employees, even those without alerts
+            $alerts[$employee['id']] = [
+                'employee' => $employee,
+                'alerts' => $employeeAlerts, // Can be empty array
+                'priority' => !empty($employeeAlerts) ? $this->calculateAlertPriority($employeeAlerts, $daysRemaining) : 'none'
+            ];
         }
         
         return $alerts;
     }
     
     /**
-     * Analyze individual employee leave utilization
+     * Analyze only Force Leave, CTO, and SLP (1-year expiry types) using specific expiry dates
      */
-    private function analyzeEmployeeLeaveUtilization($employee, $year, $daysRemaining) {
+    private function analyzeOneYearExpiryLeaves($employee, $year, $daysRemaining) {
         $alerts = [];
-        $totalAllocated = 0;
-        $totalUsed = 0;
-        $criticalTypes = [];
+        $currentDate = new DateTime();
         
-        foreach ($this->leaveTypesConfig as $type => $config) {
-            if (!$config['requires_credits']) continue;
+        // Force Leave (Mandatory Leave) - Check specific expiry date
+        $forceLeaveBalance = $employee['mandatory_leave_balance'] ?? 0;
+        $forceLeaveUsed = $employee['mandatory_used'] ?? 0;
+        $forceLeaveRemaining = max(0, $forceLeaveBalance - $forceLeaveUsed);
+        $forceLeaveExpiryDate = $employee['mandatory_leave_expiry_date'] ?? null;
+        
+        if ($forceLeaveRemaining > 0 && $forceLeaveExpiryDate) {
+            $expiryDate = new DateTime($forceLeaveExpiryDate);
+            $daysUntilExpiry = $currentDate->diff($expiryDate)->days;
+            $isExpiringSoon = $expiryDate > $currentDate; // Only alert if not yet expired
             
-            $balanceField = $config['credit_field'];
-            $usedField = $type . '_used';
-            
-            $allocated = $employee[$balanceField] ?? 0;
-            $used = $employee[$usedField] ?? 0;
-            $remaining = max(0, $allocated - $used);
-            $utilization = $allocated > 0 ? round(($used / $allocated) * 100, 1) : 0;
-            
-            $totalAllocated += $allocated;
-            $totalUsed += $used;
-            
-            // Check for low utilization
-            if ($allocated > 0 && $utilization < self::LOW_UTILIZATION_THRESHOLD) {
-                $severity = $utilization < self::CRITICAL_UTILIZATION_THRESHOLD ? 'critical' : 'warning';
-                
-                $alerts[] = [
-                    'type' => 'low_utilization',
-                    'leave_type' => $type,
-                    'leave_name' => $config['name'],
-                    'allocated' => $allocated,
-                    'used' => $used,
-                    'remaining' => $remaining,
-                    'utilization' => $utilization,
-                    'severity' => $severity,
-                    'message' => $this->generateUtilizationMessage($type, $config['name'], $utilization, $remaining, $daysRemaining)
-                ];
-                
-                if ($severity === 'critical') {
-                    $criticalTypes[] = $type;
+            if ($isExpiringSoon) {
+                if ($daysUntilExpiry <= self::EXPIRY_CRITICAL_DAYS) {
+                    $utilization = $forceLeaveBalance > 0 ? round(($forceLeaveUsed / $forceLeaveBalance) * 100, 1) : 0;
+                    $alerts[] = [
+                        'type' => 'force_leave_1_year_expiry_critical',
+                        'leave_type' => 'mandatory',
+                        'leave_name' => 'Force Leave (Mandatory)',
+                        'unused_days' => $forceLeaveRemaining,
+                        'remaining' => $forceLeaveRemaining,
+                        'days_until_forfeiture' => $daysUntilExpiry,
+                        'expiry_date' => $forceLeaveExpiryDate,
+                        'utilization' => $utilization,
+                        'allocated' => $forceLeaveBalance,
+                        'used' => $forceLeaveUsed,
+                        'severity' => 'critical',
+                        'expiry_rule' => '1_year_from_grant_date',
+                        'message' => $this->generateForceLeaveExpiryMessage($forceLeaveRemaining, $daysUntilExpiry, 'critical', $forceLeaveExpiryDate)
+                    ];
+                } elseif ($daysUntilExpiry <= self::EXPIRY_WARNING_DAYS) {
+                    $utilization = $forceLeaveBalance > 0 ? round(($forceLeaveUsed / $forceLeaveBalance) * 100, 1) : 0;
+                    $alerts[] = [
+                        'type' => 'force_leave_1_year_expiry_warning',
+                        'leave_type' => 'mandatory',
+                        'leave_name' => 'Force Leave (Mandatory)',
+                        'unused_days' => $forceLeaveRemaining,
+                        'remaining' => $forceLeaveRemaining,
+                        'days_until_forfeiture' => $daysUntilExpiry,
+                        'expiry_date' => $forceLeaveExpiryDate,
+                        'utilization' => $utilization,
+                        'allocated' => $forceLeaveBalance,
+                        'used' => $forceLeaveUsed,
+                        'severity' => 'urgent',
+                        'expiry_rule' => '1_year_from_grant_date',
+                        'message' => $this->generateForceLeaveExpiryMessage($forceLeaveRemaining, $daysUntilExpiry, 'warning', $forceLeaveExpiryDate)
+                    ];
                 }
             }
+        }
+        
+        // CTO (Compensatory Time Off) - Check specific expiry date
+        $ctoBalance = $employee['cto_balance'] ?? 0;
+        $ctoUsed = $employee['cto_used'] ?? 0;
+        $ctoRemaining = max(0, $ctoBalance - $ctoUsed);
+        $ctoExpiryDate = $employee['cto_expiry_date'] ?? null;
+        
+        if ($ctoRemaining > 0 && $ctoExpiryDate) {
+            $expiryDate = new DateTime($ctoExpiryDate);
+            $daysUntilExpiry = $currentDate->diff($expiryDate)->days;
+            $isExpiringSoon = $expiryDate > $currentDate;
             
-            // Check for year-end urgency
-            if ($daysRemaining <= self::URGENT_THRESHOLD_DAYS && $remaining > 0) {
-                $alerts[] = [
-                    'type' => 'year_end_urgent',
-                    'leave_type' => $type,
-                    'leave_name' => $config['name'],
-                    'remaining' => $remaining,
-                    'days_remaining' => $daysRemaining,
-                    'severity' => 'urgent',
-                    'message' => $this->generateYearEndMessage($type, $config['name'], $remaining, $daysRemaining)
-                ];
+            if ($isExpiringSoon) {
+                if ($daysUntilExpiry <= self::EXPIRY_CRITICAL_DAYS) {
+                    $utilization = $ctoBalance > 0 ? round(($ctoUsed / $ctoBalance) * 100, 1) : 0;
+                    $alerts[] = [
+                        'type' => 'cto_1_year_expiry_critical',
+                        'leave_type' => 'cto',
+                        'leave_name' => 'Compensatory Time Off (CTO)',
+                        'unused_days' => $ctoRemaining,
+                        'remaining' => $ctoRemaining,
+                        'days_until_forfeiture' => $daysUntilExpiry,
+                        'expiry_date' => $ctoExpiryDate,
+                        'utilization' => $utilization,
+                        'allocated' => $ctoBalance,
+                        'used' => $ctoUsed,
+                        'severity' => 'critical',
+                        'expiry_rule' => '1_year_from_grant_date',
+                        'message' => $this->generateCTOExpiryMessage($ctoRemaining, $daysUntilExpiry, 'critical', $ctoExpiryDate)
+                    ];
+                } elseif ($daysUntilExpiry <= self::EXPIRY_WARNING_DAYS) {
+                    $utilization = $ctoBalance > 0 ? round(($ctoUsed / $ctoBalance) * 100, 1) : 0;
+                    $alerts[] = [
+                        'type' => 'cto_1_year_expiry_warning',
+                        'leave_type' => 'cto',
+                        'leave_name' => 'Compensatory Time Off (CTO)',
+                        'unused_days' => $ctoRemaining,
+                        'remaining' => $ctoRemaining,
+                        'days_until_forfeiture' => $daysUntilExpiry,
+                        'expiry_date' => $ctoExpiryDate,
+                        'utilization' => $utilization,
+                        'allocated' => $ctoBalance,
+                        'used' => $ctoUsed,
+                        'severity' => 'urgent',
+                        'expiry_rule' => '1_year_from_grant_date',
+                        'message' => $this->generateCTOExpiryMessage($ctoRemaining, $daysUntilExpiry, 'warning', $ctoExpiryDate)
+                    ];
+                }
             }
         }
         
-        // Add CSC compliance checks
-        $cscViolations = $this->checkCSCLeaveLimits($employee, $year);
-        foreach ($cscViolations as $violation) {
-            $alerts[] = $violation;
-        }
+        // SLP (Special Leave Privilege) - Check specific expiry date
+        $slpBalance = $employee['special_leave_privilege_balance'] ?? 0;
+        $slpUsed = $employee['special_privilege_used'] ?? 0;
+        $slpRemaining = max(0, $slpBalance - $slpUsed);
+        $slpExpiryDate = $employee['slp_expiry_date'] ?? null;
         
-        // Add CSC utilization compliance checks
-        $utilizationAlerts = $this->checkCSCUtilizationCompliance($employee, $year);
-        foreach ($utilizationAlerts as $alert) {
-            $alerts[] = $alert;
-        }
-        
-        // Add year-end forfeiture risk checks
-        $forfeitureRisks = $this->checkYearEndForfeitureRisk($employee, $year);
-        foreach ($forfeitureRisks as $risk) {
-            $alerts[] = $risk;
-        }
-        
-        // Overall utilization alert
-        $overallUtilization = $totalAllocated > 0 ? round(($totalUsed / $totalAllocated) * 100, 1) : 0;
-        if ($overallUtilization < self::LOW_UTILIZATION_THRESHOLD) {
-            $alerts[] = [
-                'type' => 'overall_low_utilization',
-                'total_allocated' => $totalAllocated,
-                'total_used' => $totalUsed,
-                'total_remaining' => $totalAllocated - $totalUsed,
-                'utilization' => $overallUtilization,
-                'severity' => $overallUtilization < self::CRITICAL_UTILIZATION_THRESHOLD ? 'critical' : 'warning',
-                'message' => $this->generateOverallUtilizationMessage($overallUtilization, $totalAllocated - $totalUsed, $daysRemaining)
-            ];
-        }
-        
-        // CSC utilization compliance check
-        $utilizationAlerts = $this->checkCSCUtilizationCompliance($employee, $year);
-        foreach ($utilizationAlerts as $alert) {
-            $alerts[] = $alert;
+        if ($slpRemaining > 0 && $slpExpiryDate) {
+            $expiryDate = new DateTime($slpExpiryDate);
+            $daysUntilExpiry = $currentDate->diff($expiryDate)->days;
+            $isExpiringSoon = $expiryDate > $currentDate;
+            
+            if ($isExpiringSoon) {
+                if ($daysUntilExpiry <= self::EXPIRY_CRITICAL_DAYS) {
+                    $utilization = $slpBalance > 0 ? round(($slpUsed / $slpBalance) * 100, 1) : 0;
+                    $alerts[] = [
+                        'type' => 'slp_1_year_expiry_critical',
+                        'leave_type' => 'special_privilege',
+                        'leave_name' => 'Special Leave Privilege (SLP)',
+                        'unused_days' => $slpRemaining,
+                        'remaining' => $slpRemaining,
+                        'days_until_forfeiture' => $daysUntilExpiry,
+                        'expiry_date' => $slpExpiryDate,
+                        'utilization' => $utilization,
+                        'allocated' => $slpBalance,
+                        'used' => $slpUsed,
+                        'severity' => 'critical',
+                        'expiry_rule' => '1_year_from_grant_date',
+                        'message' => $this->generateSLPExpiryMessage($slpRemaining, $daysUntilExpiry, 'critical', $slpExpiryDate)
+                    ];
+                } elseif ($daysUntilExpiry <= self::EXPIRY_WARNING_DAYS) {
+                    $utilization = $slpBalance > 0 ? round(($slpUsed / $slpBalance) * 100, 1) : 0;
+                    $alerts[] = [
+                        'type' => 'slp_1_year_expiry_warning',
+                        'leave_type' => 'special_privilege',
+                        'leave_name' => 'Special Leave Privilege (SLP)',
+                        'unused_days' => $slpRemaining,
+                        'remaining' => $slpRemaining,
+                        'days_until_forfeiture' => $daysUntilExpiry,
+                        'expiry_date' => $slpExpiryDate,
+                        'utilization' => $utilization,
+                        'allocated' => $slpBalance,
+                        'used' => $slpUsed,
+                        'severity' => 'urgent',
+                        'expiry_rule' => '1_year_from_grant_date',
+                        'message' => $this->generateSLPExpiryMessage($slpRemaining, $daysUntilExpiry, 'warning', $slpExpiryDate)
+                    ];
+                }
+            }
         }
         
         return $alerts;
     }
     
     /**
-     * Check CSC leave utilization compliance
+     * Get ALL employees with Force Leave, CTO, and SLP data (including those without expiring credits)
      */
-    private function checkCSCUtilizationCompliance($employee, $year) {
-        $totalAllocated = 0;
-        $totalUsed = 0;
-        $utilizationAlerts = [];
-        
-        // Calculate overall leave utilization
-        foreach ($this->leaveTypesConfig as $type => $config) {
-            if (!$config['requires_credits']) continue;
-            
-            $balanceField = $config['credit_field'];
-            $usedField = $type . '_used';
-            
-            $allocated = $employee[$balanceField] ?? 0;
-            $used = $employee[$usedField] ?? 0;
-            
-            $totalAllocated += $allocated;
-            $totalUsed += $used;
-        }
-        
-        $overallUtilization = $totalAllocated > 0 ? round(($totalUsed / $totalAllocated) * 100, 1) : 0;
-        
-        // Check for low utilization
-        if ($overallUtilization < self::LEAVE_UTILIZATION_WARNING) {
-            $severity = $overallUtilization < self::LEAVE_UTILIZATION_CRITICAL ? 'critical' : 'urgent';
-            
-            $utilizationAlerts[] = [
-                'type' => 'csc_utilization_low',
-                'leave_type' => 'overall',
-                'leave_name' => 'Overall Leave Utilization',
-                'allocated' => $totalAllocated,
-                'used' => $totalUsed,
-                'remaining' => $totalAllocated - $totalUsed,
-                'utilization' => $overallUtilization,
-                'severity' => $severity,
-                'message' => $this->generateCSCUtilizationMessage($overallUtilization, $totalAllocated - $totalUsed)
-            ];
-        }
-        
-        return $utilizationAlerts;
-    }
-    
-    /**
-     * Check for CSC leave limit violations
-     */
-    private function checkCSCLeaveLimits($employee, $currentYear) {
-        $violations = [];
-        
-        try {
-            // Define CSC leave limits
-            $cscLimits = [
-                'vacation' => ['max' => self::VACATION_LEAVE_MAX, 'used' => $employee['vacation_used'] ?? 0],
-                'sick' => ['max' => self::SICK_LEAVE_MAX, 'used' => $employee['sick_used'] ?? 0],
-                'special_privilege' => ['max' => self::SPECIAL_PRIVILEGE_MAX, 'used' => $employee['special_privilege_used'] ?? 0],
-                'mandatory' => ['max' => self::MANDATORY_LEAVE_MAX, 'used' => $employee['mandatory_used'] ?? 0]
-            ];
-            
-            foreach ($cscLimits as $leaveType => $data) {
-                $usedDays = $data['used'];
-                $maxDays = $data['max'];
-                $remainingDays = $maxDays - $usedDays;
-                
-                if ($usedDays > $maxDays) {
-                    $violations[] = [
-                        'type' => 'csc_limit_exceeded',
-                        'leave_type' => $leaveType,
-                        'used_days' => $usedDays,
-                        'max_days' => $maxDays,
-                        'excess_days' => $usedDays - $maxDays,
-                        'severity' => 'critical',
-                        'message' => "Subject: URGENT Notice on CSC Leave Limit Violation\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour {$leaveType} usage has exceeded the maximum allowable limit (Used: {$usedDays}/{$maxDays} days).\n\nYou are required to contact the Human Resource Management Office IMMEDIATELY for administrative adjustments and compliance measures.\n\nThis violation may result in:\n\n• Non-crediting of excess leave days;\n• Administrative sanctions as per CSC guidelines; and\n• Mandatory adjustment of your leave balance.\n\nPlease report to the HRMO at your earliest convenience.\n\nThank you for your immediate attention to this matter.\n\nHuman Resource Management Office"
-                    ];
-                } elseif ($remainingDays <= 2 && $remainingDays > 0) {
-                    $violations[] = [
-                        'type' => 'csc_limit_approaching',
-                        'leave_type' => $leaveType,
-                        'used_days' => $usedDays,
-                        'max_days' => $maxDays,
-                        'remaining_days' => $remainingDays,
-                        'severity' => 'urgent',
-                        'message' => "Subject: Advisory on CSC Leave Limit\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour {$leaveType} usage is approaching the maximum allowable limit ({$remainingDays} days remaining before limit).\n\nYou are advised to coordinate with your immediate supervisor regarding the scheduling of your leave to avoid exceeding the CSC-mandated limits.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office"
-                    ];
-                }
-            }
-            
-            return $violations;
-            
-        } catch (Exception $e) {
-            error_log("Error checking CSC leave limits: " . $e->getMessage());
-            return [];
-        }
-    }
-    
-    /**
-     * Check for year-end forfeiture risks
-     */
-    private function checkYearEndForfeitureRisk($employee, $currentYear) {
-        $risks = [];
-        
-        try {
-            $currentDate = new DateTime();
-            $yearEnd = new DateTime($currentYear . '-12-31');
-            $daysUntilYearEnd = $currentDate->diff($yearEnd)->days;
-            
-            // Define leave types and their limits
-            $leaveTypes = [
-                'vacation' => ['max' => self::VACATION_LEAVE_MAX, 'used' => $employee['vacation_used'] ?? 0],
-                'sick' => ['max' => self::SICK_LEAVE_MAX, 'used' => $employee['sick_used'] ?? 0],
-                'special_privilege' => ['max' => self::SPECIAL_PRIVILEGE_MAX, 'used' => $employee['special_privilege_used'] ?? 0],
-                'mandatory' => ['max' => self::MANDATORY_LEAVE_MAX, 'used' => $employee['mandatory_used'] ?? 0]
-            ];
-            
-            foreach ($leaveTypes as $leaveType => $data) {
-                $usedDays = $data['used'];
-                $maxDays = $data['max'];
-                $unusedDays = $maxDays - $usedDays;
-                
-                if ($unusedDays > 0) {
-                    if ($daysUntilYearEnd <= self::LEAVE_FORFEITURE_CRITICAL_DAYS) {
-                        $risks[] = [
-                            'type' => 'year_end_critical',
-                            'leave_type' => $leaveType,
-                            'unused_days' => $unusedDays,
-                            'days_until_forfeiture' => $daysUntilYearEnd,
-                            'severity' => 'critical',
-                            'message' => "Subject: URGENT Advisory on Leave Credit Forfeiture\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour {$unusedDays} {$leaveType} days will be forfeited in {$daysUntilYearEnd} days.\n\nAccordingly, you are advised to schedule and utilize your leave credits IMMEDIATELY to avoid the following actions:\n\n• Forfeiture of unused leave days at year-end;\n• Non-crediting of excess leave balances; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office"
-                        ];
-                    } elseif ($daysUntilYearEnd <= self::LEAVE_FORFEITURE_WARNING_DAYS) {
-                        $risks[] = [
-                            'type' => 'year_end_warning',
-                            'leave_type' => $leaveType,
-                            'unused_days' => $unusedDays,
-                            'days_until_forfeiture' => $daysUntilYearEnd,
-                            'severity' => 'urgent',
-                            'message' => "Subject: Advisory on Leave Credit Forfeiture\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour {$unusedDays} {$leaveType} days will be forfeited in {$daysUntilYearEnd} days.\n\nAccordingly, you are advised to schedule and utilize your leave credits within the prescribed period to avoid the following actions:\n\n• Forfeiture of unused leave days at year-end;\n• Non-crediting of excess leave balances; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office"
-                        ];
-                    }
-                }
-            }
-            
-        return $risks;
-        
-    } catch (Exception $e) {
-        error_log("Error checking year-end forfeiture risk: " . $e->getMessage());
-        return [];
-    }
-}
-
-/**
- * Generate CSC utilization message
- */
-private function generateCSCUtilizationMessage($utilization, $remainingDays) {
-    if ($utilization < self::LEAVE_UTILIZATION_CRITICAL) {
-        return "Subject: Advisory on Leave Credit Maximization\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour leave credits have reached or are nearing the maximum allowable accumulation ({$remainingDays} days remaining).\n\nAccordingly, you are advised to schedule and utilize your excess leave credits within the prescribed period to avoid the following actions:\n\n• Application of Compulsory/Forced Leave, in accordance with CSC rules;\n• Non-crediting or forfeiture of leave days exceeding the allowable limit; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office";
-    } else {
-        return "Subject: Reminder on Leave Credit Utilization\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYou have {$remainingDays} days remaining for utilization.\n\nYou are advised to schedule and utilize your leave credits within the prescribed period. Please coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office";
-    }
-}
-    
-    /**
-     * Get employees with comprehensive leave data
-     */
-    private function getEmployeesWithLeaveData($year) {
+    private function getAllEmployeesWithOneYearExpiryData($year) {
         $stmt = $this->pdo->prepare("
             SELECT 
-                e.id, e.name, e.email, e.department, e.position, e.service_start_date, e.created_at,
-                e.vacation_leave_balance, e.sick_leave_balance, e.special_leave_privilege_balance,
-                e.maternity_leave_balance, e.paternity_leave_balance, e.solo_parent_leave_balance,
-                e.vawc_leave_balance, e.rehabilitation_leave_balance, e.special_women_leave_balance,
-                e.special_emergency_leave_balance, e.adoption_leave_balance, e.mandatory_leave_balance,
-                COALESCE(SUM(CASE WHEN lr.leave_type = 'vacation' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
-                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as vacation_used,
-                COALESCE(SUM(CASE WHEN lr.leave_type = 'sick' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
-                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as sick_used,
-                COALESCE(SUM(CASE WHEN lr.leave_type = 'special_privilege' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
-                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as special_privilege_used,
-                COALESCE(SUM(CASE WHEN lr.leave_type = 'maternity' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
-                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as maternity_used,
-                COALESCE(SUM(CASE WHEN lr.leave_type = 'paternity' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
-                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as paternity_used,
-                COALESCE(SUM(CASE WHEN lr.leave_type = 'solo_parent' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
-                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as solo_parent_used,
-                COALESCE(SUM(CASE WHEN lr.leave_type = 'vawc' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
-                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as vawc_used,
-                COALESCE(SUM(CASE WHEN lr.leave_type = 'rehabilitation' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
-                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as rehabilitation_used,
-                COALESCE(SUM(CASE WHEN lr.leave_type = 'special_women' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
-                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as special_women_used,
-                COALESCE(SUM(CASE WHEN lr.leave_type = 'special_emergency' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
-                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as special_emergency_used,
-                COALESCE(SUM(CASE WHEN lr.leave_type = 'adoption' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
-                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as adoption_used,
+                e.id, e.name, e.email, e.department, e.position,
+                COALESCE(e.mandatory_leave_balance, 0) as mandatory_leave_balance,
+                COALESCE(e.cto_balance, 0) as cto_balance,
+                COALESCE(e.special_leave_privilege_balance, 0) as special_leave_privilege_balance,
+                e.mandatory_leave_expiry_date,
+                e.cto_expiry_date,
+                e.slp_expiry_date,
                 COALESCE(SUM(CASE WHEN lr.leave_type = 'mandatory' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
-                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as mandatory_used
+                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as mandatory_used,
+                COALESCE(SUM(CASE WHEN lr.leave_type = 'cto' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
+                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as cto_used,
+                COALESCE(SUM(CASE WHEN lr.leave_type = 'special_privilege' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
+                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as special_privilege_used
             FROM employees e
             LEFT JOIN leave_requests lr ON e.id = lr.employee_id
             WHERE e.role = 'employee'
-            GROUP BY e.id, e.name, e.email, e.department, e.position, e.service_start_date, e.created_at,
-                     e.vacation_leave_balance, e.sick_leave_balance, e.special_leave_privilege_balance,
-                     e.maternity_leave_balance, e.paternity_leave_balance, e.solo_parent_leave_balance,
-                     e.vawc_leave_balance, e.rehabilitation_leave_balance, e.special_women_leave_balance,
-                     e.special_emergency_leave_balance, e.adoption_leave_balance, e.mandatory_leave_balance
+            GROUP BY e.id, e.name, e.email, e.department, e.position,
+                     e.mandatory_leave_balance, e.cto_balance, e.special_leave_privilege_balance,
+                     e.mandatory_leave_expiry_date, e.cto_expiry_date, e.slp_expiry_date
             ORDER BY e.name
         ");
         
-        $stmt->execute([$year, $year, $year, $year, $year, $year, $year, $year, $year, $year, $year, $year]);
+        $stmt->execute([$year, $year, $year]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
     /**
-     * Calculate alert priority based on severity and urgency
+     * Get employees with only 1-year expiry leave data including specific expiry dates (original method for compatibility)
+     */
+    private function getEmployeesWithOneYearExpiryData($year) {
+        $stmt = $this->pdo->prepare("
+            SELECT 
+                e.id, e.name, e.email, e.department, e.position,
+                COALESCE(e.mandatory_leave_balance, 0) as mandatory_leave_balance,
+                COALESCE(e.cto_balance, 0) as cto_balance,
+                COALESCE(e.special_leave_privilege_balance, 0) as special_leave_privilege_balance,
+                e.mandatory_leave_expiry_date,
+                e.cto_expiry_date,
+                e.slp_expiry_date,
+                COALESCE(SUM(CASE WHEN lr.leave_type = 'mandatory' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
+                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as mandatory_used,
+                COALESCE(SUM(CASE WHEN lr.leave_type = 'cto' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
+                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as cto_used,
+                COALESCE(SUM(CASE WHEN lr.leave_type = 'special_privilege' AND YEAR(lr.start_date) = ? AND lr.status = 'approved' 
+                    THEN DATEDIFF(lr.end_date, lr.start_date) + 1 ELSE 0 END), 0) as special_privilege_used
+            FROM employees e
+            LEFT JOIN leave_requests lr ON e.id = lr.employee_id
+            WHERE e.role = 'employee'
+            AND (
+                (COALESCE(e.mandatory_leave_balance, 0) > 0 AND e.mandatory_leave_expiry_date IS NOT NULL) OR
+                (COALESCE(e.cto_balance, 0) > 0 AND e.cto_expiry_date IS NOT NULL) OR
+                (COALESCE(e.special_leave_privilege_balance, 0) > 0 AND e.slp_expiry_date IS NOT NULL)
+            )
+            GROUP BY e.id, e.name, e.email, e.department, e.position,
+                     e.mandatory_leave_balance, e.cto_balance, e.special_leave_privilege_balance,
+                     e.mandatory_leave_expiry_date, e.cto_expiry_date, e.slp_expiry_date
+            ORDER BY e.name
+        ");
+        
+        $stmt->execute([$year, $year, $year]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    /**
+     * Calculate alert priority based on 1-year expiry urgency
      */
     private function calculateAlertPriority($alerts, $daysRemaining) {
         $hasUrgent = false;
         $hasCritical = false;
-        $hasWarning = false;
         
         foreach ($alerts as $alert) {
-            if ($alert['severity'] === 'urgent') $hasUrgent = true;
             if ($alert['severity'] === 'critical') $hasCritical = true;
-            if ($alert['severity'] === 'warning') $hasWarning = true;
+            if ($alert['severity'] === 'urgent') $hasUrgent = true;
         }
         
-        if ($hasUrgent || $daysRemaining <= self::URGENT_THRESHOLD_DAYS) {
-            return 'urgent';
-        } elseif ($hasCritical) {
+        if ($hasCritical || $daysRemaining <= self::EXPIRY_CRITICAL_DAYS) {
             return 'critical';
-        } elseif ($hasWarning) {
+        } elseif ($hasUrgent || $daysRemaining <= self::EXPIRY_WARNING_DAYS) {
+            return 'urgent';
+        } else {
             return 'moderate';
+        }
+    }
+    
+    /**
+     * Generate Force Leave expiry message with specific expiry date
+     */
+    private function generateForceLeaveExpiryMessage($remaining, $daysUntil, $severity, $expiryDate = null) {
+        $expiryDateText = $expiryDate ? date('F j, Y', strtotime($expiryDate)) : 'the expiry date';
+        
+        if ($severity === 'critical') {
+            return "Subject: CRITICAL - Force Leave 1-Year Expiry Notice\n\nIn compliance with Civil Service Commission (CSC) Omnibus Rules on Leave and the mandatory 1-year expiry policy for Force Leave credits:\n\nYour {$remaining} Force Leave (Mandatory) days will EXPIRE and be FORFEITED in {$daysUntil} days on {$expiryDateText}.\n\nIMPORTANT: Force Leave credits are subject to MANDATORY 1-YEAR EXPIRY from the date they were granted and cannot be carried over.\n\nIMMEDIATE ACTION REQUIRED:\n• Schedule and utilize your Force Leave credits IMMEDIATELY\n• Coordinate with your immediate supervisor for leave scheduling\n• Submit leave applications within the next {$daysUntil} days\n• Failure to use these credits will result in AUTOMATIC FORFEITURE\n\nConsequences of non-utilization:\n• Complete forfeiture of unused Force Leave credits on {$expiryDateText}\n• No monetary compensation for expired credits\n• Administrative adjustment of leave balance\n• Potential assignment of forced leave dates by HRMO\n\nExpiry Date: {$expiryDateText} (1 year from grant date)\n\nFor urgent assistance, contact the HRMO immediately.\n\nHuman Resource Management Office";
         } else {
-            return 'low';
+            return "Subject: URGENT - Force Leave 1-Year Expiry Advisory\n\nIn compliance with Civil Service Commission (CSC) Omnibus Rules on Leave and the mandatory 1-year expiry policy:\n\nYour {$remaining} Force Leave (Mandatory) days will expire in {$daysUntil} days on {$expiryDateText}.\n\nREMINDER: Force Leave credits are subject to MANDATORY 1-YEAR EXPIRY from the date they were granted and must be utilized before the expiry date.\n\nACTION REQUIRED:\n• Plan and schedule your Force Leave utilization immediately\n• Coordinate with your supervisor for optimal leave scheduling\n• Submit leave applications well in advance\n• Ensure all credits are used before {$expiryDateText}\n\nExpiry Date: {$expiryDateText} (1 year from grant date)\n\nNote: Unused Force Leave credits will be automatically forfeited on the expiry date with no compensation.\n\nFor assistance with leave planning, contact the HRMO.\n\nHuman Resource Management Office";
         }
     }
     
     /**
-     * Generate utilization message
+     * Generate CTO expiry message with specific expiry date
      */
-    private function generateUtilizationMessage($type, $name, $utilization, $remaining, $daysRemaining) {
-        if ($utilization < self::CRITICAL_UTILIZATION_THRESHOLD) {
-            return "Subject: Advisory on Leave Credit Maximization\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour {$name} credits have reached or are nearing the maximum allowable accumulation ({$remaining} days remaining).\n\nAccordingly, you are advised to schedule and utilize your excess leave credits within the prescribed period to avoid the following actions:\n\n• Application of Compulsory/Forced Leave, in accordance with CSC rules;\n• Non-crediting or forfeiture of leave days exceeding the allowable limit; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office";
+    private function generateCTOExpiryMessage($remaining, $daysUntil, $severity, $expiryDate = null) {
+        $expiryDateText = $expiryDate ? date('F j, Y', strtotime($expiryDate)) : 'the expiry date';
+        
+        if ($severity === 'critical') {
+            return "Subject: CRITICAL - CTO 1-Year Expiry Notice\n\nIn compliance with government compensation policies and the mandatory 1-year expiry rule for Compensatory Time Off:\n\nYour {$remaining} CTO (Compensatory Time Off) hours/days will EXPIRE and be FORFEITED in {$daysUntil} days on {$expiryDateText}.\n\nIMPORTANT: CTO credits earned through overtime work are subject to MANDATORY 1-YEAR EXPIRY from the date they were granted and cannot be carried over.\n\nIMMEDIATE ACTION REQUIRED:\n• Schedule and utilize your CTO credits IMMEDIATELY\n• Coordinate with your supervisor for time-off scheduling\n• Submit CTO applications within the next {$daysUntil} days\n• Failure to use these credits will result in AUTOMATIC FORFEITURE\n\nConsequences of non-utilization:\n• Complete loss of earned overtime compensation on {$expiryDateText}\n• No monetary equivalent for expired CTO\n• Administrative adjustment of CTO balance\n\nExpiry Date: {$expiryDateText} (1 year from grant date)\n\nYour overtime work deserves compensation - don't let it expire!\n\nFor urgent assistance, contact the HRMO immediately.\n\nHuman Resource Management Office";
         } else {
-            return "Subject: Reminder on Leave Credit Utilization\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYou have {$remaining} {$name} days available for utilization.\n\nYou are advised to schedule and utilize your leave credits within the prescribed period. Please coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office";
+            return "Subject: URGENT - CTO 1-Year Expiry Advisory\n\nIn compliance with government compensation policies and the mandatory 1-year expiry rule:\n\nYour {$remaining} CTO (Compensatory Time Off) hours/days will expire in {$daysUntil} days on {$expiryDateText}.\n\nREMINDER: CTO credits earned through overtime work are subject to MANDATORY 1-YEAR EXPIRY from the date they were granted and must be utilized before the expiry date.\n\nACTION REQUIRED:\n• Plan and schedule your CTO utilization immediately\n• Coordinate with your supervisor for optimal scheduling\n• Submit CTO applications well in advance\n• Ensure all earned overtime compensation is used before {$expiryDateText}\n\nExpiry Date: {$expiryDateText} (1 year from grant date)\n\nNote: Unused CTO will be automatically forfeited on the expiry date with no monetary compensation.\n\nDon't lose the compensation you earned through overtime work!\n\nFor assistance, contact the HRMO.\n\nHuman Resource Management Office";
         }
     }
     
     /**
-     * Generate year-end urgent message
+     * Generate SLP expiry message with specific expiry date
      */
-    private function generateYearEndMessage($type, $name, $remaining, $daysRemaining) {
-        return "Subject: Advisory on Year-End Leave Credit Forfeiture\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour {$remaining} {$name} days will expire on December 31st and are subject to forfeiture.\n\nAccordingly, you are advised to schedule and utilize your leave credits within the prescribed period to avoid the following actions:\n\n• Forfeiture of unused leave days at year-end;\n• Non-crediting of excess leave balances; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office";
-    }
-    
-    /**
-     * Generate overall utilization message
-     */
-    private function generateOverallUtilizationMessage($utilization, $totalRemaining, $daysRemaining) {
-        if ($daysRemaining <= self::URGENT_THRESHOLD_DAYS) {
-            return "Subject: Advisory on Year-End Leave Credit Forfeiture\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour {$totalRemaining} total leave days will expire on December 31st and are subject to forfeiture.\n\nAccordingly, you are advised to schedule and utilize your leave credits within the prescribed period to avoid the following actions:\n\n• Forfeiture of unused leave days at year-end;\n• Non-crediting of excess leave balances; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office";
+    private function generateSLPExpiryMessage($remaining, $daysUntil, $severity, $expiryDate = null) {
+        $expiryDateText = $expiryDate ? date('F j, Y', strtotime($expiryDate)) : 'the expiry date';
+        
+        if ($severity === 'critical') {
+            return "Subject: CRITICAL - SLP 1-Year Expiry Notice\n\nIn compliance with Civil Service Commission (CSC) MC No. 6, s. 1996 and the mandatory 1-year expiry policy for Special Leave Privilege:\n\nYour {$remaining} SLP (Special Leave Privilege) days will EXPIRE and be FORFEITED in {$daysUntil} days on {$expiryDateText}.\n\nIMPORTANT: SLP credits are NON-CUMULATIVE and subject to MANDATORY 1-YEAR EXPIRY from the date they were granted. They cannot be carried over or converted to cash.\n\nIMMEDIATE ACTION REQUIRED:\n• Schedule and utilize your SLP credits IMMEDIATELY\n• Coordinate with your supervisor for leave scheduling\n• Submit SLP applications within the next {$daysUntil} days\n• Failure to use these credits will result in AUTOMATIC FORFEITURE\n\nConsequences of non-utilization:\n• Complete forfeiture of unused SLP credits on {$expiryDateText}\n• No monetary compensation (non-commutable)\n• No carry-over (non-cumulative)\n• Administrative adjustment of leave balance\n\nExpiry Date: {$expiryDateText} (1 year from grant date)\n\nSLP is a special privilege - use it before you lose it!\n\nFor urgent assistance, contact the HRMO immediately.\n\nHuman Resource Management Office";
         } else {
-            return "Subject: Advisory on Leave Credit Maximization\n\nIn compliance with existing Government Leave Administration Policies and pursuant to the guidelines outlined in the Civil Service Commission (CSC) Omnibus Rules on Leave, this is to formally notify you that:\n\nYour leave credits have reached or are nearing the maximum allowable accumulation ({$totalRemaining} days remaining).\n\nAccordingly, you are advised to schedule and utilize your excess leave credits within the prescribed period to avoid the following actions:\n\n• Application of Compulsory/Forced Leave, in accordance with CSC rules;\n• Non-crediting or forfeiture of leave days exceeding the allowable limit; and\n• Administrative adjustment of your leave balance based on government accounting requirements.\n\nYou are further requested to coordinate with your immediate supervisor regarding the scheduling of your leave to ensure that operations remain uninterrupted. Failure to submit preferred dates may result in this Office assigning forced leave dates on your behalf.\n\nFor concerns or clarifications, you may contact the HRMO during regular office hours.\n\nThank you for your cooperation.\n\nHuman Resource Management Office";
+            return "Subject: URGENT - SLP 1-Year Expiry Advisory\n\nIn compliance with Civil Service Commission (CSC) MC No. 6, s. 1996 and the mandatory 1-year expiry policy:\n\nYour {$remaining} SLP (Special Leave Privilege) days will expire in {$daysUntil} days on {$expiryDateText}.\n\nREMINDER: SLP credits are NON-CUMULATIVE and subject to MANDATORY 1-YEAR EXPIRY from the date they were granted and must be utilized before the expiry date.\n\nACTION REQUIRED:\n• Plan and schedule your SLP utilization immediately\n• Coordinate with your supervisor for optimal leave scheduling\n• Submit SLP applications well in advance\n• Ensure all credits are used before {$expiryDateText}\n\nExpiry Date: {$expiryDateText} (1 year from grant date)\n\nNote: Unused SLP will be automatically forfeited on the expiry date (non-cumulative, non-commutable).\n\nTake advantage of this special privilege before it expires!\n\nFor assistance with leave planning, contact the HRMO.\n\nHuman Resource Management Office";
         }
     }
     
-    
     /**
-     * Send automated alert to employee
+     * Get urgent alerts (for compatibility with existing code)
      */
-    public function sendAutomatedAlert($employeeId, $alertType, $message, $priority = 'medium') {
-        try {
-            $stmt = $this->pdo->prepare("
-                INSERT INTO leave_alerts (employee_id, alert_type, message, sent_by, priority, is_read, created_at) 
-                VALUES (?, ?, ?, 0, ?, 0, NOW())
-            ");
-            $stmt->execute([$employeeId, $alertType, $message, $priority]);
-            return $this->pdo->lastInsertId();
-        } catch (Exception $e) {
-            error_log("Error sending automated alert: " . $e->getMessage());
-            return false;
-        }
+    public function getUrgentAlerts($limit = 50) {
+        return $this->generateComprehensiveAlerts();
     }
     
     /**
-     * Get alert statistics for dashboard
+     * Get alert statistics (for compatibility with existing code)
      */
     public function getAlertStatistics() {
-        $currentYear = date('Y');
         $alerts = $this->generateComprehensiveAlerts();
         
         $stats = [
             'total_employees_with_alerts' => count($alerts),
             'urgent_alerts' => 0,
-            'critical_alerts' => 0,
-            'moderate_alerts' => 0,
-            'low_alerts' => 0,
-            'csc_compliance_issues' => 0,
             'year_end_risks' => 0
         ];
         
-        foreach ($alerts as $employeeAlerts) {
-            $priority = $employeeAlerts['priority'];
-            $stats[$priority . '_alerts']++;
-            
-            if ($employeeAlerts['csc_compliance']) {
-                $stats['csc_compliance_issues']++;
+        foreach ($alerts as $employeeAlert) {
+            if ($employeeAlert['priority'] === 'urgent' || $employeeAlert['priority'] === 'critical') {
+                $stats['urgent_alerts']++;
             }
-            
-            foreach ($employeeAlerts['alerts'] as $alert) {
-                if ($alert['type'] === 'year_end_urgent' || $alert['type'] === 'year_end_critical' || $alert['type'] === 'year_end_warning') {
-                    $stats['year_end_risks']++;
-                }
-            }
+            $stats['year_end_risks']++;
         }
         
         return $stats;
-    }
-    
-    /**
-     * Get employees requiring immediate attention
-     */
-    public function getUrgentAlerts($limit = 20) {
-        $alerts = $this->generateComprehensiveAlerts();
-        
-        // Sort by priority
-        uasort($alerts, function($a, $b) {
-            $priorityOrder = ['urgent' => 4, 'critical' => 3, 'moderate' => 2, 'low' => 1];
-            return $priorityOrder[$b['priority']] - $priorityOrder[$a['priority']];
-        });
-        
-        return array_slice($alerts, 0, $limit, true);
     }
 }
 ?>

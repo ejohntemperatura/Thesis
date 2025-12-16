@@ -16,6 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $leave_type = $_POST['leave_type'];
     $credits_to_add = (float)$_POST['credits_to_add'];
     $reason = trim($_POST['reason'] ?? 'Manual adjustment by admin');
+    $expiry_rule = $_POST['expiry_rule'] ?? 'no_expiry'; // Get the expiry rule from form
     
     try {
         // Validate leave type
@@ -54,11 +55,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $current_balance = (float)($employee[$credit_field] ?? 0);
         $new_balance = $current_balance + $credits_to_add;
         
-        // Update employee balance
-        $stmt = $pdo->prepare("UPDATE employees SET $credit_field = ? WHERE id = ?");
-        $stmt->execute([$new_balance, $employee_id]);
+        // Determine if expiry tracking should be used based on user selection
+        $useExpiryTracking = ($expiry_rule === 'one_year_expiry');
         
-        // Log the manual addition in leave_credit_history
+        // Check if this is a 1-year expiry leave type by default (Force Leave, CTO, SLP)
+        $oneYearExpiryTypes = ['mandatory', 'cto', 'special_privilege'];
+        $isDefaultOneYearType = in_array($leave_type, $oneYearExpiryTypes);
+        
+        if ($useExpiryTracking) {
+            // Use the new expiry tracking system when user selects 1-year expiry
+            $stmt = $pdo->prepare("CALL add_leave_credit_with_expiry(?, ?, ?, CURDATE(), ?, ?)");
+            $stmt->execute([$employee_id, $leave_type, $credits_to_add, $_SESSION['user_id'], $reason]);
+            
+            // Get the expiry date that was set
+            $stmt = $pdo->prepare("
+                SELECT expiry_date 
+                FROM leave_credit_expiry_tracking 
+                WHERE employee_id = ? AND leave_type = ? 
+                ORDER BY created_at DESC 
+                LIMIT 1
+            ");
+            $stmt->execute([$employee_id, $leave_type]);
+            $expiry_info = $stmt->fetch(PDO::FETCH_ASSOC);
+            $expiry_date = $expiry_info ? $expiry_info['expiry_date'] : 'N/A';
+            
+            $_SESSION['success'] = "Successfully added {$credits_to_add} day(s) of {$leaveConfig['name']} to {$employee['name']}. New balance: {$new_balance} day(s). Expiry Date: {$expiry_date} (1-year from today)";
+        } else {
+            // Use traditional method for no expiry or other leave types
+            // Update employee balance
+            $stmt = $pdo->prepare("UPDATE employees SET $credit_field = ? WHERE id = ?");
+            $stmt->execute([$new_balance, $employee_id]);
+            
+            $_SESSION['success'] = "Successfully added {$credits_to_add} day(s) of {$leaveConfig['name']} to {$employee['name']}. New balance: {$new_balance} day(s). Expiry: No expiry (credits do not expire)";
+        }
+        
+        // Log the manual addition in leave_credit_history for all types
         $stmt = $pdo->prepare("
             INSERT INTO leave_credit_history 
             (employee_id, credit_type, credit_amount, accrual_date, service_days, created_at) 
@@ -78,13 +109,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             'special_women' => 'special_women',
             'special_emergency' => 'special_emergency',
             'adoption' => 'adoption',
-            'mandatory' => 'mandatory'
+            'mandatory' => 'mandatory',
+            'cto' => 'vacation' // Map CTO to vacation for history tracking
         ];
         
         $credit_type = $credit_type_map[$leave_type] ?? 'vacation';
         $stmt->execute([$employee_id, $credit_type, $credits_to_add]);
-        
-        $_SESSION['success'] = "Successfully added {$credits_to_add} day(s) of {$leaveConfig['name']} to {$employee['name']}. New balance: {$new_balance} day(s)";
         
     } catch (Exception $e) {
         $_SESSION['error'] = "Error: " . $e->getMessage();
@@ -204,13 +234,8 @@ include '../../../../includes/admin_header.php';
                                         class="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-primary focus:border-transparent">
                                     <option value="">Select Leave Type</option>
                                     <?php 
-                                    // Exclude these leave types from the dropdown
-                                    $excludedTypes = ['vacation', 'sick', 'special_privilege', 'cto', 'service_credit'];
-                                    
+                                    // Include all leave types that require credits
                                     foreach ($leaveTypes as $key => $config): 
-                                        // Skip excluded leave types
-                                        if (in_array($key, $excludedTypes)) continue;
-                                        
                                         if ($config['requires_credits']): 
                                     ?>
                                             <option value="<?php echo $key; ?>" 
@@ -253,6 +278,29 @@ include '../../../../includes/admin_header.php';
                             <textarea name="reason" rows="3" 
                                       class="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-primary focus:border-transparent"
                                       placeholder="e.g., Special approval for maternity leave, Administrative correction, CTO earned from overtime work"></textarea>
+                        </div>
+                        
+                        <!-- Expiry Options (Conditional Field) -->
+                        <div id="cto_expiry_options_div" class="hidden">
+                            <label class="block text-sm font-semibold text-slate-300 mb-2">
+                                <i class="fas fa-clock mr-1"></i>Expiry Rule
+                            </label>
+                            <div class="space-y-3">
+                                <label class="flex items-center p-3 bg-slate-700/50 border border-slate-600 rounded-xl cursor-pointer hover:bg-slate-700 transition-all">
+                                    <input type="radio" name="expiry_rule" value="no_expiry" class="w-4 h-4 text-primary bg-slate-700 border-slate-500 focus:ring-primary focus:ring-2">
+                                    <div class="ml-3">
+                                        <div class="text-white font-medium">No Expiry</div>
+                                        <div class="text-slate-400 text-sm">Credits do not expire and can be carried over indefinitely</div>
+                                    </div>
+                                </label>
+                                <label class="flex items-center p-3 bg-slate-700/50 border border-slate-600 rounded-xl cursor-pointer hover:bg-slate-700 transition-all">
+                                    <input type="radio" name="expiry_rule" value="one_year_expiry" class="w-4 h-4 text-primary bg-slate-700 border-slate-500 focus:ring-primary focus:ring-2">
+                                    <div class="ml-3">
+                                        <div class="text-white font-medium">Expires within 1 year</div>
+                                        <div class="text-slate-400 text-sm">Credits expire exactly 1 year from the date they are granted</div>
+                                    </div>
+                                </label>
+                            </div>
                         </div>
                         
                         <!-- Submit Button -->
@@ -333,6 +381,7 @@ include '../../../../includes/admin_header.php';
             const genderRestriction = selectedOption.getAttribute('data-gender');
             const infoDiv = document.getElementById('leave_type_info');
             const descSpan = document.getElementById('leave_type_description');
+            const expiryOptionsDiv = document.getElementById('cto_expiry_options_div');
             
             if (this.value && description) {
                 let infoText = description;
@@ -342,10 +391,27 @@ include '../../../../includes/admin_header.php';
                 descSpan.textContent = infoText;
                 infoDiv.classList.remove('hidden');
                 
+                // Show expiry options when any leave type is selected
+                expiryOptionsDiv.classList.remove('hidden');
+                
+                // Set default expiry rule based on leave type
+                const oneYearExpiryTypes = ['mandatory', 'cto', 'special_privilege'];
+                if (oneYearExpiryTypes.includes(this.value)) {
+                    document.querySelector('input[name="expiry_rule"][value="one_year_expiry"]').checked = true;
+                } else {
+                    // Vacation, sick leave, and other types default to no expiry
+                    document.querySelector('input[name="expiry_rule"][value="no_expiry"]').checked = true;
+                }
+                
                 // Validate gender restriction
                 validateGenderRestriction();
             } else {
                 infoDiv.classList.add('hidden');
+                // Hide expiry options when no leave type is selected
+                expiryOptionsDiv.classList.add('hidden');
+                // Clear radio buttons
+                const radioButtons = document.querySelectorAll('input[name="expiry_rule"]');
+                radioButtons.forEach(radio => radio.checked = false);
             }
         });
         
@@ -379,6 +445,17 @@ include '../../../../includes/admin_header.php';
             if (credits <= 0) {
                 e.preventDefault();
                 showStyledAlert('Credits to add must be greater than 0', 'warning');
+                return false;
+            }
+            
+            // Check if leave type is selected and expiry rule is required
+            const leaveTypeSelect = document.getElementById('leave_type_select');
+            const expiryOptionsDiv = document.getElementById('cto_expiry_options_div');
+            const expiryRuleSelected = document.querySelector('input[name="expiry_rule"]:checked');
+            
+            if (leaveTypeSelect.value && !expiryOptionsDiv.classList.contains('hidden') && !expiryRuleSelected) {
+                e.preventDefault();
+                showStyledAlert('Please select an expiry rule for the leave credits', 'warning');
                 return false;
             }
         });

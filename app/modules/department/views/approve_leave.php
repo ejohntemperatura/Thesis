@@ -46,6 +46,11 @@ try {
         // Update department head approval status
         $stmt = $pdo->prepare("UPDATE leave_requests SET dept_head_approval = 'approved', dept_head_approved_by = ?, dept_head_approved_at = NOW() WHERE id = ?");
         $stmt->execute([$_SESSION['user_id'], $request_id]);
+        
+        // Apply e-signature if available
+        require_once '../../../../app/core/services/SignatureService.php';
+        $signatureService = new SignatureService($pdo);
+        $signatureService->applyESignature($request_id, $_SESSION['user_id'], 'department');
     
         // Deduct leave credits
         $start = new DateTime($request['start_date']);

@@ -20,7 +20,7 @@ if (!$leave_id || !is_numeric($leave_id)) {
 }
 
 try {
-    // Get leave request details with employee information
+    // Get leave request details with employee information and signatures
     $stmt = $pdo->prepare("
         SELECT 
             lr.*,
@@ -33,7 +33,11 @@ try {
             e.vacation_leave_balance,
             e.sick_leave_balance,
             e.id as emp_id,
-            e.service_credit_balance AS sc_balance
+            e.service_credit_balance AS sc_balance,
+            lr.dept_head_signature,
+            lr.dept_head_signed_at,
+            lr.hr_signature,
+            lr.hr_signed_at
         FROM leave_requests lr
         JOIN employees e ON lr.employee_id = e.id
         WHERE lr.id = ?
@@ -292,6 +296,35 @@ try {
             text-align: center;
             font-size: 6pt;
             margin-top: 1px;
+        }
+        
+        /* Signature Image Styles */
+        .signature-container {
+            min-height: 40px;
+            position: relative;
+            text-align: center;
+        }
+        
+        .signature-container img {
+            max-width: 150px;
+            max-height: 35px;
+            display: block;
+            margin: 0 auto;
+        }
+        
+        .signature-timestamp {
+            font-size: 6pt;
+            color: #666;
+            text-align: center;
+            margin-top: 2px;
+        }
+        
+        /* Print-specific styles for signatures */
+        @media print {
+            .signature-container img {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
         }
         
         /* Footer */
@@ -733,11 +766,21 @@ try {
                             </tr>
                         </table>
                         <div style="margin-top: 15px; text-align: center; border-top: 1px solid #000; padding-top: 5px;">
-                            <?php if ($leaveRequest['admin_approval'] === 'approved' || ($leaveRequest['status'] === 'approved' && empty($leaveRequest['admin_approval']))): ?>
-                                <div class="approval-text">APPROVED</div>
-                            <?php endif; ?>
-                            <div class="signature-line" style="margin-top: 3px;"></div>
-                            <div style="font-weight: bold; font-size: 9pt; margin-top: 1px;">CRISTY XILDE R. AMANCIO, RPm</div>
+                            
+                            <!-- HR Signature and Name - Extremely Tight Layout -->
+                            <div style="margin-top: 5px; display: flex; flex-direction: column; align-items: center; gap: 0px;">
+                                <?php if (!empty($leaveRequest['hr_signature'])): ?>
+                                    <!-- Signature Image - Extremely Close -->
+                                    <img src="<?php echo htmlspecialchars($leaveRequest['hr_signature']); ?>" 
+                                         alt="HR Signature" 
+                                         style="max-width: 350px; max-height: 50px; width: auto; height: auto; margin-bottom: -8px;">
+                                <?php else: ?>
+                                    <div style="width: 200px; height: 1px; border-bottom: 1px solid #000; margin-bottom: -5px;"></div>
+                                <?php endif; ?>
+                                
+                                <!-- Name directly below signature -->
+                                <div style="font-weight: bold; font-size: 9pt; margin-top: -3px;">CRISTY XILDE R. AMANCIO, RPm</div>
+                            </div>
                             <div style="font-size: 7pt;">AO-IV/HRMO II</div>
                         </div>
                     </td>
@@ -760,11 +803,21 @@ try {
                             ?>
                         </div>
                         <div style="margin-top: 8px; text-align: center;">
-                            <?php if ($leaveRequest['admin_approval'] === 'approved' || ($leaveRequest['status'] === 'approved' && empty($leaveRequest['admin_approval']))): ?>
-                                <div class="approval-text">APPROVED</div>
-                            <?php endif; ?>
-                            <div class="signature-line" style="margin-top: 3px;"></div>
-                            <div class="signature-label">(Immediate Head)</div>
+                            
+                            <!-- Department Head Signature and Label - Extremely Tight Layout -->
+                            <div style="margin-top: 5px; display: flex; flex-direction: column; align-items: center; gap: 0px;">
+                                <?php if (!empty($leaveRequest['dept_head_signature'])): ?>
+                                    <!-- Signature Image - Extremely Close -->
+                                    <img src="<?php echo htmlspecialchars($leaveRequest['dept_head_signature']); ?>" 
+                                         alt="Department Head Signature" 
+                                         style="max-width: 350px; max-height: 50px; width: auto; height: auto; margin-bottom: -8px;">
+                                <?php else: ?>
+                                    <div style="width: 200px; height: 1px; border-bottom: 1px solid #000; margin-bottom: -5px;"></div>
+                                <?php endif; ?>
+                                
+                                <!-- Label directly below signature -->
+                                <div class="signature-label" style="margin-top: -3px;">(Immediate Head)</div>
+                            </div>
                         </div>
                     </td>
                 </tr>
@@ -825,10 +878,9 @@ try {
                 </tr>
                 <tr>
                     <td colspan="2" style="padding: 5px 2px; text-align: center; border-top: 1px solid #000;">
-                        <?php if ($leaveRequest['director_approval'] === 'approved' || ($leaveRequest['status'] === 'approved' && empty($leaveRequest['director_approval']))): ?>
-                            <div class="approval-text">APPROVED</div>
-                        <?php endif; ?>
+                        
                         <div class="signature-line" style="margin-top: 5px; width: 400px; margin-left: auto; margin-right: auto;"></div>
+                        
                         <div style="font-weight: bold; font-size: 9pt; margin-top: 1px;">MA. CARLA Y. ABAQUITA, Dev.Ed. D., RChE</div>
                         <div style="font-size: 7pt;">Campus Director</div>
                     </td>

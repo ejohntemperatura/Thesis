@@ -392,7 +392,7 @@ include '../../../../includes/admin_header.php';
                                             <th class="text-left py-3 px-4 text-sm font-semibold text-slate-300">Reason</th>
                                             <th class="text-left py-3 px-4 text-sm font-semibold text-slate-300">Dept. Head</th>
                                             <th class="text-left py-3 px-4 text-sm font-semibold text-slate-300">HR</th>
-                                            <th class="text-left py-3 px-4 text-sm font-semibold text-slate-300">Director Head</th>
+                                            <th class="text-left py-3 px-4 text-sm font-semibold text-slate-300">Campus Director</th>
                                             <th class="text-left py-3 px-4 text-sm font-semibold text-slate-300">Actions</th>
                                             </tr>
                                         </thead>
@@ -1244,9 +1244,9 @@ include '../../../../includes/admin_header.php';
                                 ${leaveRequest.admin_approved_at ? `<p class=\"text-xs text-slate-400\">${new Date(leaveRequest.admin_approved_at).toLocaleDateString()}</p>` : ''}
                                 ${leaveRequest.admin_rejection_reason ? `<p class=\"text-xs text-red-400 mt-1\">${leaveRequest.admin_rejection_reason}</p>` : ''}
                             </div>
-                            <!-- Director Head -->
+                            <!-- Campus Director -->
                             <div class="text-center">
-                                <label class="text-sm font-medium text-slate-400 mb-2 block">Director Head</label>
+                                <label class="text-sm font-medium text-slate-400 mb-2 block">Campus Director</label>
                                 <div class="mb-2">${getStatusBadge(
                                     leaveRequest.status === 'cancelled' ? 'cancelled' :
                                     (leaveRequest.director_approval || 'pending')
@@ -1999,7 +1999,58 @@ include '../../../../includes/admin_header.php';
         function closeAddLeaveCreditsModal() {
             document.getElementById('addLeaveCreditsModal').classList.add('hidden');
             document.body.style.overflow = 'auto';
+            // Reset form when closing
+            document.getElementById('leaveTypeSelect').value = '';
+            document.getElementById('expiryOptionsDiv').classList.add('hidden');
+            // Clear radio buttons
+            const radioButtons = document.querySelectorAll('input[name="expiry_rule"]');
+            radioButtons.forEach(radio => radio.checked = false);
         }
+        
+        // Show/hide expiry options based on leave type selection
+        document.addEventListener('DOMContentLoaded', function() {
+            const leaveTypeSelect = document.getElementById('leaveTypeSelect');
+            const expiryOptionsDiv = document.getElementById('expiryOptionsDiv');
+            
+            if (leaveTypeSelect && expiryOptionsDiv) {
+                leaveTypeSelect.addEventListener('change', function() {
+                    if (this.value) {
+                        // Show expiry options when any leave type is selected
+                        expiryOptionsDiv.classList.remove('hidden');
+                        // Set default expiry rule based on leave type
+                        const oneYearExpiryTypes = ['mandatory', 'cto', 'special_privilege'];
+                        if (oneYearExpiryTypes.includes(this.value)) {
+                            document.querySelector('input[name="expiry_rule"][value="one_year_expiry"]').checked = true;
+                        } else {
+                            // Vacation, sick leave, and other types default to no expiry
+                            document.querySelector('input[name="expiry_rule"][value="no_expiry"]').checked = true;
+                        }
+                    } else {
+                        // Hide expiry options when no leave type is selected
+                        expiryOptionsDiv.classList.add('hidden');
+                        // Clear radio buttons
+                        const radioButtons = document.querySelectorAll('input[name="expiry_rule"]');
+                        radioButtons.forEach(radio => radio.checked = false);
+                    }
+                });
+            }
+            
+            // Form validation for modal
+            const modalForm = document.getElementById('modalAddCreditForm');
+            if (modalForm) {
+                modalForm.addEventListener('submit', function(e) {
+                    const leaveType = document.getElementById('leaveTypeSelect').value;
+                    const expiryOptionsDiv = document.getElementById('expiryOptionsDiv');
+                    const expiryRuleSelected = document.querySelector('input[name="expiry_rule"]:checked');
+                    
+                    if (leaveType && !expiryOptionsDiv.classList.contains('hidden') && !expiryRuleSelected) {
+                        e.preventDefault();
+                        alert('Please select an expiry rule for the leave credits');
+                        return false;
+                    }
+                });
+            }
+        });
         
         // Close modal when clicking outside
         document.getElementById('addLeaveCreditsModal')?.addEventListener('click', function(e) {
@@ -2028,7 +2079,7 @@ include '../../../../includes/admin_header.php';
             </div>
             
             <!-- Modal Body -->
-            <form action="cto_management.php" method="POST">
+            <form action="cto_management.php" method="POST" id="modalAddCreditForm">
                 <div class="p-6 space-y-5">
                     <input type="hidden" name="action" value="add_leave_credit">
                     
@@ -2055,13 +2106,12 @@ include '../../../../includes/admin_header.php';
                         <label class="block text-sm font-semibold text-slate-300 mb-2">
                             <i class="fas fa-calendar-alt text-cyan-400 mr-2"></i>Leave Type
                         </label>
-                        <select name="leave_type" required class="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all appearance-none cursor-pointer" style="background-image: url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%2394a3b8%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e'); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1em;">
+                        <select name="leave_type" id="leaveTypeSelect" required class="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all appearance-none cursor-pointer" style="background-image: url('data:image/svg+xml;charset=UTF-8,%3csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%2394a3b8%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3e%3cpolyline points=%276 9 12 15 18 9%27%3e%3c/polyline%3e%3c/svg%3e'); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1em;">
                             <option value="">Select Leave Type</option>
                             <?php
                             $leaveTypesConfig = getLeaveTypes();
-                            $excludedTypes = ['vacation', 'sick', 'special_privilege', 'cto', 'service_credit'];
+                            // Include all leave types that require credits
                             foreach ($leaveTypesConfig as $key => $config):
-                                if (in_array($key, $excludedTypes)) continue;
                                 if ($config['requires_credits']):
                             ?>
                                 <option value="<?php echo $key; ?>">
@@ -2072,6 +2122,29 @@ include '../../../../includes/admin_header.php';
                             endforeach; 
                             ?>
                         </select>
+                    </div>
+                    
+                    <!-- Expiry Options (Conditional Field) -->
+                    <div id="expiryOptionsDiv" class="hidden">
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">
+                            <i class="fas fa-clock text-cyan-400 mr-2"></i>Expiry Rule
+                        </label>
+                        <div class="space-y-3">
+                            <label class="flex items-center p-3 bg-slate-900 border border-slate-600 rounded-xl cursor-pointer hover:bg-slate-800 transition-all">
+                                <input type="radio" name="expiry_rule" value="no_expiry" class="w-4 h-4 text-green-500 bg-slate-700 border-slate-500 focus:ring-green-500 focus:ring-2">
+                                <div class="ml-3">
+                                    <div class="text-white font-medium">No Expiry</div>
+                                    <div class="text-slate-400 text-sm">Credits do not expire and can be carried over indefinitely</div>
+                                </div>
+                            </label>
+                            <label class="flex items-center p-3 bg-slate-900 border border-slate-600 rounded-xl cursor-pointer hover:bg-slate-800 transition-all">
+                                <input type="radio" name="expiry_rule" value="one_year_expiry" class="w-4 h-4 text-green-500 bg-slate-700 border-slate-500 focus:ring-green-500 focus:ring-2">
+                                <div class="ml-3">
+                                    <div class="text-white font-medium">Expires within 1 year</div>
+                                    <div class="text-slate-400 text-sm">Credits expire exactly 1 year from the date they are granted</div>
+                                </div>
+                            </label>
+                        </div>
                     </div>
                     
                     <!-- Credits Amount -->

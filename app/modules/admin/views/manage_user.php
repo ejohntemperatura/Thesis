@@ -55,9 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $role = $_POST['role'] ?? 'employee';
                 $gender = isset($_POST['gender']) && in_array($_POST['gender'], ['male','female']) ? $_POST['gender'] : 'male';
                 $address = trim($_POST['address'] ?? '');
-                // Manual credit inputs (CTO & Service Credits only)
-                $ctoBal = isset($_POST['cto_balance']) ? (float)$_POST['cto_balance'] : null;
-                $serviceBal = isset($_POST['service_credit_balance']) ? (float)$_POST['service_credit_balance'] : null;
+
                 $maritalStatus = isset($_POST['marital_status']) && in_array($_POST['marital_status'], ['single','married','widowed','separated']) ? $_POST['marital_status'] : null;
 
                 // Validate email format
@@ -198,9 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $address = trim($_POST['address'] ?? '');
                 $maritalStatus = isset($_POST['marital_status']) && in_array($_POST['marital_status'], ['single','married','widowed','separated']) ? $_POST['marital_status'] : null;
                 
-                // Manual credit inputs (CTO & Service Credits only)
-                $ctoBal = isset($_POST['cto_balance']) && $_POST['cto_balance'] !== '' ? (float)$_POST['cto_balance'] : null;
-                $serviceBal = isset($_POST['service_credit_balance']) && $_POST['service_credit_balance'] !== '' ? (float)$_POST['service_credit_balance'] : null;
+
 
                 // Validate email format
                 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -234,12 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     // Only employees keep marital status; others set to NULL
                     if ($role !== 'employee') { $maritalStatus = null; }
-                    // Detect if service_credit_balance column exists
-                    $hasServiceCredit = false;
-                    try {
-                        $cols = $pdo->query("DESCRIBE employees")->fetchAll(PDO::FETCH_COLUMN);
-                        $hasServiceCredit = in_array('service_credit_balance', $cols);
-                    } catch (Exception $e) {}
+
 
                     // Get current employee data to check eligibility status
                     $currentStmt = $pdo->prepare("SELECT vacation_leave_balance, sick_leave_balance, special_leave_privilege_balance FROM employees WHERE id = ?");
@@ -272,99 +263,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     if ($role === 'employee') {
-                        // Build dynamic SQL to include service_credit_balance when available
-                        if ($hasServiceCredit) {
-                            if ($vacationBal !== null) {
-                                // Update with leave balances
-                                $stmt = $pdo->prepare("
-                                    UPDATE employees 
-                                    SET name = ?, first_name = ?, middle_name = ?, last_name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
-                                        is_solo_parent = ?, 
-                                        vacation_leave_balance = ?, sick_leave_balance = ?, special_leave_privilege_balance = ?,
-                                        cto_balance = cto_balance + ?, service_credit_balance = service_credit_balance + ?
-                                    WHERE id = ?
-                                ");
-                                $stmt->execute([
-                                    $name, $firstName, $middleName, $lastName, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
-                                    $isSoloParent, 
-                                    $vacationBal, $sickBal, $slpBal,
-                                    ($ctoBal !== null ? $ctoBal : 0),
-                                    ($serviceBal !== null ? $serviceBal : 0),
-                                    $id
-                                ]);
-                            } else {
-                                // Additive update for CTO and service credits only (leave balances unchanged)
-                                $stmt = $pdo->prepare("
-                                    UPDATE employees 
-                                    SET name = ?, first_name = ?, middle_name = ?, last_name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
-                                        is_solo_parent = ?, 
-                                        cto_balance = cto_balance + ?, service_credit_balance = service_credit_balance + ?
-                                    WHERE id = ?
-                                ");
-                                $stmt->execute([
-                                    $name, $firstName, $middleName, $lastName, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
-                                    $isSoloParent, 
-                                    ($ctoBal !== null ? $ctoBal : 0),
-                                    ($serviceBal !== null ? $serviceBal : 0),
-                                    $id
-                                ]);
-                            }
+                        if ($vacationBal !== null) {
+                            // Update with leave balances
+                            $stmt = $pdo->prepare("
+                                UPDATE employees 
+                                SET name = ?, first_name = ?, middle_name = ?, last_name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
+                                    is_solo_parent = ?, 
+                                    vacation_leave_balance = ?, sick_leave_balance = ?, special_leave_privilege_balance = ?
+                                WHERE id = ?
+                            ");
+                            $stmt->execute([
+                                $name, $firstName, $middleName, $lastName, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
+                                $isSoloParent, 
+                                $vacationBal, $sickBal, $slpBal,
+                                $id
+                            ]);
                         } else {
-                            if ($vacationBal !== null) {
-                                // Update with leave balances (no service_credit_balance column)
-                                $stmt = $pdo->prepare("
-                                    UPDATE employees 
-                                    SET name = ?, first_name = ?, middle_name = ?, last_name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
-                                        is_solo_parent = ?, 
-                                        vacation_leave_balance = ?, sick_leave_balance = ?, special_leave_privilege_balance = ?,
-                                        cto_balance = cto_balance + ?
-                                    WHERE id = ?
-                                ");
-                                $stmt->execute([
-                                    $name, $firstName, $middleName, $lastName, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
-                                    $isSoloParent, 
-                                    $vacationBal, $sickBal, $slpBal,
-                                    ($ctoBal !== null ? $ctoBal : 0),
-                                    $id
-                                ]);
-                            } else {
-                                // Additive update for CTO only (no service_credit_balance column)
-                                $stmt = $pdo->prepare("
-                                    UPDATE employees 
-                                    SET name = ?, first_name = ?, middle_name = ?, last_name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
-                                        is_solo_parent = ?, 
-                                        cto_balance = cto_balance + ?
-                                    WHERE id = ?
-                                ");
-                                $stmt->execute([
-                                    $name, $firstName, $middleName, $lastName, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
-                                    $isSoloParent, 
-                                    ($ctoBal !== null ? $ctoBal : 0),
-                                    $id
-                                ]);
-                            }
+                            // Update basic info only (leave balances unchanged)
+                            $stmt = $pdo->prepare("
+                                UPDATE employees 
+                                SET name = ?, first_name = ?, middle_name = ?, last_name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = ?,
+                                    is_solo_parent = ?
+                                WHERE id = ?
+                            ");
+                            $stmt->execute([
+                                $name, $firstName, $middleName, $lastName, $email, $position, $department, $contact, $role, $gender, $address, $maritalStatus, 
+                                $isSoloParent, 
+                                $id
+                            ]);
                         }
                     } else {
-                        // Do not alter VL/SL for non-employee roles
-                        if ($hasServiceCredit) {
-                            // Additive update for both CTO and service credits
-                            $stmt = $pdo->prepare("
-                                UPDATE employees 
-                                SET name = ?, first_name = ?, middle_name = ?, last_name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = NULL,
-                                    is_solo_parent = ?, cto_balance = cto_balance + ?, service_credit_balance = service_credit_balance + ?
-                                WHERE id = ?
-                            ");
-                            $stmt->execute([$name, $firstName, $middleName, $lastName, $email, $position, $department, $contact, $role, $gender, $address, $isSoloParent, ($ctoBal !== null ? $ctoBal : 0), ($serviceBal !== null ? $serviceBal : 0), $id]);
-                        } else {
-                            // Additive update for CTO only (no service_credit_balance column)
-                            $stmt = $pdo->prepare("
-                                UPDATE employees 
-                                SET name = ?, first_name = ?, middle_name = ?, last_name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = NULL,
-                                    is_solo_parent = ?, cto_balance = cto_balance + ?
-                                WHERE id = ?
-                            ");
-                            $stmt->execute([$name, $firstName, $middleName, $lastName, $email, $position, $department, $contact, $role, $gender, $address, $isSoloParent, ($ctoBal !== null ? $ctoBal : 0), $id]);
-                        }
+                        // Update basic info for non-employee roles (do not alter leave balances)
+                        $stmt = $pdo->prepare("
+                            UPDATE employees 
+                            SET name = ?, first_name = ?, middle_name = ?, last_name = ?, email = ?, position = ?, department = ?, contact = ?, role = ?, gender = ?, address = ?, marital_status = NULL,
+                                is_solo_parent = ?
+                            WHERE id = ?
+                        ");
+                        $stmt->execute([$name, $firstName, $middleName, $lastName, $email, $position, $department, $contact, $role, $gender, $address, $isSoloParent, $id]);
                     }
                     $_SESSION['success'] = "User updated successfully!";
                     header('Location: ' . $_SERVER['PHP_SELF']);
@@ -1029,29 +965,58 @@ include '../../../../includes/admin_header.php';
                     </div>
                 </div>
 
-                <!-- Manual Credits (CTO & Service Credits) -->
-                <div id="manualCreditsSection" class="bg-slate-700/40 border border-slate-600 rounded-xl p-4">
+
+
+                <!-- E-Signature Section (for Department Heads and HR/Admin only) -->
+                <div id="signatureSection" class="bg-slate-700/40 border border-slate-600 rounded-xl p-4" style="display: none;">
                     <div class="flex items-start justify-between mb-3">
                         <div class="flex items-center gap-2">
-                            <i class="fas fa-calculator text-primary"></i>
-                            <h6 class="font-semibold text-slate-200">Manual Credits</h6>
+                            <i class="fas fa-signature text-primary"></i>
+                            <h6 class="font-semibold text-slate-200">E-Signature Management</h6>
                         </div>
                     </div>
-                    <p class="text-slate-400 text-sm mb-4">Add CTO and service credits to this employee's balance. Values entered will be <strong class="text-green-400">added</strong> to their current balance.</p>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-slate-300 mb-2" for="editCTOBalance">
-                                CTO (hours) 
-                                <span class="text-xs text-slate-400 font-normal">- Add to balance</span>
-                            </label>
-                            <input type="number" step="0.5" min="0" id="editCTOBalance" name="cto_balance" placeholder="0" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white">
+                    <p class="text-slate-400 text-sm mb-4">Upload and manage e-signature for approval processes. This signature will be used for leave approvals and official documents.</p>
+                    
+                    <!-- Current Signature Display -->
+                    <div id="currentSignatureContainer" class="mb-4" style="display: none;">
+                        <h6 class="text-sm font-semibold text-slate-300 mb-2">Current Signature:</h6>
+                        <div class="bg-white p-3 rounded-lg border-2 border-dashed border-slate-400 inline-block">
+                            <img id="currentSignatureImage" src="" alt="Current Signature" style="max-width: 200px; max-height: 80px;">
                         </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-slate-300 mb-2" for="editServiceCreditBalance">
-                                Service Credits (days)
-                                <span class="text-xs text-slate-400 font-normal">- Add to balance</span>
-                            </label>
-                            <input type="number" step="0.5" min="0" id="editServiceCreditBalance" name="service_credit_balance" placeholder="0" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white">
+                        <div class="mt-2">
+                            <button type="button" onclick="removeSignature()" class="text-red-400 hover:text-red-300 text-sm">
+                                <i class="fas fa-trash mr-1"></i>Remove Signature
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Upload New Signature -->
+                    <div id="uploadSignatureContainer">
+                        <h6 class="text-sm font-semibold text-slate-300 mb-2">Upload New Signature:</h6>
+                        <div class="grid grid-cols-1 gap-4">
+                            <div>
+                                <label for="signatureFile" class="block text-sm text-slate-400 mb-2">
+                                    Select signature image (PNG, JPG, JPEG)
+                                </label>
+                                <input type="file" id="signatureFile" accept="image/png,image/jpeg,image/jpg" 
+                                       class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90">
+                            </div>
+                            <div class="flex gap-3">
+                                <button type="button" onclick="uploadSignature()" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                                    <i class="fas fa-upload mr-2"></i>Upload Signature
+                                </button>
+                                <button type="button" onclick="previewSignature()" class="bg-slate-600 hover:bg-slate-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                                    <i class="fas fa-eye mr-2"></i>Preview
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Preview Area -->
+                    <div id="signaturePreview" class="mt-4" style="display: none;">
+                        <h6 class="text-sm font-semibold text-slate-300 mb-2">Preview:</h6>
+                        <div class="bg-white p-3 rounded-lg border-2 border-dashed border-slate-400 inline-block">
+                            <img id="previewSignatureImage" src="" alt="Signature Preview" style="max-width: 200px; max-height: 80px;">
                         </div>
                     </div>
                 </div>
@@ -1420,14 +1385,11 @@ include '../../../../includes/admin_header.php';
                         const sick = parseFloat(u.sick_leave_balance || 0);
                         const slp = parseFloat(u.special_leave_privilege_balance || 0);
                         if (fusedEl) fusedEl.checked = (vac > 0 || sick > 0 || slp > 0);
-                        // Reset manual credit fields to 0 (additive entry - not showing current balance)
-                        const ctob = document.getElementById('editCTOBalance');
-                        const scb = document.getElementById('editServiceCreditBalance');
-                        // Both fields default to 0 since they are additive
-                        if (ctob) ctob.value = '0';
-                        if (scb) scb.value = '0';
+
                         // Toggle visibility by role
                         updateRoleDependentFields('edit');
+                        // Show signature section for department heads and HR
+                        showSignatureSection(role);
                         const addr = document.getElementById('editAddress');
                         const marital = document.getElementById('editMaritalStatus');
                         if (addr) addr.value = u.address || '';
@@ -1595,6 +1557,177 @@ include '../../../../includes/admin_header.php';
             // Clean up any misplaced elements in dropdowns
             cleanupDropdowns();
         });
+        
+        // Signature Management Functions
+        function showSignatureSection(role) {
+            const signatureSection = document.getElementById('signatureSection');
+            // Show signature section only for department heads (manager) and HR (admin)
+            if (role === 'manager' || role === 'admin') {
+                signatureSection.style.display = 'block';
+                loadCurrentSignature();
+            } else {
+                signatureSection.style.display = 'none';
+            }
+        }
+        
+        function loadCurrentSignature() {
+            const userId = document.getElementById('editId').value;
+            if (!userId) return;
+            
+            fetch(`../../../../api/get_user_signature.php?user_id=${userId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.signature) {
+                        document.getElementById('currentSignatureImage').src = data.signature;
+                        document.getElementById('currentSignatureContainer').style.display = 'block';
+                        document.getElementById('uploadSignatureContainer').querySelector('h6').textContent = 'Replace Signature:';
+                    } else {
+                        document.getElementById('currentSignatureContainer').style.display = 'none';
+                        document.getElementById('uploadSignatureContainer').querySelector('h6').textContent = 'Upload New Signature:';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading signature:', error);
+                });
+        }
+        
+        function previewSignature() {
+            const fileInput = document.getElementById('signatureFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showNotification('Please select a signature file first', 'warning');
+                return;
+            }
+            
+            // Validate file type
+            if (!file.type.match(/^image\/(png|jpeg|jpg)$/)) {
+                showNotification('Please select a PNG, JPG, or JPEG image', 'error');
+                return;
+            }
+            
+            // Validate file size (max 2MB)
+            if (file.size > 2 * 1024 * 1024) {
+                showNotification('File size must be less than 2MB', 'error');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('previewSignatureImage').src = e.target.result;
+                document.getElementById('signaturePreview').style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function uploadSignature() {
+            const fileInput = document.getElementById('signatureFile');
+            const file = fileInput.files[0];
+            const userId = document.getElementById('editId').value;
+            
+            if (!file) {
+                showNotification('Please select a signature file first', 'warning');
+                return;
+            }
+            
+            if (!userId) {
+                showNotification('User ID not found', 'error');
+                return;
+            }
+            
+            // Validate file type
+            if (!file.type.match(/^image\/(png|jpeg|jpg)$/)) {
+                showNotification('Please select a PNG, JPG, or JPEG image', 'error');
+                return;
+            }
+            
+            // Validate file size (max 2MB)
+            if (file.size > 2 * 1024 * 1024) {
+                showNotification('File size must be less than 2MB', 'error');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const signatureData = e.target.result;
+                
+                // Show loading state
+                const uploadBtn = document.querySelector('button[onclick="uploadSignature()"]');
+                const originalText = uploadBtn.innerHTML;
+                uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading...';
+                uploadBtn.disabled = true;
+                
+                fetch('../../../../api/upload_signature.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        userId: userId,
+                        signatureData: signatureData
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification('Signature uploaded successfully!', 'success');
+                        loadCurrentSignature(); // Reload to show new signature
+                        // Clear file input and preview
+                        fileInput.value = '';
+                        document.getElementById('signaturePreview').style.display = 'none';
+                    } else {
+                        showNotification('Error uploading signature: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification('Error uploading signature', 'error');
+                })
+                .finally(() => {
+                    // Restore button state
+                    uploadBtn.innerHTML = originalText;
+                    uploadBtn.disabled = false;
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function removeSignature() {
+            const userId = document.getElementById('editId').value;
+            
+            if (!userId) {
+                showNotification('User ID not found', 'error');
+                return;
+            }
+            
+            if (!confirm('Are you sure you want to remove this signature?')) {
+                return;
+            }
+            
+            fetch('../../../../api/remove_signature.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    userId: userId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Signature removed successfully!', 'success');
+                    document.getElementById('currentSignatureContainer').style.display = 'none';
+                    document.getElementById('uploadSignatureContainer').querySelector('h6').textContent = 'Upload New Signature:';
+                } else {
+                    showNotification('Error removing signature: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error removing signature', 'error');
+            });
+        }
         
         // Function to clean up misplaced elements in dropdowns
         function cleanupDropdowns() {

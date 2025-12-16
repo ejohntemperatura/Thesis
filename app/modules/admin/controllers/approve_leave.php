@@ -42,6 +42,11 @@ try {
     // Update HR/Admin approval
     $stmt = $pdo->prepare("UPDATE leave_requests SET admin_approval = 'approved', admin_approved_by = ?, admin_approved_at = NOW() WHERE id = ?");
     $stmt->execute([$_SESSION['user_id'], $request_id]);
+    
+    // Apply e-signature if available
+    require_once '../../../../app/core/services/SignatureService.php';
+    $signatureService = new SignatureService($pdo);
+    $signatureService->applyESignature($request_id, $_SESSION['user_id'], 'admin');
 
     // Fetch employee details for email notification
     $empStmt = $pdo->prepare("SELECT e.name AS employee_name, e.email AS employee_email FROM leave_requests lr JOIN employees e ON lr.employee_id = e.id WHERE lr.id = ?");

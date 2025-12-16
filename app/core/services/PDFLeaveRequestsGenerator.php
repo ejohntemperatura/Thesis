@@ -42,6 +42,10 @@ class PDFLeaveRequestsGenerator {
                 e.position,
                 e.department,
                 e.email,
+                lr.dept_head_signature,
+                lr.dept_head_signed_at,
+                lr.hr_signature,
+                lr.hr_signed_at,
                 CASE 
                     WHEN lr.approved_days IS NOT NULL AND lr.approved_days > 0 
                     THEN lr.approved_days
