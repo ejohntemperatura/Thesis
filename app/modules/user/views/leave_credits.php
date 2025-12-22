@@ -70,6 +70,29 @@ $stmt = $pdo->prepare("SELECT * FROM employees WHERE id = ?");
 $stmt->execute([$_SESSION['user_id']]);
 $employee = $stmt->fetch();
 
+// Get expiry information for 1-year expiry leave types
+$expiryInfo = [];
+$stmt = $pdo->prepare("
+    SELECT 
+        leave_type,
+        expiry_date,
+        DATEDIFF(expiry_date, CURDATE()) as days_until_expiry
+    FROM leave_credit_expiry_tracking 
+    WHERE employee_id = ? 
+    AND expiry_date >= CURDATE()
+    ORDER BY expiry_date ASC
+");
+$stmt->execute([$_SESSION['user_id']]);
+$expiryData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Group expiry data by leave type (get the earliest expiry for each type)
+foreach ($expiryData as $expiry) {
+    $leaveType = $expiry['leave_type'];
+    if (!isset($expiryInfo[$leaveType]) || $expiry['days_until_expiry'] < $expiryInfo[$leaveType]['days_until_expiry']) {
+        $expiryInfo[$leaveType] = $expiry;
+    }
+}
+
 // Get leave usage for selected year with detailed information
 $stmt = $pdo->prepare("
     SELECT 
@@ -299,6 +322,62 @@ include '../../../../includes/user_header.php';
                                 <span class="text-slate-400">Used (Approved):</span>
                                 <span class="text-white font-semibold"><?php echo number_format($usedAmount, 2); ?> <?php echo $type === 'cto' ? 'hours' : 'days'; ?></span>
                             </div>
+                            
+                            <?php 
+                            // Show expiry information for 1-year expiry types
+                            if (isset($expiryInfo[$type])): 
+                                $expiry = $expiryInfo[$type];
+                                $daysUntilExpiry = $expiry['days_until_expiry'];
+                                $expiryDate = $expiry['expiry_date'];
+                                
+                                // Determine urgency level
+                                $urgencyClass = 'text-green-400';
+                                $urgencyIcon = 'fas fa-check-circle';
+                                $urgencyText = 'Good';
+                                
+                                if ($daysUntilExpiry <= 15) {
+                                    $urgencyClass = 'text-red-400';
+                                    $urgencyIcon = 'fas fa-exclamation-triangle';
+                                    $urgencyText = 'Critical';
+                                } elseif ($daysUntilExpiry <= 45) {
+                                    $urgencyClass = 'text-orange-400';
+                                    $urgencyIcon = 'fas fa-clock';
+                                    $urgencyText = 'Urgent';
+                                }
+                            ?>
+                            <div class="bg-slate-700/50 rounded-lg p-3 mt-3">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <i class="<?php echo $urgencyIcon; ?> <?php echo $urgencyClass; ?>"></i>
+                                        <span class="text-sm font-semibold <?php echo $urgencyClass; ?>">1-Year Expiry</span>
+                                    </div>
+                                    <span class="text-xs <?php echo $urgencyClass; ?> font-semibold"><?php echo $urgencyText; ?></span>
+                                </div>
+                                <div class="text-xs text-slate-300">
+                                    <div class="flex justify-between">
+                                        <span>Expires on:</span>
+                                        <span class="font-mono"><?php echo date('M j, Y', strtotime($expiryDate)); ?></span>
+                                    </div>
+                                    <div class="flex justify-between mt-1">
+                                        <span>Days remaining:</span>
+                                        <span class="font-mono font-semibold <?php echo $urgencyClass; ?>">
+                                            <?php echo $daysUntilExpiry; ?> days
+                                        </span>
+                                    </div>
+                                </div>
+                                <?php if ($daysUntilExpiry <= 45): ?>
+                                <div class="mt-2 text-xs <?php echo $urgencyClass; ?>">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    <?php if ($daysUntilExpiry <= 15): ?>
+                                        Use immediately! Credits will be forfeited if not used.
+                                    <?php else: ?>
+                                        Plan your leave usage soon to avoid forfeiture.
+                                    <?php endif; ?>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                            <?php endif; ?>
+                            
                             <?php if ($type === 'vacation' && ($monetizationDeductions > 0 || $terminalDeductions > 0)): ?>
                             <div class="flex justify-between text-xs ml-4">
                                 <span class="text-slate-500">

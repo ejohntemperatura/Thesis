@@ -2014,25 +2014,71 @@ include '../../../../includes/admin_header.php';
             
             if (leaveTypeSelect && expiryOptionsDiv) {
                 leaveTypeSelect.addEventListener('change', function() {
+                    const noExpiryRadio = document.querySelector('input[name="expiry_rule"][value="no_expiry"]');
+                    const oneYearRadio = document.querySelector('input[name="expiry_rule"][value="one_year_expiry"]');
+                    const noExpiryLabel = noExpiryRadio ? noExpiryRadio.closest('label') : null;
+                    const oneYearLabel = oneYearRadio ? oneYearRadio.closest('label') : null;
+                    
                     if (this.value) {
                         // Show expiry options when any leave type is selected
                         expiryOptionsDiv.classList.remove('hidden');
+                        
                         // Set default expiry rule based on leave type
                         const oneYearExpiryTypes = ['mandatory', 'cto', 'special_privilege'];
+                        
                         if (oneYearExpiryTypes.includes(this.value)) {
-                            document.querySelector('input[name="expiry_rule"][value="one_year_expiry"]').checked = true;
+                            // For 1-year expiry types: disable "No Expiry" and force "Expires within 1 year"
+                            if (noExpiryRadio && noExpiryLabel) {
+                                noExpiryRadio.disabled = true;
+                                noExpiryRadio.checked = false;
+                                noExpiryLabel.classList.add('opacity-50', 'cursor-not-allowed');
+                                noExpiryLabel.classList.remove('cursor-pointer', 'hover:bg-slate-800');
+                            }
+                            if (oneYearRadio && oneYearLabel) {
+                                oneYearRadio.checked = true;
+                                oneYearRadio.disabled = false;
+                                oneYearLabel.classList.remove('opacity-50', 'cursor-not-allowed');
+                                oneYearLabel.classList.add('cursor-pointer', 'hover:bg-slate-800');
+                            }
                         } else {
-                            // Vacation, sick leave, and other types default to no expiry
-                            document.querySelector('input[name="expiry_rule"][value="no_expiry"]').checked = true;
+                            // For other leave types: disable "Expires within 1 year" and force "No Expiry"
+                            if (noExpiryRadio && noExpiryLabel) {
+                                noExpiryRadio.disabled = false;
+                                noExpiryRadio.checked = true;
+                                noExpiryLabel.classList.remove('opacity-50', 'cursor-not-allowed');
+                                noExpiryLabel.classList.add('cursor-pointer', 'hover:bg-slate-800');
+                            }
+                            if (oneYearRadio && oneYearLabel) {
+                                oneYearRadio.checked = false;
+                                oneYearRadio.disabled = true;
+                                oneYearLabel.classList.add('opacity-50', 'cursor-not-allowed');
+                                oneYearLabel.classList.remove('cursor-pointer', 'hover:bg-slate-800');
+                            }
                         }
                     } else {
                         // Hide expiry options when no leave type is selected
                         expiryOptionsDiv.classList.add('hidden');
-                        // Clear radio buttons
+                        
+                        // Reset all radio buttons and labels
                         const radioButtons = document.querySelectorAll('input[name="expiry_rule"]');
-                        radioButtons.forEach(radio => radio.checked = false);
+                        radioButtons.forEach(radio => {
+                            radio.checked = false;
+                            radio.disabled = false;
+                        });
+                        
+                        // Reset label styles
+                        const allLabels = [noExpiryLabel, oneYearLabel].filter(label => label);
+                        allLabels.forEach(label => {
+                            label.classList.remove('opacity-50', 'cursor-not-allowed');
+                            label.classList.add('cursor-pointer', 'hover:bg-slate-800');
+                        });
                     }
                 });
+                
+                // Trigger change event if a leave type is already selected on page load
+                if (leaveTypeSelect.value) {
+                    leaveTypeSelect.dispatchEvent(new Event('change'));
+                }
             }
             
             // Form validation for modal
